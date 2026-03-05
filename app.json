@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "Time2Pay",
+    "slug": "time2pay",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}
