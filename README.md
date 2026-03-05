@@ -1,40 +1,22 @@
 # Time2Pay
 
-Time2Pay is an Expo Router app for tracking sessions and drafting invoices. It is currently set up for a web-first build.
+Time2Pay is for contractors to track time, bill clients, and manage expenses.
 
-## Prerequisites
+## Current implementation focus
 
-- Node.js 20+
-- npm 10+
+- Phase 1 local-first web app.
+- Local database uses **expo-sqlite**.
+- Schema and typed data-access helpers are being implemented in `src/database/db.ts`.
 
-## Setup
+## Data layer status
 
-```bash
-npm install
-```
+Implemented:
+- SQLite database initialization (`time2pay.db`)
+- Tables: `clients`, `sessions`, `invoices`
+- Helpers for client creation, session start/stop, manual session entry, listing sessions, invoice creation, and linking sessions to invoices
 
-## Run locally (web-first)
+## Next steps
 
-```bash
-npm start
-```
-
-Or:
-
-```bash
-npm run web
-```
-
-## Project structure
-
-- `src/app` - Expo Router routes and layouts (`_layout.tsx`, `index.tsx`, `sessions.tsx`, `invoices.tsx`)
-- `src/components` - reusable UI components
-- `src/database` - data-access stubs (`db.ts`)
-- `src/services` - service stubs (`mercury.ts`)
-
-## Notes
-
-- Routing is file-based through Expo Router (`main: expo-router/entry`).
-- `src/app` is the app routing root, aligned with monorepo app structure.
-- Web output is configured with Metro server output in `app.json`.
-- Styling uses Uniwind (`global.css` + `metro.config.js`) with Tailwind v4 classes via `className`.
+- Bootstrap Expo app shell and screens/components.
+- Connect UI flows to the database layer.
+- Add invoice PDF generation and payment-link composition.
