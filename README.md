@@ -1,11 +1,11 @@
 # Time2Pay
 
-Time2Pay is an Expo + React Native starter app for contractors to track sessions and build invoices.
+Time2Pay is an Expo Router app for tracking sessions and drafting invoices. It is currently set up for a web-first build.
 
 ## Prerequisites
 
-- Node.js 18+
-- npm 9+
+- Node.js 20+
+- npm 10+
 
 ## Setup
 
@@ -13,13 +13,13 @@ Time2Pay is an Expo + React Native starter app for contractors to track sessions
 npm install
 ```
 
-## Run locally (web)
+## Run locally (web-first)
 
 ```bash
-npx expo start --web
+npm start
 ```
 
-You can also use the package script:
+Or:
 
 ```bash
 npm run web
@@ -27,45 +27,14 @@ npm run web
 
 ## Project structure
 
-- `src/components` – reusable UI placeholders (`Timer`, `SessionList`, `InvoiceBuilder`)
-- `src/screens` – app screens (`Dashboard`, `Sessions`, `Invoices`)
-- `src/database` – data-access stubs (`db.ts`)
-- `src/services` – external service stubs (`mercury.ts`)
-- `src/App.tsx` – root app layout and simple route switching
+- `src/app` - Expo Router routes and layouts (`_layout.tsx`, `index.tsx`, `sessions.tsx`, `invoices.tsx`)
+- `src/components` - reusable UI components
+- `src/database` - data-access stubs (`db.ts`)
+- `src/services` - service stubs (`mercury.ts`)
 
-## Troubleshooting install issues
+## Notes
 
-If `npm install` returns `403 Forbidden` when fetching from `registry.npmjs.org`, it usually means your current network/proxy/security policy is blocking package downloads. In that case:
-
-1. Confirm your npm registry:
-
-   ```bash
-   npm config get registry
-   ```
-
-2. Check active npm/proxy settings:
-
-   ```bash
-   npm config list
-   env | grep -i -E 'npm|proxy'
-   ```
-
-3. Retry from a network/profile with npm registry access, then run:
-
-   ```bash
-   npm install
-   npm run web
-   ```
-
-
-## Automated npm access diagnostics
-
-Run the helper script to capture a full report (versions, registry, proxy env, npm ping/install checks):
-
-```bash
-./scripts/diagnose-npm-access.sh
-```
-
-If installs are blocked and you want to file tracking work, use the issue template:
-
-- `.github/ISSUE_TEMPLATE/npm-install-403.md`
+- Routing is file-based through Expo Router (`main: expo-router/entry`).
+- `src/app` is the app routing root, aligned with monorepo app structure.
+- Web output is configured with Metro server output in `app.json`.
+- Styling uses Uniwind (`global.css` + `metro.config.js`) with Tailwind v4 classes via `className`.

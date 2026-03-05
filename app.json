@@ -4,11 +4,19 @@
     "slug": "time2pay",
     "version": "1.0.0",
     "orientation": "portrait",
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
     "assetBundlePatterns": [
       "**/*"
     ],
     "web": {
-      "bundler": "metro"
+      "bundler": "metro",
+      "output": "server"
     }
   }
 }

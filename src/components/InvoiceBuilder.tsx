@@ -1,23 +1,10 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
 export function InvoiceBuilder() {
   return (
-    <View style={styles.card}>
-      <Text style={styles.title}>Invoice Builder</Text>
-      <Text>Invoice drafting workflow will be implemented here.</Text>
+    <View className="gap-2 rounded-xl bg-card p-4">
+      <Text className="text-xl font-bold text-heading">Invoice Builder</Text>
+      <Text className="text-muted">Invoice drafting workflow will be implemented here.</Text>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  card: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    rowGap: 8,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '700',
-  },
-});
