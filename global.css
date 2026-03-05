@@ -1,0 +1,9 @@
+@import 'tailwindcss';
+@import 'uniwind';
+
+@theme {
+  --color-background: #f3f4f6;
+  --color-card: #ffffff;
+  --color-heading: #111827;
+  --color-muted: #4b5563;
+}
