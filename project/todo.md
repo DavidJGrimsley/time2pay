@@ -14,7 +14,7 @@
 
 ### 2) Complete Local Data Layer (`expo-sqlite`)
 - [x] Define schema and typed helpers in `src/database/db.ts`
-- [ ] Add lightweight validation around date/time and duration math
+- [x] Add lightweight validation around date/time and duration math
 - [ ] Add migration/versioning strategy for schema updates
 - [ ] Add tests (or executable validation script) for core DB operations
 

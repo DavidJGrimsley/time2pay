@@ -40,6 +40,36 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
+function parseIsoTimestamp(input: string, fieldName: string): Date {
+  const parsed = new Date(input);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error(`Invalid ${fieldName}: expected ISO-8601 timestamp`);
+  }
+  return parsed;
+}
+
+function ensureNonNegativeDurationMs(start: string, end: string): number {
+  const startDate = parseIsoTimestamp(start, 'start_time');
+  const endDate = parseIsoTimestamp(end, 'end_time');
+  const durationMs = endDate.getTime() - startDate.getTime();
+
+  if (durationMs < 0) {
+    throw new Error('Invalid session time range: end_time must be after start_time');
+  }
+
+  return durationMs;
+}
+
+function durationMsToSeconds(durationMs: number): number {
+  return Math.round(durationMs / 1000);
+}
+
+function assertInvoiceTotal(total: number): void {
+  if (!Number.isFinite(total) || total < 0) {
+    throw new Error('Invalid invoice total: expected a non-negative finite number');
+  }
+}
+
 export async function getDb(): Promise<SQLite.SQLiteDatabase> {
   if (!dbPromise) {
     dbPromise = (async () => {
@@ -128,6 +158,7 @@ export async function startSession(input: {
   const db = await getDb();
   const timestamp = nowIso();
   const startedAt = input.start_time ?? timestamp;
+  parseIsoTimestamp(startedAt, 'start_time');
 
   await db.runAsync(
     `INSERT INTO sessions (id, client, start_time, end_time, duration, notes, invoice_id, created_at, updated_at)
@@ -161,10 +192,7 @@ export async function stopSession(input: {
     throw new Error(`Session ${input.id} is already stopped`);
   }
 
-  const durationSeconds = Math.max(
-    0,
-    Math.round((new Date(endedAt).getTime() - new Date(row.start_time).getTime()) / 1000),
-  );
+  const durationSeconds = durationMsToSeconds(ensureNonNegativeDurationMs(row.start_time, endedAt));
 
   const result = await db.runAsync(
     `UPDATE sessions
@@ -190,9 +218,8 @@ export async function addManualSession(input: {
 }): Promise<void> {
   const db = await getDb();
   const timestamp = nowIso();
-  const durationSeconds = Math.max(
-    0,
-    Math.round((new Date(input.end_time).getTime() - new Date(input.start_time).getTime()) / 1000),
+  const durationSeconds = durationMsToSeconds(
+    ensureNonNegativeDurationMs(input.start_time, input.end_time),
   );
 
   await db.runAsync(
@@ -228,6 +255,7 @@ export async function createInvoice(input: {
 }): Promise<void> {
   const db = await getDb();
   const timestamp = nowIso();
+  assertInvoiceTotal(input.total);
 
   await db.runAsync(
     `INSERT INTO invoices (id, client_id, total, status, mercury_invoice_id, payment_link, created_at, updated_at)
