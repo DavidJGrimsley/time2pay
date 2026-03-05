@@ -51,6 +51,7 @@ export async function initializeDatabase(): Promise<void> {
   const db = await getDb();
 
   await db.execAsync(`
+    PRAGMA foreign_keys = ON;
     PRAGMA journal_mode = WAL;
 
     CREATE TABLE IF NOT EXISTS clients (
