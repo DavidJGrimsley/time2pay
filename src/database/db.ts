@@ -1,4 +1,10 @@
 import * as SQLite from 'expo-sqlite';
+import {
+  assertInvoiceTotal,
+  durationMsToSeconds,
+  ensureNonNegativeDurationMs,
+  parseIsoTimestamp,
+} from './validation';
 
 export type Session = {
   id: string;
@@ -38,36 +44,6 @@ let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
 function nowIso(): string {
   return new Date().toISOString();
-}
-
-function parseIsoTimestamp(input: string, fieldName: string): Date {
-  const parsed = new Date(input);
-  if (Number.isNaN(parsed.getTime())) {
-    throw new Error(`Invalid ${fieldName}: expected ISO-8601 timestamp`);
-  }
-  return parsed;
-}
-
-function ensureNonNegativeDurationMs(start: string, end: string): number {
-  const startDate = parseIsoTimestamp(start, 'start_time');
-  const endDate = parseIsoTimestamp(end, 'end_time');
-  const durationMs = endDate.getTime() - startDate.getTime();
-
-  if (durationMs < 0) {
-    throw new Error('Invalid session time range: end_time must be after start_time');
-  }
-
-  return durationMs;
-}
-
-function durationMsToSeconds(durationMs: number): number {
-  return Math.round(durationMs / 1000);
-}
-
-function assertInvoiceTotal(total: number): void {
-  if (!Number.isFinite(total) || total < 0) {
-    throw new Error('Invalid invoice total: expected a non-negative finite number');
-  }
 }
 
 export async function getDb(): Promise<SQLite.SQLiteDatabase> {
