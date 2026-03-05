@@ -56,3 +56,16 @@ If `npm install` returns `403 Forbidden` when fetching from `registry.npmjs.org`
    npm install
    npm run web
    ```
+
+
+## Automated npm access diagnostics
+
+Run the helper script to capture a full report (versions, registry, proxy env, npm ping/install checks):
+
+```bash
+./scripts/diagnose-npm-access.sh
+```
+
+If installs are blocked and you want to file tracking work, use the issue template:
+
+- `.github/ISSUE_TEMPLATE/npm-install-403.md`
