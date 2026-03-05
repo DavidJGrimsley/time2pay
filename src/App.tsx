@@ -1,9 +1,9 @@
 import { StatusBar } from 'expo-status-bar';
 import { useMemo, useState } from 'react';
 import { Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
-import { DashboardScreen } from './screens/Dashboard';
-import { InvoicesScreen } from './screens/Invoices';
-import { SessionsScreen } from './screens/Sessions';
+import { Dashboard } from './screens/Dashboard';
+import { Invoices } from './screens/Invoices';
+import { Sessions } from './screens/Sessions';
 
 type RouteKey = 'dashboard' | 'sessions' | 'invoices';
 
@@ -19,12 +19,12 @@ export default function App() {
   const content = useMemo(() => {
     switch (route) {
       case 'sessions':
-        return <SessionsScreen />;
+        return <Sessions />;
       case 'invoices':
-        return <InvoicesScreen />;
+        return <Invoices />;
       case 'dashboard':
       default:
-        return <DashboardScreen />;
+        return <Dashboard />;
     }
   }, [route]);
 
@@ -39,6 +39,7 @@ export default function App() {
                 key={nav.key}
                 style={[styles.navButton, active && styles.navButtonActive]}
                 onPress={() => setRoute(nav.key)}
+                accessibilityRole="button"
               >
                 <Text style={[styles.navLabel, active && styles.navLabelActive]}>{nav.label}</Text>
               </Pressable>
@@ -60,11 +61,11 @@ const styles = StyleSheet.create({
   wrapper: {
     flex: 1,
     padding: 24,
-    gap: 16,
+    rowGap: 16,
   },
   navRow: {
     flexDirection: 'row',
-    gap: 8,
+    columnGap: 8,
   },
   navButton: {
     backgroundColor: '#e5e7eb',

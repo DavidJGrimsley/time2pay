@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { Timer } from '../components/Timer';
 
-export function DashboardScreen() {
+export function Dashboard() {
   return (
     <View style={styles.container}>
       <Text style={styles.heading}>Dashboard</Text>
@@ -11,9 +11,11 @@ export function DashboardScreen() {
   );
 }
 
+export default Dashboard;
+
 const styles = StyleSheet.create({
   container: {
-    gap: 12,
+    rowGap: 12,
   },
   heading: {
     fontSize: 28,

@@ -14,7 +14,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     borderRadius: 12,
     padding: 16,
-    gap: 8,
+    rowGap: 8,
   },
   title: {
     fontSize: 18,
