@@ -144,8 +144,8 @@ export async function stopSession(input: {
   const db = await getDb();
   const endedAt = input.end_time ?? nowIso();
 
-  const row = await db.getFirstAsync<Pick<Session, 'start_time'>>(
-    'SELECT start_time FROM sessions WHERE id = ?',
+  const row = await db.getFirstAsync<Pick<Session, 'start_time' | 'end_time'>>(
+    'SELECT start_time, end_time FROM sessions WHERE id = ?',
     input.id,
   );
 
@@ -153,20 +153,28 @@ export async function stopSession(input: {
     throw new Error(`Session ${input.id} not found`);
   }
 
+  if (row.end_time) {
+    throw new Error(`Session ${input.id} is already stopped`);
+  }
+
   const durationSeconds = Math.max(
     0,
     Math.round((new Date(endedAt).getTime() - new Date(row.start_time).getTime()) / 1000),
   );
 
-  await db.runAsync(
+  const result = await db.runAsync(
     `UPDATE sessions
        SET end_time = ?, duration = ?, updated_at = ?
-     WHERE id = ?`,
+     WHERE id = ? AND end_time IS NULL`,
     endedAt,
     durationSeconds,
     nowIso(),
     input.id,
   );
+
+  if (result.changes === 0) {
+    throw new Error(`Session ${input.id} is already stopped`);
+  }
 }
 
 export async function addManualSession(input: {
