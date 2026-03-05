@@ -1,4 +1,10 @@
 import * as SQLite from 'expo-sqlite';
+import {
+  assertInvoiceTotal,
+  durationMsToSeconds,
+  ensureNonNegativeDurationMs,
+  parseIsoTimestamp,
+} from './validation';
 
 export type Session = {
   id: string;
@@ -128,6 +134,7 @@ export async function startSession(input: {
   const db = await getDb();
   const timestamp = nowIso();
   const startedAt = input.start_time ?? timestamp;
+  parseIsoTimestamp(startedAt, 'start_time');
 
   await db.runAsync(
     `INSERT INTO sessions (id, client, start_time, end_time, duration, notes, invoice_id, created_at, updated_at)
@@ -161,10 +168,7 @@ export async function stopSession(input: {
     throw new Error(`Session ${input.id} is already stopped`);
   }
 
-  const durationSeconds = Math.max(
-    0,
-    Math.round((new Date(endedAt).getTime() - new Date(row.start_time).getTime()) / 1000),
-  );
+  const durationSeconds = durationMsToSeconds(ensureNonNegativeDurationMs(row.start_time, endedAt));
 
   const result = await db.runAsync(
     `UPDATE sessions
@@ -190,9 +194,8 @@ export async function addManualSession(input: {
 }): Promise<void> {
   const db = await getDb();
   const timestamp = nowIso();
-  const durationSeconds = Math.max(
-    0,
-    Math.round((new Date(input.end_time).getTime() - new Date(input.start_time).getTime()) / 1000),
+  const durationSeconds = durationMsToSeconds(
+    ensureNonNegativeDurationMs(input.start_time, input.end_time),
   );
 
   await db.runAsync(
@@ -228,6 +231,7 @@ export async function createInvoice(input: {
 }): Promise<void> {
   const db = await getDb();
   const timestamp = nowIso();
+  assertInvoiceTotal(input.total);
 
   await db.runAsync(
     `INSERT INTO invoices (id, client_id, total, status, mercury_invoice_id, payment_link, created_at, updated_at)
