@@ -42,7 +42,11 @@ function nowIso(): string {
 
 export async function getDb(): Promise<SQLite.SQLiteDatabase> {
   if (!dbPromise) {
-    dbPromise = SQLite.openDatabaseAsync(DB_NAME);
+    dbPromise = (async () => {
+      const db = await SQLite.openDatabaseAsync(DB_NAME);
+      await db.execAsync('PRAGMA foreign_keys = ON;');
+      return db;
+    })();
   }
   return dbPromise;
 }
