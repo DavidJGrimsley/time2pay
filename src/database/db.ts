@@ -117,7 +117,7 @@ function buildTestId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function parseIsoTimestamp(input: string, fieldName: string): Date {
+function parseDbIsoTimestamp(input: string, fieldName: string): Date {
   const parsed = new Date(input);
   if (Number.isNaN(parsed.getTime())) {
     throw new Error(`Invalid ${fieldName}: expected ISO-8601 timestamp`);
@@ -125,9 +125,9 @@ function parseIsoTimestamp(input: string, fieldName: string): Date {
   return parsed;
 }
 
-function ensureNonNegativeDurationMs(start: string, end: string): number {
-  const startDate = parseIsoTimestamp(start, 'start_time');
-  const endDate = parseIsoTimestamp(end, 'end_time');
+function ensureNonNegativeDbDurationMs(start: string, end: string): number {
+  const startDate = parseDbIsoTimestamp(start, 'start_time');
+  const endDate = parseDbIsoTimestamp(end, 'end_time');
   const durationMs = endDate.getTime() - startDate.getTime();
 
   if (durationMs < 0) {
@@ -137,11 +137,11 @@ function ensureNonNegativeDurationMs(start: string, end: string): number {
   return durationMs;
 }
 
-function durationMsToSeconds(durationMs: number): number {
+function dbDurationMsToSeconds(durationMs: number): number {
   return Math.round(durationMs / 1000);
 }
 
-function assertInvoiceTotal(total: number): void {
+function assertDbInvoiceTotal(total: number): void {
   if (!Number.isFinite(total) || total < 0) {
     throw new Error('Invalid invoice total: expected a non-negative finite number');
   }
@@ -230,7 +230,7 @@ export async function startSession(input: {
   const db = await getDb();
   const timestamp = nowIso();
   const startedAt = input.start_time ?? timestamp;
-  parseIsoTimestamp(startedAt, 'start_time');
+  parseDbIsoTimestamp(startedAt, 'start_time');
 
   await db.runAsync(
     `INSERT INTO sessions (id, client, start_time, end_time, duration, notes, invoice_id, created_at, updated_at, deleted_at)
@@ -264,7 +264,7 @@ export async function stopSession(input: {
     throw new Error(`Session ${input.id} is already stopped`);
   }
 
-  const durationSeconds = durationMsToSeconds(ensureNonNegativeDurationMs(row.start_time, endedAt));
+  const durationSeconds = dbDurationMsToSeconds(ensureNonNegativeDbDurationMs(row.start_time, endedAt));
 
   const result = await db.runAsync(
     `UPDATE sessions
@@ -290,8 +290,8 @@ export async function addManualSession(input: {
 }): Promise<void> {
   const db = await getDb();
   const timestamp = nowIso();
-  const durationSeconds = durationMsToSeconds(
-    ensureNonNegativeDurationMs(input.start_time, input.end_time),
+  const durationSeconds = dbDurationMsToSeconds(
+    ensureNonNegativeDbDurationMs(input.start_time, input.end_time),
   );
 
   await db.runAsync(
@@ -327,7 +327,7 @@ export async function createInvoice(input: {
 }): Promise<void> {
   const db = await getDb();
   const timestamp = nowIso();
-  assertInvoiceTotal(input.total);
+  assertDbInvoiceTotal(input.total);
 
   await db.runAsync(
     `INSERT INTO invoices (id, client_id, total, status, mercury_invoice_id, payment_link, created_at, updated_at, deleted_at)
