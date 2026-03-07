@@ -7,27 +7,27 @@
 ## Immediate Next Actions
 
 ### 1) Bootstrap Expo Web App Shell
-- [ ] Create Expo app structure at repo root
-- [ ] Add screen scaffolding (`Dashboard`, `Sessions`, `Invoices`)
-- [ ] Add component scaffolding (`Timer`, `SessionList`, `InvoiceBuilder`)
-- [ ] Ensure app runs with `expo start --web`
+- [x] Create Expo app structure at repo root
+- [x] Add screen scaffolding (`Dashboard`, `Sessions`, `Invoices`)
+- [x] Add component scaffolding (`Timer`, `SessionList`, `InvoiceBuilder`)
+- [x] Ensure app runs with `expo start --web`
 
 ### 2) Complete Local Data Layer (`expo-sqlite`)
 - [x] Define schema and typed helpers in `src/database/db.ts`
 - [x] Add lightweight validation around date/time and duration math
-- [ ] Add migration/versioning strategy for schema updates
-- [ ] Add tests (or executable validation script) for core DB operations
+- [x] Add migration/versioning strategy for schema updates
+- [x] Add tests (or executable validation script) for core DB operations
 
 ### 3) Invoice Pipeline
-- [ ] Build invoice service for total-hours and total-amount calculations
-- [ ] Add jsPDF invoice export
-- [ ] Add PayPal payment link formatting/validation
-- [ ] Link selected sessions to invoice record
+- [x] Build invoice service for total-hours and total-amount calculations
+- [x] Add jsPDF invoice export
+- [x] Add PayPal payment link formatting/validation
+- [x] Link selected sessions to invoice record
 
 ## Phase 2 Preparation
-- [ ] Add sync-friendly columns where needed (`created_at`, `updated_at`, optional `deleted_at`)
-- [ ] Define API contract for sessions/invoices
-- [ ] Map local model fields to PostgreSQL/Supabase schema
+- [x] Add sync-friendly columns where needed (`created_at`, `updated_at`, optional `deleted_at`)
+- [x] Define API contract for sessions/invoices
+- [x] Map local model fields to PostgreSQL/Supabase schema
 
 ## Longer-Term
 - [ ] Multi-user support

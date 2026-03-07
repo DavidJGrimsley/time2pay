@@ -1,10 +1,10 @@
 # Time2Pay Task Board
 
 ## Task 1 — Bootstrap Phase 1 Expo Web app scaffold
-Status: Pending
+Status: Completed
 
 ## Task 2 — Define SQLite schema and typed data access layer (**expo-sqlite**)
-Status: In Progress
+Status: Completed
 
 Scope:
 - Use `expo-sqlite` as the local-first storage engine.
@@ -17,4 +17,4 @@ Scope:
   - linking sessions to invoice
 
 ## Task 3 — Implement invoice generation pipeline (jsPDF + payment links)
-Status: Pending
+Status: Completed
