@@ -51,7 +51,6 @@ const MIGRATIONS: { version: number; upSql: string }[] = [
     version: 1,
     upSql: `
       PRAGMA foreign_keys = ON;
-      PRAGMA journal_mode = WAL;
 
       CREATE TABLE IF NOT EXISTS clients (
         id TEXT PRIMARY KEY NOT NULL,
@@ -171,6 +170,7 @@ export async function getDb(): Promise<SQLite.SQLiteDatabase> {
     dbPromise = (async () => {
       const db = await SQLite.openDatabaseAsync(DB_NAME);
       await db.execAsync('PRAGMA foreign_keys = ON;');
+      await db.execAsync('PRAGMA journal_mode = WAL;');
       return db;
     })();
   }
