@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Linking, Pressable, Text, View } from 'react-native';
 import type { Session } from '@/database/db';
 import { listRuntimeSessions } from '@/services/session-runtime';
+import { buildCommitUrl } from '@/services/github';
 
 function formatDuration(duration: number | null): string {
   if (duration === null) {
@@ -71,6 +72,33 @@ export function SessionList() {
           <Text className="text-xs text-muted">{new Date(session.start_time).toLocaleString()}</Text>
           <Text className="text-sm text-muted">Duration: {formatDuration(session.duration)}</Text>
           {session.notes ? <Text className="text-sm text-muted">Notes: {session.notes}</Text> : null}
+          {session.commit_sha ? (
+            <View className="flex-row items-center gap-2">
+              <Text className="text-xs text-muted">Commit:</Text>
+              {(() => {
+                const url = buildCommitUrl(session.github_org, session.github_repo, session.commit_sha);
+                if (url) {
+                  return (
+                    <Pressable onPress={() => { Linking.openURL(url).catch(() => undefined); }}>
+                      <Text className="text-xs font-mono text-secondary underline">
+                        {session.commit_sha.slice(0, 7)}
+                      </Text>
+                    </Pressable>
+                  );
+                }
+                return (
+                  <Text className="text-xs font-mono text-muted">
+                    {session.commit_sha.slice(0, 7)}
+                  </Text>
+                );
+              })()}
+              {session.github_branch ? (
+                <View className="rounded-sm bg-primary/30 px-1.5 py-0.5">
+                  <Text className="text-xs text-heading">{session.github_branch}</Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
           {typeof session.break_count === 'number' && session.break_count > 0 ? (
             <Text className="text-xs text-muted">Breaks: {session.break_count}</Text>
           ) : null}

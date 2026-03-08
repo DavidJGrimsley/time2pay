@@ -9,12 +9,16 @@ export type Session = {
   client_name?: string | null;
   project_name?: string | null;
   task_name?: string | null;
+  github_org?: string | null;
+  github_repo?: string | null;
+  github_branch?: string | null;
   break_count?: number;
   is_paused?: number;
   start_time: string;
   end_time: string | null;
   duration: number | null;
   notes: string | null;
+  commit_sha: string | null;
   invoice_id: string | null;
   created_at: string;
   updated_at: string;
@@ -26,6 +30,7 @@ export type Client = {
   name: string;
   email: string | null;
   hourly_rate: number;
+  github_org: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -35,6 +40,7 @@ export type Project = {
   id: string;
   client_id: string;
   name: string;
+  github_repo: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -44,6 +50,7 @@ export type Task = {
   id: string;
   project_id: string;
   name: string;
+  github_branch: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -86,7 +93,7 @@ export type CoreDbValidationReport = {
 };
 
 const DB_NAME = 'time2pay.db';
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 
 const MIGRATIONS: { version: number; upSql: string }[] = [
   {
@@ -201,6 +208,15 @@ const MIGRATIONS: { version: number; upSql: string }[] = [
       CREATE INDEX IF NOT EXISTS idx_session_breaks_session_id ON session_breaks(session_id);
       CREATE INDEX IF NOT EXISTS idx_session_breaks_start_time ON session_breaks(start_time);
       CREATE INDEX IF NOT EXISTS idx_session_breaks_end_time ON session_breaks(end_time);
+    `,
+  },
+  {
+    version: 5,
+    upSql: `
+      ALTER TABLE clients ADD COLUMN github_org TEXT;
+      ALTER TABLE projects ADD COLUMN github_repo TEXT;
+      ALTER TABLE tasks ADD COLUMN github_branch TEXT;
+      ALTER TABLE sessions ADD COLUMN commit_sha TEXT;
     `,
   },
 ];
@@ -365,17 +381,19 @@ export async function createClient(input: {
   name: string;
   email?: string | null;
   hourly_rate?: number;
+  github_org?: string | null;
 }): Promise<void> {
   const db = await getDb();
   const timestamp = nowIso();
 
   await db.runAsync(
-    `INSERT INTO clients (id, name, email, hourly_rate, created_at, updated_at, deleted_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO clients (id, name, email, hourly_rate, github_org, created_at, updated_at, deleted_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     input.id,
     input.name,
     input.email ?? null,
     input.hourly_rate ?? 0,
+    input.github_org ?? null,
     timestamp,
     timestamp,
     null,
@@ -385,7 +403,7 @@ export async function createClient(input: {
 export async function listClients(): Promise<Client[]> {
   const db = await getDb();
   return db.getAllAsync<Client>(
-    `SELECT id, name, email, hourly_rate, created_at, updated_at, deleted_at
+    `SELECT id, name, email, hourly_rate, github_org, created_at, updated_at, deleted_at
      FROM clients
      WHERE deleted_at IS NULL
      ORDER BY name COLLATE NOCASE ASC`,
@@ -395,7 +413,7 @@ export async function listClients(): Promise<Client[]> {
 export async function getClientById(clientId: string): Promise<Client | null> {
   const db = await getDb();
   const row = await db.getFirstAsync<Client>(
-    `SELECT id, name, email, hourly_rate, created_at, updated_at, deleted_at
+    `SELECT id, name, email, hourly_rate, github_org, created_at, updated_at, deleted_at
      FROM clients
      WHERE id = ? AND deleted_at IS NULL`,
     clientId,
@@ -407,16 +425,18 @@ export async function createProject(input: {
   id: string;
   client_id: string;
   name: string;
+  github_repo?: string | null;
 }): Promise<void> {
   const db = await getDb();
   const timestamp = nowIso();
 
   await db.runAsync(
-    `INSERT INTO projects (id, client_id, name, created_at, updated_at, deleted_at)
-     VALUES (?, ?, ?, ?, ?, NULL)`,
+    `INSERT INTO projects (id, client_id, name, github_repo, created_at, updated_at, deleted_at)
+     VALUES (?, ?, ?, ?, ?, ?, NULL)`,
     input.id,
     input.client_id,
     input.name,
+    input.github_repo ?? null,
     timestamp,
     timestamp,
   );
@@ -425,7 +445,7 @@ export async function createProject(input: {
 export async function listProjectsByClient(clientId: string): Promise<Project[]> {
   const db = await getDb();
   return db.getAllAsync<Project>(
-    `SELECT id, client_id, name, created_at, updated_at, deleted_at
+    `SELECT id, client_id, name, github_repo, created_at, updated_at, deleted_at
      FROM projects
      WHERE client_id = ? AND deleted_at IS NULL
      ORDER BY name COLLATE NOCASE ASC`,
@@ -437,16 +457,18 @@ export async function createTask(input: {
   id: string;
   project_id: string;
   name: string;
+  github_branch?: string | null;
 }): Promise<void> {
   const db = await getDb();
   const timestamp = nowIso();
 
   await db.runAsync(
-    `INSERT INTO tasks (id, project_id, name, created_at, updated_at, deleted_at)
-     VALUES (?, ?, ?, ?, ?, NULL)`,
+    `INSERT INTO tasks (id, project_id, name, github_branch, created_at, updated_at, deleted_at)
+     VALUES (?, ?, ?, ?, ?, ?, NULL)`,
     input.id,
     input.project_id,
     input.name,
+    input.github_branch ?? null,
     timestamp,
     timestamp,
   );
@@ -455,7 +477,7 @@ export async function createTask(input: {
 export async function listTasksByProject(projectId: string): Promise<Task[]> {
   const db = await getDb();
   return db.getAllAsync<Task>(
-    `SELECT id, project_id, name, created_at, updated_at, deleted_at
+    `SELECT id, project_id, name, github_branch, created_at, updated_at, deleted_at
      FROM tasks
      WHERE project_id = ? AND deleted_at IS NULL
      ORDER BY name COLLATE NOCASE ASC`,
@@ -644,6 +666,9 @@ export async function listSessions(): Promise<Session[]> {
        c.name AS client_name,
        p.name AS project_name,
        t.name AS task_name,
+       c.github_org AS github_org,
+       p.github_repo AS github_repo,
+       t.github_branch AS github_branch,
        (
          SELECT COUNT(*)
            FROM session_breaks sb
@@ -661,6 +686,7 @@ export async function listSessions(): Promise<Session[]> {
        s.end_time,
        s.duration,
        s.notes,
+       s.commit_sha,
        s.invoice_id,
        s.created_at,
        s.updated_at,
@@ -693,6 +719,9 @@ export async function listSessionsByClientAndRange(input: {
        c.name AS client_name,
        p.name AS project_name,
        t.name AS task_name,
+       c.github_org AS github_org,
+       p.github_repo AS github_repo,
+       t.github_branch AS github_branch,
        (
          SELECT COUNT(*)
            FROM session_breaks sb
@@ -710,6 +739,7 @@ export async function listSessionsByClientAndRange(input: {
        s.end_time,
        s.duration,
        s.notes,
+       s.commit_sha,
        s.invoice_id,
        s.created_at,
        s.updated_at,
@@ -791,6 +821,9 @@ export async function listSessionsByInvoiceId(invoiceId: string): Promise<Sessio
        c.name AS client_name,
        p.name AS project_name,
        t.name AS task_name,
+       c.github_org AS github_org,
+       p.github_repo AS github_repo,
+       t.github_branch AS github_branch,
        (
          SELECT COUNT(*)
            FROM session_breaks sb
@@ -808,6 +841,7 @@ export async function listSessionsByInvoiceId(invoiceId: string): Promise<Sessio
        s.end_time,
        s.duration,
        s.notes,
+       s.commit_sha,
        s.invoice_id,
        s.created_at,
        s.updated_at,
@@ -838,6 +872,25 @@ export async function assignSessionsToInvoice(sessionIds: string[], invoiceId: s
     invoiceId,
     nowIso(),
     ...sessionIds,
+  );
+}
+
+export async function updateSessionNotes(input: {
+  id: string;
+  notes: string | null;
+  commit_sha?: string | null;
+}): Promise<void> {
+  const db = await getDb();
+  const timestamp = nowIso();
+
+  await db.runAsync(
+    `UPDATE sessions
+       SET notes = ?, commit_sha = ?, updated_at = ?
+     WHERE id = ? AND deleted_at IS NULL`,
+    input.notes,
+    input.commit_sha ?? null,
+    timestamp,
+    input.id,
   );
 }
 

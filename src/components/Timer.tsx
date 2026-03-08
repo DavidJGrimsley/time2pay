@@ -9,6 +9,7 @@ import {
   listClients,
   listProjectsByClient,
   listTasksByProject,
+  updateSessionNotes,
   type Client,
   type Project,
   type Session,
@@ -22,6 +23,10 @@ import {
   startRuntimeSession,
   stopRuntimeSession,
 } from '@/services/session-runtime';
+import {
+  SessionCompleteModal,
+  type SessionCompleteResult,
+} from '@/components/SessionCompleteModal';
 
 const LAST_SELECTIONS_KEY = 'time2pay.timer.last-selection';
 const EMPTY_PICKER_VALUE = '';
@@ -287,9 +292,12 @@ export function Timer() {
 
   const [newClientName, setNewClientName] = useState('');
   const [newClientEmail, setNewClientEmail] = useState('');
-  const [newClientRate, setNewClientRate] = useState('0');
+  const [newClientRate, setNewClientRate] = useState('');
+  const [newClientGithubOrg, setNewClientGithubOrg] = useState('');
   const [newProjectName, setNewProjectName] = useState('');
+  const [newProjectGithubRepo, setNewProjectGithubRepo] = useState('');
   const [newTaskName, setNewTaskName] = useState('');
+  const [newTaskGithubBranch, setNewTaskGithubBranch] = useState('');
   const [isCreatingManualSession, setIsCreatingManualSession] = useState(false);
   const [manualStartLocal, setManualStartLocal] = useState(() =>
     toLocalDateTimeInputValue(new Date(Date.now() - 60 * 60 * 1000)),
@@ -306,6 +314,10 @@ export function Timer() {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
+
+  const [showCompleteModal, setShowCompleteModal] = useState(false);
+  const [completedSessionId, setCompletedSessionId] = useState<string | null>(null);
+  const [completedSessionNotes, setCompletedSessionNotes] = useState<string | null>(null);
 
   const isClockedIn = useMemo(() => !!activeSession, [activeSession]);
 
@@ -384,6 +396,10 @@ export function Timer() {
       return;
     }
 
+    if (running.notes) {
+      setNotes(running.notes);
+    }
+
     if (running.client_id) {
       setSelectedClientId(running.client_id);
     }
@@ -458,6 +474,7 @@ export function Timer() {
       name,
       email: newClientEmail.trim() ? newClientEmail.trim() : null,
       hourly_rate: parsedRate,
+      github_org: newClientGithubOrg.trim() ? newClientGithubOrg.trim() : null,
     });
 
     await refreshClients();
@@ -465,7 +482,8 @@ export function Timer() {
     setIsCreatingClient(false);
     setNewClientName('');
     setNewClientEmail('');
-    setNewClientRate('0');
+    setNewClientRate('');
+    setNewClientGithubOrg('');
   }
 
   async function handleCreateProject(): Promise<void> {
@@ -486,12 +504,14 @@ export function Timer() {
       id: newId,
       client_id: selectedClientId,
       name,
+      github_repo: newProjectGithubRepo.trim() ? newProjectGithubRepo.trim() : null,
     });
 
     await refreshProjects(selectedClientId);
     setSelectedProjectId(newId);
     setIsCreatingProject(false);
     setNewProjectName('');
+    setNewProjectGithubRepo('');
   }
 
   async function handleCreateTask(): Promise<void> {
@@ -512,12 +532,14 @@ export function Timer() {
       id: newId,
       project_id: selectedProjectId,
       name,
+      github_branch: newTaskGithubBranch.trim() ? newTaskGithubBranch.trim() : null,
     });
 
     await refreshTasks(selectedProjectId);
     setSelectedTaskId(newId);
     setIsCreatingTask(false);
     setNewTaskName('');
+    setNewTaskGithubBranch('');
   }
 
   async function handleClockIn(): Promise<void> {
@@ -554,13 +576,16 @@ export function Timer() {
 
     try {
       await stopRuntimeSession(activeSession.id);
-      await refreshActiveSession();
+      const stoppedId = activeSession.id;
+      const currentNotes = activeSession.notes ?? (notes.trim() || null);
       saveLastSelection({
         clientId: selectedClientId,
         projectId: selectedProjectId,
         taskId: selectedTaskId,
       });
-      setMessage('Clocked out successfully.');
+      setCompletedSessionId(stoppedId);
+      setCompletedSessionNotes(currentNotes);
+      setShowCompleteModal(true);
     } catch (error: unknown) {
       setMessage(error instanceof Error ? error.message : 'Failed to clock out.');
     }
@@ -643,6 +668,53 @@ export function Timer() {
     }
   }
 
+  async function handleSessionCompleteSave(result: SessionCompleteResult): Promise<void> {
+    if (completedSessionId) {
+      try {
+        await updateSessionNotes({
+          id: completedSessionId,
+          notes: result.notes,
+          commit_sha: result.commitSha,
+        });
+      } catch {
+        // Best effort — session is already stopped, notes update is non-critical
+      }
+    }
+
+    setShowCompleteModal(false);
+    setCompletedSessionId(null);
+    setCompletedSessionNotes(null);
+    setNotes('');
+    await refreshActiveSession();
+    setMessage('Clocked out successfully.');
+  }
+
+  async function handleSessionCompleteSkip(): Promise<void> {
+    setShowCompleteModal(false);
+    setCompletedSessionId(null);
+    setCompletedSessionNotes(null);
+    setNotes('');
+    await refreshActiveSession();
+    setMessage('Clocked out successfully.');
+  }
+
+  async function handleNotesBlur(): Promise<void> {
+    if (!activeSession) {
+      return;
+    }
+
+    const trimmed = notes.trim() || null;
+    if (trimmed === (activeSession.notes ?? null)) {
+      return;
+    }
+
+    try {
+      await updateSessionNotes({ id: activeSession.id, notes: trimmed });
+    } catch {
+      // Best effort save
+    }
+  }
+
   return (
     <View className="gap-3 rounded-xl bg-card p-4">
       <Text className="text-xl font-bold text-heading">Timer</Text>
@@ -690,6 +762,14 @@ export function Timer() {
             keyboardType="numeric"
             className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
           />
+          <TextInput
+            value={newClientGithubOrg}
+            onChangeText={setNewClientGithubOrg}
+            placeholder="GitHub org / owner (optional)"
+            autoCapitalize="none"
+            autoCorrect={false}
+            className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
+          />
           <View className="flex-row gap-2">
             <Pressable className="rounded-md bg-secondary px-3 py-2" onPress={() => handleCreateClient()}>
               <Text className="font-semibold text-white">Save Client</Text>
@@ -728,6 +808,14 @@ export function Timer() {
             value={newProjectName}
             onChangeText={setNewProjectName}
             placeholder="Project name"
+            className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
+          />
+          <TextInput
+            value={newProjectGithubRepo}
+            onChangeText={setNewProjectGithubRepo}
+            placeholder="GitHub repo name (optional)"
+            autoCapitalize="none"
+            autoCorrect={false}
             className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
           />
           <View className="flex-row gap-2">
@@ -770,6 +858,14 @@ export function Timer() {
             placeholder="Task name"
             className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
           />
+          <TextInput
+            value={newTaskGithubBranch}
+            onChangeText={setNewTaskGithubBranch}
+            placeholder="GitHub branch (optional)"
+            autoCapitalize="none"
+            autoCorrect={false}
+            className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
+          />
           <View className="flex-row gap-2">
             <Pressable className="rounded-md bg-secondary px-3 py-2" onPress={() => handleCreateTask()}>
               <Text className="font-semibold text-white">Save Task</Text>
@@ -789,9 +885,11 @@ export function Timer() {
         <TextInput
           value={notes}
           onChangeText={setNotes}
+          onBlur={() => {
+            handleNotesBlur().catch(() => undefined);
+          }}
           placeholder="What you worked on this session"
           className="rounded-md border border-border bg-background px-3 py-2 text-foreground"
-          editable={!isClockedIn}
         />
       </View>
 
@@ -875,6 +973,20 @@ export function Timer() {
       ) : null}
 
       {message ? <Text className="text-sm text-muted">{message}</Text> : null}
+
+      <SessionCompleteModal
+        visible={showCompleteModal}
+        initialNotes={completedSessionNotes}
+        githubOrg={selectedClient?.github_org ?? null}
+        githubRepo={selectedProject?.github_repo ?? null}
+        githubBranch={selectedTask?.github_branch ?? null}
+        onSave={(result: SessionCompleteResult) => {
+          handleSessionCompleteSave(result).catch(() => undefined);
+        }}
+        onSkip={() => {
+          handleSessionCompleteSkip().catch(() => undefined);
+        }}
+      />
     </View>
   );
 }
