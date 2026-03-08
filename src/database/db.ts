@@ -654,6 +654,123 @@ export async function addManualSession(input: {
   );
 }
 
+export async function updateSession(input: {
+  id: string;
+  client_id: string;
+  project_id: string;
+  task_id: string;
+  start_time: string;
+  end_time: string;
+  notes?: string | null;
+}): Promise<void> {
+  const db = await getDb();
+
+  const existingSession = await db.getFirstAsync<Pick<Session, 'id' | 'invoice_id' | 'deleted_at'>>(
+    `SELECT id, invoice_id, deleted_at
+     FROM sessions
+     WHERE id = ?`,
+    input.id,
+  );
+
+  if (!existingSession || existingSession.deleted_at !== null) {
+    throw new Error(`Session ${input.id} not found`);
+  }
+
+  if (existingSession.invoice_id !== null) {
+    throw new Error('Invoiced sessions are locked and cannot be edited.');
+  }
+
+  const client = await db.getFirstAsync<Pick<Client, 'id' | 'name' | 'deleted_at'>>(
+    `SELECT id, name, deleted_at
+     FROM clients
+     WHERE id = ?`,
+    input.client_id,
+  );
+
+  if (!client || client.deleted_at !== null) {
+    throw new Error('Invalid client selection.');
+  }
+
+  const project = await db.getFirstAsync<Pick<Project, 'id' | 'deleted_at'>>(
+    `SELECT id, deleted_at
+     FROM projects
+     WHERE id = ?
+       AND client_id = ?`,
+    input.project_id,
+    input.client_id,
+  );
+
+  if (!project || project.deleted_at !== null) {
+    throw new Error('Invalid project selection for the selected client.');
+  }
+
+  const task = await db.getFirstAsync<Pick<Task, 'id' | 'deleted_at'>>(
+    `SELECT id, deleted_at
+     FROM tasks
+     WHERE id = ?
+       AND project_id = ?`,
+    input.task_id,
+    input.project_id,
+  );
+
+  if (!task || task.deleted_at !== null) {
+    throw new Error('Invalid task selection for the selected project.');
+  }
+
+  const startMs = parseDbIsoTimestamp(input.start_time, 'start_time').getTime();
+  const endMs = parseDbIsoTimestamp(input.end_time, 'end_time').getTime();
+  if (endMs <= startMs) {
+    throw new Error('Invalid session time range: end_time must be after start_time');
+  }
+
+  const sessionDurationMs = ensureNonNegativeDbDurationMs(input.start_time, input.end_time);
+  const breakRows = await db.getAllAsync<Pick<SessionBreak, 'start_time' | 'end_time'>>(
+    `SELECT start_time, end_time
+     FROM session_breaks
+     WHERE session_id = ?
+       AND deleted_at IS NULL`,
+    input.id,
+  );
+  const breakDurationMs = computeBreakDurationMs({
+    sessionStartIso: input.start_time,
+    sessionEndIso: input.end_time,
+    breaks: breakRows,
+  });
+  const billedDurationMs = Math.max(0, sessionDurationMs - breakDurationMs);
+  const durationSeconds = dbDurationMsToSeconds(billedDurationMs);
+  const timestamp = nowIso();
+
+  const result = await db.runAsync(
+    `UPDATE sessions
+       SET client = ?,
+           client_id = ?,
+           project_id = ?,
+           task_id = ?,
+           start_time = ?,
+           end_time = ?,
+           duration = ?,
+           notes = ?,
+           updated_at = ?
+     WHERE id = ?
+       AND deleted_at IS NULL
+       AND invoice_id IS NULL`,
+    client.name,
+    input.client_id,
+    input.project_id,
+    input.task_id,
+    input.start_time,
+    input.end_time,
+    durationSeconds,
+    input.notes ?? null,
+    timestamp,
+    input.id,
+  );
+
+  if (result.changes === 0) {
+    throw new Error('Unable to update session. It may have been invoiced or deleted.');
+  }
+}
+
 export async function listSessions(): Promise<Session[]> {
   const db = await getDb();
   return db.getAllAsync<Session>(

@@ -28,6 +28,7 @@
     "react-native-reanimated": "4.2.1",
     "react-native-safe-area-context": "~5.6.2",
     "react-native-screens": "~4.23.0",
+    "react-native-ui-datepicker": "^3.1.2",
     "react-native-web": "^0.21.0",
     "tailwindcss": "^4.1.16",
     "uniwind": "^1.2.9"

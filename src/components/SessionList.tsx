@@ -1,8 +1,92 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Linking, Pressable, Text, View } from 'react-native';
-import type { Session } from '@/database/db';
-import { listRuntimeSessions } from '@/services/session-runtime';
-import { buildCommitUrl } from '@/services/github';
+import { Picker } from '@react-native-picker/picker';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import {
+  createClient,
+  createProject,
+  createTask,
+  initializeDatabase,
+  listClients,
+  listProjectsByClient,
+  listTasksByProject,
+  type Client,
+  type Project,
+  type Session,
+  type Task,
+} from '@/database/db';
+import { CalendarDateField } from '@/components/calendar-date-field';
+import { listRuntimeSessions, updateRuntimeSession } from '@/services/session-runtime';
+
+const EMPTY_PICKER_VALUE = '';
+const CREATE_CLIENT_PICKER_VALUE = '__create_client__';
+const CREATE_PROJECT_PICKER_VALUE = '__create_project__';
+const CREATE_TASK_PICKER_VALUE = '__create_task__';
+
+type Option = {
+  id: string;
+  label: string;
+};
+
+type WeekGroup = {
+  key: string;
+  label: string;
+  sessions: Session[];
+};
+
+type SelectFieldProps = {
+  label?: string;
+  value: string | null;
+  options: Option[];
+  placeholder: string;
+  createValue?: string;
+  disabled?: boolean;
+  hideLabel?: boolean;
+  onSelect: (value: string | null) => void;
+  onCreateNew?: () => void;
+};
+
+function SelectField({
+  label = '',
+  value,
+  options,
+  placeholder,
+  createValue,
+  disabled = false,
+  hideLabel = false,
+  onSelect,
+  onCreateNew,
+}: SelectFieldProps) {
+  function handleValueChange(itemValue: string | number): void {
+    const next = String(itemValue ?? EMPTY_PICKER_VALUE);
+    if (createValue && onCreateNew && next === createValue) {
+      onCreateNew();
+      return;
+    }
+
+    onSelect(next || null);
+  }
+
+  return (
+    <View className="gap-2">
+      {!hideLabel ? <Text className="text-xs uppercase tracking-wide text-muted">{label}</Text> : null}
+      <View className={`rounded-md border border-border bg-background ${disabled ? 'opacity-60' : ''}`}>
+        <Picker
+          enabled={!disabled}
+          selectedValue={value ?? EMPTY_PICKER_VALUE}
+          onValueChange={handleValueChange}
+          dropdownIconColor="#1a1f16"
+          style={{ color: '#1a1f16' }}
+        >
+          <Picker.Item label={placeholder} value={EMPTY_PICKER_VALUE} />
+          {options.map((option) => (
+            <Picker.Item key={option.id} label={option.label} value={option.id} />
+          ))}
+          {createValue ? <Picker.Item label="+ Create new" value={createValue} /> : null}
+        </Picker>
+      </View>
+    </View>
+  );
+}
 
 function formatDuration(duration: number | null): string {
   if (duration === null) {
@@ -26,16 +110,172 @@ function getSessionStatus(session: Session): string {
   return 'Running';
 }
 
+function startOfWeekMonday(date: Date): Date {
+  const copy = new Date(date);
+  const day = copy.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  copy.setHours(0, 0, 0, 0);
+  copy.setDate(copy.getDate() + diff);
+  return copy;
+}
+
+function endOfWeekSunday(startMonday: Date): Date {
+  const copy = new Date(startMonday);
+  copy.setDate(copy.getDate() + 6);
+  copy.setHours(23, 59, 59, 999);
+  return copy;
+}
+
+function isoDateOnly(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function toLocalDatePart(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function toLocalTimePart(date: Date): string {
+  return formatTime12Hour(date.getHours(), date.getMinutes());
+}
+
+function toLocalDateTimeParts(iso: string): { datePart: string; timePart: string } {
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) {
+    const fallback = new Date();
+    return {
+      datePart: toLocalDatePart(fallback),
+      timePart: toLocalTimePart(fallback),
+    };
+  }
+
+  return {
+    datePart: toLocalDatePart(parsed),
+    timePart: toLocalTimePart(parsed),
+  };
+}
+
+function combineLocalDateAndTime(datePart: string, timePart: string): string | null {
+  if (!datePart) {
+    return null;
+  }
+
+  const parsedTime = parseTimeInputTo24Hour(timePart);
+  if (!parsedTime) {
+    return null;
+  }
+
+  const parsed = new Date(
+    `${datePart}T${String(parsedTime.hours24).padStart(2, '0')}:${String(parsedTime.minutes).padStart(2, '0')}:00`,
+  );
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed.toISOString();
+}
+
+function formatTime12Hour(hours24: number, minutes: number): string {
+  const period = hours24 >= 12 ? 'PM' : 'AM';
+  const hour12 = hours24 % 12 || 12;
+  return `${hour12}:${String(minutes).padStart(2, '0')} ${period}`;
+}
+
+function parseTimeInputTo24Hour(value: string): { hours24: number; minutes: number } | null {
+  const trimmed = value.trim().toUpperCase();
+  const twelveHourMatch = trimmed.match(/^(\d{1,2}):(\d{1,2})\s*([AP]M)$/);
+  if (twelveHourMatch) {
+    const hour12 = Number(twelveHourMatch[1]);
+    const minutes = Number(twelveHourMatch[2]);
+    const period = twelveHourMatch[3];
+    if (!Number.isInteger(hour12) || !Number.isInteger(minutes)) {
+      return null;
+    }
+    if (hour12 < 1 || hour12 > 12 || minutes < 0 || minutes > 59) {
+      return null;
+    }
+
+    const hours24 = period === 'PM' ? (hour12 % 12) + 12 : hour12 % 12;
+    return { hours24, minutes };
+  }
+
+  // Backward-compatible fallback for legacy 24-hour input.
+  const twentyFourHourMatch = trimmed.match(/^(\d{1,2}):(\d{1,2})$/);
+  if (!twentyFourHourMatch) {
+    return null;
+  }
+
+  const hours24 = Number(twentyFourHourMatch[1]);
+  const minutes = Number(twentyFourHourMatch[2]);
+  if (!Number.isInteger(hours24) || !Number.isInteger(minutes)) {
+    return null;
+  }
+  if (hours24 < 0 || hours24 > 23 || minutes < 0 || minutes > 59) {
+    return null;
+  }
+
+  return { hours24, minutes };
+}
+
+function normalizeTimeInput(value: string): string | null {
+  const parsed = parseTimeInputTo24Hour(value);
+  if (!parsed) {
+    return null;
+  }
+
+  return formatTime12Hour(parsed.hours24, parsed.minutes);
+}
+
+function createId(prefix: string): string {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
 export function SessionList() {
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [selectedClientFilterId, setSelectedClientFilterId] = useState<string | null>(null);
+
   const [isLoading, setIsLoading] = useState(true);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
+
+  const [editingSession, setEditingSession] = useState<Session | null>(null);
+  const [editClientId, setEditClientId] = useState<string | null>(null);
+  const [editProjectId, setEditProjectId] = useState<string | null>(null);
+  const [editTaskId, setEditTaskId] = useState<string | null>(null);
+  const [editStartDate, setEditStartDate] = useState('');
+  const [editStartTime, setEditStartTime] = useState('');
+  const [editEndDate, setEditEndDate] = useState('');
+  const [editEndTime, setEditEndTime] = useState('');
+  const [editNotes, setEditNotes] = useState('');
+  const [editError, setEditError] = useState<string | null>(null);
+  const [isCreatingEditClient, setIsCreatingEditClient] = useState(false);
+  const [isCreatingEditProject, setIsCreatingEditProject] = useState(false);
+  const [isCreatingEditTask, setIsCreatingEditTask] = useState(false);
+  const [newEditClientName, setNewEditClientName] = useState('');
+  const [newEditClientEmail, setNewEditClientEmail] = useState('');
+  const [newEditClientRate, setNewEditClientRate] = useState('');
+  const [newEditClientGithubOrg, setNewEditClientGithubOrg] = useState('');
+  const [newEditProjectName, setNewEditProjectName] = useState('');
+  const [newEditProjectGithubRepo, setNewEditProjectGithubRepo] = useState('');
+  const [newEditTaskName, setNewEditTaskName] = useState('');
+  const [newEditTaskGithubBranch, setNewEditTaskGithubBranch] = useState('');
 
   const load = useCallback(async () => {
     setError(null);
+    setStatus(null);
+    setIsLoading(true);
+
     try {
-      const data = await listRuntimeSessions();
-      setSessions(data.filter((session) => session.deleted_at === null));
+      await initializeDatabase();
+      const [sessionRows, clientRows] = await Promise.all([listRuntimeSessions(), listClients()]);
+      setSessions(sessionRows.filter((session) => session.deleted_at === null));
+      setClients(clientRows);
     } catch (loadError: unknown) {
       setError(loadError instanceof Error ? loadError.message : 'Failed to load sessions');
     } finally {
@@ -47,67 +287,644 @@ export function SessionList() {
     load().catch(() => undefined);
   }, [load]);
 
+  useEffect(() => {
+    if (!editingSession) {
+      return;
+    }
+
+    if (!editClientId) {
+      setProjects([]);
+      setEditProjectId(null);
+      return;
+    }
+
+    listProjectsByClient(editClientId)
+      .then((projectRows) => {
+        setProjects(projectRows);
+        setEditProjectId((current) => {
+          if (current && projectRows.some((project) => project.id === current)) {
+            return current;
+          }
+          return projectRows[0]?.id ?? null;
+        });
+      })
+      .catch((projectError: unknown) => {
+        setEditError(projectError instanceof Error ? projectError.message : 'Failed to load projects');
+      });
+  }, [editingSession, editClientId]);
+
+  useEffect(() => {
+    if (!editingSession) {
+      return;
+    }
+
+    if (!editProjectId) {
+      setTasks([]);
+      setEditTaskId(null);
+      return;
+    }
+
+    listTasksByProject(editProjectId)
+      .then((taskRows) => {
+        setTasks(taskRows);
+        setEditTaskId((current) => {
+          if (current && taskRows.some((task) => task.id === current)) {
+            return current;
+          }
+          return taskRows[0]?.id ?? null;
+        });
+      })
+      .catch((taskError: unknown) => {
+        setEditError(taskError instanceof Error ? taskError.message : 'Failed to load tasks');
+      });
+  }, [editingSession, editProjectId]);
+
+  const editRangeError = useMemo(() => {
+    if (!editingSession) {
+      return null;
+    }
+
+    const startIso = combineLocalDateAndTime(editStartDate, editStartTime);
+    const endIso = combineLocalDateAndTime(editEndDate, editEndTime);
+    if (!startIso || !endIso) {
+      return 'Use valid start/end date and time (e.g. 1:30 PM).';
+    }
+
+    if (new Date(endIso).getTime() <= new Date(startIso).getTime()) {
+      return 'End time must be after start time.';
+    }
+
+    return null;
+  }, [editingSession, editStartDate, editStartTime, editEndDate, editEndTime]);
+
+  const filteredSessions = useMemo(() => {
+    if (!selectedClientFilterId) {
+      return sessions;
+    }
+
+    return sessions.filter((session) => session.client_id === selectedClientFilterId);
+  }, [sessions, selectedClientFilterId]);
+
+  const groupedWeeks = useMemo<WeekGroup[]>(() => {
+    const weekMap = new Map<string, WeekGroup>();
+
+    for (const session of filteredSessions) {
+      const sessionDate = new Date(session.start_time);
+      if (Number.isNaN(sessionDate.getTime())) {
+        continue;
+      }
+
+      const monday = startOfWeekMonday(sessionDate);
+      const sunday = endOfWeekSunday(monday);
+      const key = isoDateOnly(monday);
+
+      const existing = weekMap.get(key);
+      if (existing) {
+        existing.sessions.push(session);
+        continue;
+      }
+
+      weekMap.set(key, {
+        key,
+        label: `${monday.toLocaleDateString()} - ${sunday.toLocaleDateString()}`,
+        sessions: [session],
+      });
+    }
+
+    return Array.from(weekMap.values())
+      .map((group) => ({
+        ...group,
+        sessions: [...group.sessions].sort((a, b) => (a.start_time < b.start_time ? 1 : -1)),
+      }))
+      .sort((a, b) => (a.key < b.key ? 1 : -1));
+  }, [filteredSessions]);
+
+  function closeEditModal(): void {
+    setEditingSession(null);
+    setEditError(null);
+    setProjects([]);
+    setTasks([]);
+    setIsCreatingEditClient(false);
+    setIsCreatingEditProject(false);
+    setIsCreatingEditTask(false);
+  }
+
+  function openEditModal(session: Session): void {
+    setError(null);
+    setStatus(null);
+
+    if (session.invoice_id) {
+      setStatus('Invoiced sessions are locked and cannot be edited.');
+      return;
+    }
+
+    if (!session.end_time) {
+      setStatus('Only completed sessions can be edited.');
+      return;
+    }
+
+    const startParts = toLocalDateTimeParts(session.start_time);
+    const endParts = toLocalDateTimeParts(session.end_time);
+    setEditingSession(session);
+    setEditClientId(session.client_id);
+    setEditProjectId(session.project_id);
+    setEditTaskId(session.task_id);
+    setEditStartDate(startParts.datePart);
+    setEditStartTime(startParts.timePart);
+    setEditEndDate(endParts.datePart);
+    setEditEndTime(endParts.timePart);
+    setEditNotes(session.notes ?? '');
+    setEditError(null);
+    setIsCreatingEditClient(false);
+    setIsCreatingEditProject(false);
+    setIsCreatingEditTask(false);
+  }
+
+  async function handleCreateEditClient(): Promise<void> {
+    setEditError(null);
+    const name = newEditClientName.trim();
+    if (!name) {
+      setEditError('Client name is required.');
+      return;
+    }
+
+    const parsedRate = Number(newEditClientRate || '0');
+    if (!Number.isFinite(parsedRate) || parsedRate < 0) {
+      setEditError('Hourly rate must be a non-negative number.');
+      return;
+    }
+
+    const newId = createId('client');
+    await createClient({
+      id: newId,
+      name,
+      email: newEditClientEmail.trim() ? newEditClientEmail.trim() : null,
+      hourly_rate: parsedRate,
+      github_org: newEditClientGithubOrg.trim() ? newEditClientGithubOrg.trim() : null,
+    });
+
+    const clientRows = await listClients();
+    setClients(clientRows);
+    setEditClientId(newId);
+    setIsCreatingEditClient(false);
+    setNewEditClientName('');
+    setNewEditClientEmail('');
+    setNewEditClientRate('');
+    setNewEditClientGithubOrg('');
+  }
+
+  async function handleCreateEditProject(): Promise<void> {
+    setEditError(null);
+    if (!editClientId) {
+      setEditError('Select a client before creating a project.');
+      return;
+    }
+
+    const name = newEditProjectName.trim();
+    if (!name) {
+      setEditError('Project name is required.');
+      return;
+    }
+
+    const newId = createId('project');
+    await createProject({
+      id: newId,
+      client_id: editClientId,
+      name,
+      github_repo: newEditProjectGithubRepo.trim() ? newEditProjectGithubRepo.trim() : null,
+    });
+
+    const projectRows = await listProjectsByClient(editClientId);
+    setProjects(projectRows);
+    setEditProjectId(newId);
+    setIsCreatingEditProject(false);
+    setNewEditProjectName('');
+    setNewEditProjectGithubRepo('');
+  }
+
+  async function handleCreateEditTask(): Promise<void> {
+    setEditError(null);
+    if (!editProjectId) {
+      setEditError('Select a project before creating a task.');
+      return;
+    }
+
+    const name = newEditTaskName.trim();
+    if (!name) {
+      setEditError('Task name is required.');
+      return;
+    }
+
+    const newId = createId('task');
+    await createTask({
+      id: newId,
+      project_id: editProjectId,
+      name,
+      github_branch: newEditTaskGithubBranch.trim() ? newEditTaskGithubBranch.trim() : null,
+    });
+
+    const taskRows = await listTasksByProject(editProjectId);
+    setTasks(taskRows);
+    setEditTaskId(newId);
+    setIsCreatingEditTask(false);
+    setNewEditTaskName('');
+    setNewEditTaskGithubBranch('');
+  }
+
+  async function handleSaveEdit(): Promise<void> {
+    if (!editingSession) {
+      return;
+    }
+
+    setEditError(null);
+
+    if (!editClientId || !editProjectId || !editTaskId) {
+      setEditError('Client, project, and task are required.');
+      return;
+    }
+
+    if (editRangeError) {
+      setEditError(editRangeError);
+      return;
+    }
+
+    const startIso = combineLocalDateAndTime(editStartDate, editStartTime);
+    const endIso = combineLocalDateAndTime(editEndDate, editEndTime);
+    if (!startIso || !endIso) {
+      setEditError('Start and end must be valid date and time values (e.g. 1:30 PM).');
+      return;
+    }
+
+    setIsSavingEdit(true);
+
+    try {
+      await updateRuntimeSession({
+        id: editingSession.id,
+        clientId: editClientId,
+        projectId: editProjectId,
+        taskId: editTaskId,
+        startTimeIso: startIso,
+        endTimeIso: endIso,
+        notes: editNotes.trim() ? editNotes.trim() : null,
+      });
+      closeEditModal();
+      await load();
+      setStatus('Session updated successfully.');
+    } catch (saveError: unknown) {
+      setEditError(saveError instanceof Error ? saveError.message : 'Failed to update session.');
+    } finally {
+      setIsSavingEdit(false);
+    }
+  }
+
   return (
-    <View className="gap-3 rounded-xl bg-card p-4">
-      <View className="flex-row items-center justify-between">
-        <Text className="text-xl font-bold text-heading">Session List</Text>
-        <Pressable className="rounded-md border border-border px-3 py-1" onPress={() => load()}>
-          <Text className="text-sm font-medium text-heading">Refresh</Text>
-        </Pressable>
+    <View className="gap-4">
+      <View className="gap-2">
+        <View className="flex-row items-start justify-between gap-4">
+          <Text className="text-3xl font-extrabold text-heading">Sessions</Text>
+          <View className="w-52">
+            <SelectField
+              hideLabel
+              value={selectedClientFilterId}
+              options={clients.map((client) => ({ id: client.id, label: client.name }))}
+              placeholder="All clients"
+              onSelect={(value) => setSelectedClientFilterId(value)}
+            />
+          </View>
+        </View>
+        <View className="flex-1">
+          <Text className="text-muted">Track and review your logged work sessions.</Text>
+        </View>
       </View>
 
       {isLoading ? <Text className="text-muted">Loading sessions...</Text> : null}
       {error ? <Text className="text-red-600">{error}</Text> : null}
+      {status ? <Text className="text-sm text-muted">{status}</Text> : null}
 
-      {!isLoading && sessions.length === 0 ? (
-        <Text className="text-muted">No sessions yet. Use Clock In on Dashboard.</Text>
+      {!isLoading && groupedWeeks.length === 0 ? (
+        <Text className="text-muted">
+          {selectedClientFilterId
+            ? 'No sessions found for this client.'
+            : 'No sessions yet. Use Clock In on Dashboard.'}
+        </Text>
       ) : null}
 
-      {sessions.slice(0, 10).map((session) => (
-        <View key={session.id} className="gap-1 rounded-md border border-border p-3">
-          <Text className="font-semibold text-heading">{session.client_name ?? session.client}</Text>
-          <Text className="text-sm text-muted">
-            {session.project_name ?? 'No project'} | {session.task_name ?? 'No task'}
-          </Text>
-          <Text className="text-xs text-muted">{new Date(session.start_time).toLocaleString()}</Text>
-          <Text className="text-sm text-muted">Duration: {formatDuration(session.duration)}</Text>
-          {session.notes ? <Text className="text-sm text-muted">Notes: {session.notes}</Text> : null}
-          {session.commit_sha ? (
-            <View className="flex-row items-center gap-2">
-              <Text className="text-xs text-muted">Commit:</Text>
-              {(() => {
-                const url = buildCommitUrl(session.github_org, session.github_repo, session.commit_sha);
-                if (url) {
-                  return (
-                    <Pressable onPress={() => { Linking.openURL(url).catch(() => undefined); }}>
-                      <Text className="text-xs font-mono text-secondary underline">
-                        {session.commit_sha.slice(0, 7)}
-                      </Text>
-                    </Pressable>
-                  );
-                }
-                return (
-                  <Text className="text-xs font-mono text-muted">
-                    {session.commit_sha.slice(0, 7)}
-                  </Text>
-                );
-              })()}
-              {session.github_branch ? (
-                <View className="rounded-sm bg-primary/30 px-1.5 py-0.5">
-                  <Text className="text-xs text-heading">{session.github_branch}</Text>
+      {groupedWeeks.map((weekGroup) => (
+        <View key={weekGroup.key} className="gap-3 rounded-xl border border-border bg-card p-4">
+          <Text className="text-lg font-bold text-heading">{weekGroup.label}</Text>
+          {weekGroup.sessions.map((session) => {
+            const isInvoiced = session.invoice_id !== null;
+            const cardClass = isInvoiced
+              ? 'gap-2 rounded-md border border-invoiced-surface bg-invoiced-surface p-3'
+              : 'gap-2 rounded-md border border-border bg-background p-3';
+            const headingTextClass = isInvoiced ? 'font-semibold text-invoiced-text' : 'font-semibold text-heading';
+            const bodyTextClass = isInvoiced ? 'text-sm text-invoiced-muted' : 'text-sm text-foreground';
+            const metaTextClass = isInvoiced ? 'text-xs text-invoiced-muted' : 'text-xs text-muted';
+            const buttonClass = isInvoiced
+              ? 'rounded-md border border-invoiced-muted px-3 py-1'
+              : 'rounded-md border border-border px-3 py-1';
+            const buttonTextClass = isInvoiced
+              ? 'text-sm font-semibold text-invoiced-text'
+              : 'text-sm font-semibold text-heading';
+
+            return (
+              <View key={session.id} className={cardClass}>
+                <View className="flex-row items-start justify-between gap-3">
+                  <View className="flex-1 gap-1">
+                    <Text className={headingTextClass}>{session.client_name ?? session.client}</Text>
+                    <Text className={bodyTextClass}>
+                      {session.project_name ?? 'No project'} | {session.task_name ?? 'No task'}
+                    </Text>
+                  </View>
+                  <Pressable className={buttonClass} onPress={() => openEditModal(session)}>
+                    <Text className={buttonTextClass}>Edit</Text>
+                  </Pressable>
                 </View>
-              ) : null}
-            </View>
-          ) : null}
-          {typeof session.break_count === 'number' && session.break_count > 0 ? (
-            <Text className="text-xs text-muted">Breaks: {session.break_count}</Text>
-          ) : null}
-          <Text className="text-xs text-muted">
-            Status: {getSessionStatus(session)}
-            {session.invoice_id ? ' | Invoiced' : ' | Uninvoiced'}
-          </Text>
+
+                <Text className={metaTextClass}>{new Date(session.start_time).toLocaleString()}</Text>
+                <Text className={bodyTextClass}>Duration: {formatDuration(session.duration)}</Text>
+                {session.notes ? <Text className={bodyTextClass}>Notes: {session.notes}</Text> : null}
+                {typeof session.break_count === 'number' && session.break_count > 0 ? (
+                  <Text className={metaTextClass}>Breaks: {session.break_count}</Text>
+                ) : null}
+                <Text className={metaTextClass}>
+                  Status: {getSessionStatus(session)} |{' '}
+                  <Text className={isInvoiced ? 'font-semibold text-success' : 'font-semibold text-secondary'}>
+                    {isInvoiced ? 'Invoiced' : 'Uninvoiced'}
+                  </Text>
+                </Text>
+              </View>
+            );
+          })}
         </View>
       ))}
+
+      <Modal
+        visible={editingSession !== null}
+        transparent
+        animationType="slide"
+        onRequestClose={closeEditModal}
+      >
+        <View className="flex-1 justify-end bg-black/45">
+          <View className="max-h-[90%] gap-3 rounded-t-2xl bg-card p-4">
+            <View className="flex-row items-center justify-between">
+              <Text className="text-xl font-bold text-heading">Edit Session</Text>
+              <Pressable className="rounded-md border border-border px-3 py-1" onPress={closeEditModal}>
+                <Text className="font-semibold text-heading">Close</Text>
+              </Pressable>
+            </View>
+
+            <ScrollView contentInsetAdjustmentBehavior="automatic">
+              <View className="gap-3 pb-4">
+                <SelectField
+                  label="Client"
+                  value={editClientId}
+                  options={clients.map((client) => ({ id: client.id, label: client.name }))}
+                  placeholder="Select client"
+                  createValue={CREATE_CLIENT_PICKER_VALUE}
+                  onSelect={(value) => {
+                    setEditClientId(value);
+                    setIsCreatingEditClient(false);
+                  }}
+                  onCreateNew={() => {
+                    setIsCreatingEditClient(true);
+                    setIsCreatingEditProject(false);
+                    setIsCreatingEditTask(false);
+                  }}
+                />
+                {isCreatingEditClient ? (
+                  <View className="gap-2 rounded-md border border-border bg-background p-3">
+                    <TextInput
+                      value={newEditClientName}
+                      onChangeText={setNewEditClientName}
+                      placeholder="Client name"
+                      className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
+                    />
+                    <TextInput
+                      value={newEditClientEmail}
+                      onChangeText={setNewEditClientEmail}
+                      placeholder="Accounting email (optional)"
+                      keyboardType="email-address"
+                      className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
+                    />
+                    <TextInput
+                      value={newEditClientRate}
+                      onChangeText={setNewEditClientRate}
+                      placeholder="Hourly rate (optional)"
+                      keyboardType="numeric"
+                      className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
+                    />
+                    <TextInput
+                      value={newEditClientGithubOrg}
+                      onChangeText={setNewEditClientGithubOrg}
+                      placeholder="GitHub org / owner (optional)"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
+                    />
+                    <View className="flex-row gap-2">
+                      <Pressable
+                        className="rounded-md bg-secondary px-3 py-2"
+                        onPress={() => {
+                          handleCreateEditClient().catch((error: unknown) => {
+                            setEditError(error instanceof Error ? error.message : 'Failed to create client.');
+                          });
+                        }}
+                      >
+                        <Text className="font-semibold text-white">Save Client</Text>
+                      </Pressable>
+                      <Pressable
+                        className="rounded-md border border-border px-3 py-2"
+                        onPress={() => setIsCreatingEditClient(false)}
+                      >
+                        <Text className="font-semibold text-heading">Cancel</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                ) : null}
+
+                <SelectField
+                  label="Project"
+                  value={editProjectId}
+                  options={projects.map((project) => ({ id: project.id, label: project.name }))}
+                  placeholder="Select project"
+                  disabled={!editClientId}
+                  createValue={CREATE_PROJECT_PICKER_VALUE}
+                  onSelect={(value) => {
+                    setEditProjectId(value);
+                    setIsCreatingEditProject(false);
+                  }}
+                  onCreateNew={() => {
+                    setIsCreatingEditProject(true);
+                    setIsCreatingEditClient(false);
+                    setIsCreatingEditTask(false);
+                  }}
+                />
+                {isCreatingEditProject ? (
+                  <View className="gap-2 rounded-md border border-border bg-background p-3">
+                    <TextInput
+                      value={newEditProjectName}
+                      onChangeText={setNewEditProjectName}
+                      placeholder="Project name"
+                      className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
+                    />
+                    <TextInput
+                      value={newEditProjectGithubRepo}
+                      onChangeText={setNewEditProjectGithubRepo}
+                      placeholder="GitHub repo name (optional)"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
+                    />
+                    <View className="flex-row gap-2">
+                      <Pressable
+                        className="rounded-md bg-secondary px-3 py-2"
+                        onPress={() => {
+                          handleCreateEditProject().catch((error: unknown) => {
+                            setEditError(error instanceof Error ? error.message : 'Failed to create project.');
+                          });
+                        }}
+                      >
+                        <Text className="font-semibold text-white">Save Project</Text>
+                      </Pressable>
+                      <Pressable
+                        className="rounded-md border border-border px-3 py-2"
+                        onPress={() => setIsCreatingEditProject(false)}
+                      >
+                        <Text className="font-semibold text-heading">Cancel</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                ) : null}
+
+                <SelectField
+                  label="Task"
+                  value={editTaskId}
+                  options={tasks.map((task) => ({ id: task.id, label: task.name }))}
+                  placeholder="Select task"
+                  disabled={!editProjectId}
+                  createValue={CREATE_TASK_PICKER_VALUE}
+                  onSelect={(value) => {
+                    setEditTaskId(value);
+                    setIsCreatingEditTask(false);
+                  }}
+                  onCreateNew={() => {
+                    setIsCreatingEditTask(true);
+                    setIsCreatingEditClient(false);
+                    setIsCreatingEditProject(false);
+                  }}
+                />
+                {isCreatingEditTask ? (
+                  <View className="gap-2 rounded-md border border-border bg-background p-3">
+                    <TextInput
+                      value={newEditTaskName}
+                      onChangeText={setNewEditTaskName}
+                      placeholder="Task name"
+                      className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
+                    />
+                    <TextInput
+                      value={newEditTaskGithubBranch}
+                      onChangeText={setNewEditTaskGithubBranch}
+                      placeholder="GitHub branch (optional)"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
+                    />
+                    <View className="flex-row gap-2">
+                      <Pressable
+                        className="rounded-md bg-secondary px-3 py-2"
+                        onPress={() => {
+                          handleCreateEditTask().catch((error: unknown) => {
+                            setEditError(error instanceof Error ? error.message : 'Failed to create task.');
+                          });
+                        }}
+                      >
+                        <Text className="font-semibold text-white">Save Task</Text>
+                      </Pressable>
+                      <Pressable
+                        className="rounded-md border border-border px-3 py-2"
+                        onPress={() => setIsCreatingEditTask(false)}
+                      >
+                        <Text className="font-semibold text-heading">Cancel</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                ) : null}
+
+                <CalendarDateField label="Start Date" value={editStartDate} onChange={setEditStartDate} />
+
+                <View className="gap-2">
+                  <Text className="text-xs uppercase tracking-wide text-muted">Start Time</Text>
+                  <TextInput
+                    value={editStartTime}
+                    onChangeText={setEditStartTime}
+                  onBlur={() => {
+                    const normalized = normalizeTimeInput(editStartTime);
+                    if (normalized) {
+                      setEditStartTime(normalized);
+                    }
+                  }}
+                    placeholder="h:mm AM/PM"
+                    keyboardType="numbers-and-punctuation"
+                    className="rounded-md border border-border bg-background px-3 py-2 text-foreground"
+                  />
+                </View>
+
+                <CalendarDateField label="End Date" value={editEndDate} onChange={setEditEndDate} />
+
+                <View className="gap-2">
+                  <Text className="text-xs uppercase tracking-wide text-muted">End Time</Text>
+                  <TextInput
+                    value={editEndTime}
+                    onChangeText={setEditEndTime}
+                  onBlur={() => {
+                    const normalized = normalizeTimeInput(editEndTime);
+                    if (normalized) {
+                      setEditEndTime(normalized);
+                    }
+                  }}
+                    placeholder="h:mm AM/PM"
+                    keyboardType="numbers-and-punctuation"
+                    className="rounded-md border border-border bg-background px-3 py-2 text-foreground"
+                  />
+                </View>
+                {editRangeError ? <Text className="text-red-600">{editRangeError}</Text> : null}
+
+                <View className="gap-2">
+                  <Text className="text-xs uppercase tracking-wide text-muted">Notes (optional)</Text>
+                  <TextInput
+                    value={editNotes}
+                    onChangeText={setEditNotes}
+                    placeholder="Session notes"
+                    className="rounded-md border border-border bg-background px-3 py-2 text-foreground"
+                  />
+                </View>
+
+                {editError ? <Text className="text-red-600">{editError}</Text> : null}
+
+                <View className="flex-row gap-2">
+                  <Pressable
+                    className="flex-1 rounded-md border border-border px-4 py-2"
+                    onPress={closeEditModal}
+                    disabled={isSavingEdit}
+                  >
+                    <Text className="text-center font-semibold text-heading">Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    className={`flex-1 rounded-md px-4 py-2 ${editRangeError ? 'bg-secondary/60' : 'bg-secondary'}`}
+                    onPress={handleSaveEdit}
+                    disabled={isSavingEdit || Boolean(editRangeError)}
+                  >
+                    <Text className="text-center font-semibold text-white">
+                      {isSavingEdit ? 'Saving...' : 'Save Changes'}
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }

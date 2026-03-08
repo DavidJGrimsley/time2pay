@@ -27,6 +27,7 @@ import {
   SessionCompleteModal,
   type SessionCompleteResult,
 } from '@/components/SessionCompleteModal';
+import { CalendarDateField } from '@/components/calendar-date-field';
 
 const LAST_SELECTIONS_KEY = 'time2pay.timer.last-selection';
 const EMPTY_PICKER_VALUE = '';
@@ -233,16 +234,92 @@ function createId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function toLocalDateTimeInputValue(date: Date): string {
-  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
-  return local.toISOString().slice(0, 16);
+function toLocalDatePart(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
-function parseLocalDateTimeInput(input: string): string | null {
-  const parsed = new Date(input);
+function toLocalTimePart(date: Date): string {
+  return formatTime12Hour(date.getHours(), date.getMinutes());
+}
+
+function toLocalDateTimeParts(date: Date): { datePart: string; timePart: string } {
+  return {
+    datePart: toLocalDatePart(date),
+    timePart: toLocalTimePart(date),
+  };
+}
+
+function formatTime12Hour(hours24: number, minutes: number): string {
+  const period = hours24 >= 12 ? 'PM' : 'AM';
+  const hour12 = hours24 % 12 || 12;
+  return `${hour12}:${String(minutes).padStart(2, '0')} ${period}`;
+}
+
+function parseTimeInputTo24Hour(value: string): { hours24: number; minutes: number } | null {
+  const trimmed = value.trim().toUpperCase();
+  const twelveHourMatch = trimmed.match(/^(\d{1,2}):(\d{1,2})\s*([AP]M)$/);
+  if (twelveHourMatch) {
+    const hour12 = Number(twelveHourMatch[1]);
+    const minutes = Number(twelveHourMatch[2]);
+    const period = twelveHourMatch[3];
+    if (!Number.isInteger(hour12) || !Number.isInteger(minutes)) {
+      return null;
+    }
+    if (hour12 < 1 || hour12 > 12 || minutes < 0 || minutes > 59) {
+      return null;
+    }
+
+    const hours24 = period === 'PM' ? (hour12 % 12) + 12 : hour12 % 12;
+    return { hours24, minutes };
+  }
+
+  // Backward-compatible fallback for legacy 24-hour input.
+  const twentyFourHourMatch = trimmed.match(/^(\d{1,2}):(\d{1,2})$/);
+  if (!twentyFourHourMatch) {
+    return null;
+  }
+
+  const hours24 = Number(twentyFourHourMatch[1]);
+  const minutes = Number(twentyFourHourMatch[2]);
+  if (!Number.isInteger(hours24) || !Number.isInteger(minutes)) {
+    return null;
+  }
+  if (hours24 < 0 || hours24 > 23 || minutes < 0 || minutes > 59) {
+    return null;
+  }
+
+  return { hours24, minutes };
+}
+
+function normalizeTimeInput(value: string): string | null {
+  const parsed = parseTimeInputTo24Hour(value);
+  if (!parsed) {
+    return null;
+  }
+
+  return formatTime12Hour(parsed.hours24, parsed.minutes);
+}
+
+function toIsoFromLocalDateAndTime(datePart: string, timePart: string): string | null {
+  if (!datePart) {
+    return null;
+  }
+
+  const parsedTime = parseTimeInputTo24Hour(timePart);
+  if (!parsedTime) {
+    return null;
+  }
+
+  const parsed = new Date(
+    `${datePart}T${String(parsedTime.hours24).padStart(2, '0')}:${String(parsedTime.minutes).padStart(2, '0')}:00`,
+  );
   if (Number.isNaN(parsed.getTime())) {
     return null;
   }
+
   return parsed.toISOString();
 }
 
@@ -299,10 +376,14 @@ export function Timer() {
   const [newTaskName, setNewTaskName] = useState('');
   const [newTaskGithubBranch, setNewTaskGithubBranch] = useState('');
   const [isCreatingManualSession, setIsCreatingManualSession] = useState(false);
-  const [manualStartLocal, setManualStartLocal] = useState(() =>
-    toLocalDateTimeInputValue(new Date(Date.now() - 60 * 60 * 1000)),
+  const [manualStartDate, setManualStartDate] = useState(() =>
+    toLocalDateTimeParts(new Date(Date.now() - 60 * 60 * 1000)).datePart,
   );
-  const [manualEndLocal, setManualEndLocal] = useState(() => toLocalDateTimeInputValue(new Date()));
+  const [manualStartTime, setManualStartTime] = useState(() =>
+    toLocalDateTimeParts(new Date(Date.now() - 60 * 60 * 1000)).timePart,
+  );
+  const [manualEndDate, setManualEndDate] = useState(() => toLocalDateTimeParts(new Date()).datePart);
+  const [manualEndTime, setManualEndTime] = useState(() => toLocalDateTimeParts(new Date()).timePart);
   const [manualNotes, setManualNotes] = useState('');
 
   const [notes, setNotes] = useState('');
@@ -320,6 +401,23 @@ export function Timer() {
   const [completedSessionNotes, setCompletedSessionNotes] = useState<string | null>(null);
 
   const isClockedIn = useMemo(() => !!activeSession, [activeSession]);
+  const manualRangeError = useMemo(() => {
+    if (!isCreatingManualSession || isClockedIn) {
+      return null;
+    }
+
+    const startIso = toIsoFromLocalDateAndTime(manualStartDate, manualStartTime);
+    const endIso = toIsoFromLocalDateAndTime(manualEndDate, manualEndTime);
+    if (!startIso || !endIso) {
+      return 'Use valid start/end date and time (e.g. 1:30 PM).';
+    }
+
+    if (new Date(endIso).getTime() <= new Date(startIso).getTime()) {
+      return 'End time must be after start time.';
+    }
+
+    return null;
+  }, [isCreatingManualSession, isClockedIn, manualStartDate, manualStartTime, manualEndDate, manualEndTime]);
 
   const selectedClient = useMemo(
     () => clients.find((client) => client.id === selectedClientId) ?? null,
@@ -629,16 +727,16 @@ export function Timer() {
       return;
     }
 
-    const startIso = parseLocalDateTimeInput(manualStartLocal);
-    const endIso = parseLocalDateTimeInput(manualEndLocal);
-
-    if (!startIso || !endIso) {
-      setMessage('Start and end must be valid local datetime values.');
+    if (manualRangeError) {
+      setMessage(manualRangeError);
       return;
     }
 
-    if (new Date(endIso).getTime() <= new Date(startIso).getTime()) {
-      setMessage('End time must be after start time.');
+    const startIso = toIsoFromLocalDateAndTime(manualStartDate, manualStartTime);
+    const endIso = toIsoFromLocalDateAndTime(manualEndDate, manualEndTime);
+
+    if (!startIso || !endIso) {
+      setMessage('Start and end must be valid date and time values (e.g. 1:30 PM).');
       return;
     }
 
@@ -659,8 +757,12 @@ export function Timer() {
         taskId: selectedTaskId,
       });
       setManualNotes('');
-      setManualStartLocal(toLocalDateTimeInputValue(new Date(Date.now() - 60 * 60 * 1000)));
-      setManualEndLocal(toLocalDateTimeInputValue(new Date()));
+      const resetStart = toLocalDateTimeParts(new Date(Date.now() - 60 * 60 * 1000));
+      const resetEnd = toLocalDateTimeParts(new Date());
+      setManualStartDate(resetStart.datePart);
+      setManualStartTime(resetStart.timePart);
+      setManualEndDate(resetEnd.datePart);
+      setManualEndTime(resetEnd.timePart);
       setIsCreatingManualSession(false);
       setMessage('Manual session created successfully.');
     } catch (error: unknown) {
@@ -945,20 +1047,99 @@ export function Timer() {
 
       {isCreatingManualSession && !isClockedIn ? (
         <View className="gap-2 rounded-md border border-border bg-background p-3">
-          <Text className="text-xs uppercase tracking-wide text-muted">Manual session start</Text>
-          <TextInput
-            value={manualStartLocal}
-            onChangeText={setManualStartLocal}
-            placeholder="YYYY-MM-DDTHH:mm"
-            className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
+          <PickerField
+            label="Client"
+            value={selectedClientId}
+            options={clients.map((client) => ({ id: client.id, label: client.name }))}
+            placeholder="Select client"
+            createValue={CREATE_CLIENT_PICKER_VALUE}
+            onSelect={(value) => {
+              setSelectedClientId(value);
+              setIsCreatingClient(false);
+            }}
+            onCreateNew={() => {
+              setIsCreatingClient(true);
+              setIsCreatingProject(false);
+              setIsCreatingTask(false);
+            }}
           />
-          <Text className="text-xs uppercase tracking-wide text-muted">Manual session end</Text>
-          <TextInput
-            value={manualEndLocal}
-            onChangeText={setManualEndLocal}
-            placeholder="YYYY-MM-DDTHH:mm"
-            className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
+          <PickerField
+            label="Project"
+            value={selectedProjectId}
+            options={projects.map((project) => ({ id: project.id, label: project.name }))}
+            placeholder="Select project"
+            createValue={CREATE_PROJECT_PICKER_VALUE}
+            disabled={!selectedClientId}
+            onSelect={(value) => {
+              setSelectedProjectId(value);
+              setIsCreatingProject(false);
+            }}
+            onCreateNew={() => {
+              setIsCreatingProject(true);
+              setIsCreatingClient(false);
+              setIsCreatingTask(false);
+            }}
           />
+          <PickerField
+            label="Task"
+            value={selectedTaskId}
+            options={tasks.map((task) => ({ id: task.id, label: task.name }))}
+            placeholder="Select task"
+            createValue={CREATE_TASK_PICKER_VALUE}
+            disabled={!selectedProjectId}
+            onSelect={(value) => {
+              setSelectedTaskId(value);
+              setIsCreatingTask(false);
+            }}
+            onCreateNew={() => {
+              setIsCreatingTask(true);
+              setIsCreatingClient(false);
+              setIsCreatingProject(false);
+            }}
+          />
+          <CalendarDateField
+            label="Manual session start date"
+            value={manualStartDate}
+            onChange={setManualStartDate}
+          />
+          <View className="gap-2">
+            <Text className="text-xs uppercase tracking-wide text-muted">Manual session start time</Text>
+            <TextInput
+              value={manualStartTime}
+              onChangeText={setManualStartTime}
+              onBlur={() => {
+                const normalized = normalizeTimeInput(manualStartTime);
+                if (normalized) {
+                  setManualStartTime(normalized);
+                }
+              }}
+              placeholder="h:mm AM/PM"
+              keyboardType="numbers-and-punctuation"
+              className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
+            />
+          </View>
+          <CalendarDateField
+            label="Manual session end date"
+            value={manualEndDate}
+            onChange={setManualEndDate}
+          />
+          <View className="gap-2">
+            <Text className="text-xs uppercase tracking-wide text-muted">Manual session end time</Text>
+            <TextInput
+              value={manualEndTime}
+              onChangeText={setManualEndTime}
+              onBlur={() => {
+                const normalized = normalizeTimeInput(manualEndTime);
+                if (normalized) {
+                  setManualEndTime(normalized);
+                }
+              }}
+              placeholder="h:mm AM/PM"
+              keyboardType="numbers-and-punctuation"
+              className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
+            />
+          </View>
+          {manualRangeError ? <Text className="text-red-600">{manualRangeError}</Text> : null}
           <Text className="text-xs uppercase tracking-wide text-muted">Notes (optional)</Text>
           <TextInput
             value={manualNotes}
@@ -966,7 +1147,11 @@ export function Timer() {
             placeholder="What was done in this session"
             className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
           />
-          <Pressable className="rounded-md bg-secondary px-4 py-2" onPress={handleCreateManualSession}>
+          <Pressable
+            className={`rounded-md px-4 py-2 ${manualRangeError ? 'bg-secondary/60' : 'bg-secondary'}`}
+            onPress={handleCreateManualSession}
+            disabled={Boolean(manualRangeError)}
+          >
             <Text className="text-center font-semibold text-white">Save Manual Session</Text>
           </Pressable>
         </View>

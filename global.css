@@ -2,7 +2,7 @@
 @import 'uniwind';
 
 @theme {
-  --color-primary: #b5c2b7;
+  --color-primary: #AFE4B7;
   --color-secondary: #bb7e5d;
   --color-black: #1a1f16;
   --color-white: #f8f7f3;
@@ -13,4 +13,9 @@
   --color-heading: #1a1f16;
   --color-muted: #5f675d;
   --color-border: #9da89f;
+
+  --color-invoiced-surface: #31362f;
+  --color-invoiced-text: #f8f7f3;
+  --color-invoiced-muted: #d7d8cf;
+  --color-success: #4f8f58;
 }

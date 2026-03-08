@@ -8,6 +8,7 @@ import {
   resumeSession,
   startSession,
   stopSession,
+  updateSession,
   type Session,
   type SessionBreak,
 } from '@/database/db';
@@ -119,6 +120,28 @@ export async function createRuntimeManualSession(input: {
     client_id: input.clientId ?? null,
     project_id: input.projectId ?? null,
     task_id: input.taskId ?? null,
+    start_time: input.startTimeIso,
+    end_time: input.endTimeIso,
+    notes: input.notes ?? null,
+  });
+}
+
+export async function updateRuntimeSession(input: {
+  id: string;
+  clientId: string;
+  projectId: string;
+  taskId: string;
+  startTimeIso: string;
+  endTimeIso: string;
+  notes?: string | null;
+}): Promise<void> {
+  await ensureDatabaseReady();
+
+  await updateSession({
+    id: input.id,
+    client_id: input.clientId,
+    project_id: input.projectId,
+    task_id: input.taskId,
     start_time: input.startTimeIso,
     end_time: input.endTimeIso,
     notes: input.notes ?? null,
