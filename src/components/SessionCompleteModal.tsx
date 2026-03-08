@@ -298,7 +298,7 @@ export function SessionCompleteModal({
 
                   {/* Error */}
                   {fetchError ? (
-                    <Text className="text-xs text-red-600">{fetchError}</Text>
+                    <Text className="text-xs text-danger">{fetchError}</Text>
                   ) : null}
 
                   {/* Commit message preview + overwrite/append */}

@@ -1,6 +1,6 @@
 import { Picker } from '@react-native-picker/picker';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, ScrollView, Text, TextInput, useColorScheme, View } from 'react-native';
 import {
   createClient,
   createProject,
@@ -56,6 +56,8 @@ function SelectField({
   onSelect,
   onCreateNew,
 }: SelectFieldProps) {
+  const pickerColor = useColorScheme() === 'dark' ? '#f8f7f3' : '#1a1f16';
+
   function handleValueChange(itemValue: string | number): void {
     const next = String(itemValue ?? EMPTY_PICKER_VALUE);
     if (createValue && onCreateNew && next === createValue) {
@@ -74,8 +76,8 @@ function SelectField({
           enabled={!disabled}
           selectedValue={value ?? EMPTY_PICKER_VALUE}
           onValueChange={handleValueChange}
-          dropdownIconColor="#1a1f16"
-          style={{ color: '#1a1f16' }}
+          dropdownIconColor={pickerColor}
+          style={{ color: pickerColor }}
         >
           <Picker.Item label={placeholder} value={EMPTY_PICKER_VALUE} />
           {options.map((option) => (
@@ -598,7 +600,7 @@ export function SessionList() {
       </View>
 
       {isLoading ? <Text className="text-muted">Loading sessions...</Text> : null}
-      {error ? <Text className="text-red-600">{error}</Text> : null}
+      {error ? <Text className="text-danger">{error}</Text> : null}
       {status ? <Text className="text-sm text-muted">{status}</Text> : null}
 
       {!isLoading && groupedWeeks.length === 0 ? (
@@ -888,7 +890,7 @@ export function SessionList() {
                     className="rounded-md border border-border bg-background px-3 py-2 text-foreground"
                   />
                 </View>
-                {editRangeError ? <Text className="text-red-600">{editRangeError}</Text> : null}
+                {editRangeError ? <Text className="text-danger">{editRangeError}</Text> : null}
 
                 <View className="gap-2">
                   <Text className="text-xs uppercase tracking-wide text-muted">Notes (optional)</Text>
@@ -900,7 +902,7 @@ export function SessionList() {
                   />
                 </View>
 
-                {editError ? <Text className="text-red-600">{editError}</Text> : null}
+                {editError ? <Text className="text-danger">{editError}</Text> : null}
 
                 <View className="flex-row gap-2">
                   <Pressable

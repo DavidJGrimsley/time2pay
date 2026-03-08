@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, Text, useColorScheme, View } from 'react-native';
 import {
   initializeDatabase,
   listClients,
@@ -115,6 +115,7 @@ type InvoiceBuilderProps = {
 };
 
 export function InvoiceBuilder({ onInvoiceCreated }: InvoiceBuilderProps) {
+  const scheme = useColorScheme();
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [weekOptions, setWeekOptions] = useState<WeekOption[]>([]);
@@ -356,7 +357,7 @@ export function InvoiceBuilder({ onInvoiceCreated }: InvoiceBuilderProps) {
                 }
               >
                 <View className="flex-row items-center gap-1.5">
-                  {active ? <WeekCheckIcon color="#ffffff" /> : null}
+                  {active ? <WeekCheckIcon color={scheme === 'dark' ? '#1a1f16' : '#ffffff'} /> : null}
                   <Text className={active ? 'font-semibold text-white' : 'font-semibold text-heading'}>
                     {week.label}
                   </Text>
@@ -417,13 +418,13 @@ export function InvoiceBuilder({ onInvoiceCreated }: InvoiceBuilderProps) {
                     <Text style={{ width: '56%' }} className="text-xs font-semibold text-heading">
                       {taskGroup.taskLabel}
                     </Text>
-                    <Text style={{ width: '14%' }} className="text-right text-xs text-muted">
+                    <Text style={{ width: '14%' }} className="text-right text-xs text-foreground">
                       {taskGroup.totalHours.toFixed(2)}h
                     </Text>
-                    <Text style={{ width: '14%' }} className="text-right text-xs text-muted">
+                    <Text style={{ width: '14%' }} className="text-right text-xs text-foreground">
                       ${selectedClient?.hourly_rate.toFixed(2) ?? '0.00'}
                     </Text>
-                    <Text style={{ width: '16%' }} className="text-right text-xs text-muted">
+                    <Text style={{ width: '16%' }} className="text-right text-xs text-foreground">
                       ${taskGroup.totalAmount.toFixed(2)}
                     </Text>
                   </View>
@@ -461,13 +462,13 @@ export function InvoiceBuilder({ onInvoiceCreated }: InvoiceBuilderProps) {
                           <View key={row.id} className="flex-row py-0.5">
                             <Text
                               style={{ width: '40%' }}
-                              className={row.isBreak ? 'text-xs text-secondary' : 'text-xs text-muted'}
+                              className={row.isBreak ? 'text-xs text-secondary' : 'text-xs text-foreground'}
                             >
                               {new Date(row.start_time).toLocaleString()}
                             </Text>
                             <Text
                               style={{ width: '40%' }}
-                              className={row.isBreak ? 'text-xs text-secondary' : 'text-xs text-muted'}
+                              className={row.isBreak ? 'text-xs text-secondary' : 'text-xs text-foreground'}
                             >
                               {new Date(row.end_time).toLocaleString()}
                             </Text>
@@ -476,20 +477,20 @@ export function InvoiceBuilder({ onInvoiceCreated }: InvoiceBuilderProps) {
                               className={
                                 row.isBreak
                                   ? 'text-right text-xs font-semibold text-secondary'
-                                  : 'text-right text-xs text-muted'
+                                  : 'text-right text-xs text-foreground'
                               }
                             >
                               {row.isBreak ? 'Break' : row.hours.toFixed(2)}
                             </Text>
                             <Text
                               style={{ width: '10%' }}
-                              className={row.isBreak ? 'text-right text-xs text-secondary' : 'text-right text-xs text-muted'}
+                              className={row.isBreak ? 'text-right text-xs text-secondary' : 'text-right text-xs text-foreground'}
                             >
                               {row.isBreak ? '-' : row.amount.toFixed(2)}
                             </Text>
                           </View>
                         ))}
-                        {session.notes ? <Text className="pt-0.5 text-xs text-muted">Note: {session.notes}</Text> : null}
+                        {session.notes ? <Text className="pt-0.5 text-xs text-foreground/70">Note: {session.notes}</Text> : null}
                       </View>
                     ))}
                   </View>

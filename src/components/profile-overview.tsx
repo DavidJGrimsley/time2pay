@@ -1,6 +1,6 @@
 import { Picker } from '@react-native-picker/picker';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { Pressable, Text, TextInput, useColorScheme, View } from 'react-native';
 import {
   getUserProfile,
   initializeDatabase,
@@ -18,6 +18,9 @@ function toNullableTrimmed(value: string): string | null {
 }
 
 export function ProfileOverview() {
+  const scheme = useColorScheme();
+  const pickerColor = scheme === 'dark' ? '#e8e6e1' : '#1a1f16';
+
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingBusiness, setIsSavingBusiness] = useState(false);
   const [isSavingClient, setIsSavingClient] = useState(false);
@@ -215,8 +218,8 @@ export function ProfileOverview() {
                   const next = String(value ?? EMPTY_PICKER_VALUE);
                   setSelectedClientId(next || null);
                 }}
-                dropdownIconColor="#1a1f16"
-                style={{ color: '#1a1f16' }}
+                dropdownIconColor={pickerColor}
+                style={{ color: pickerColor }}
               >
                 {clients.map((client) => (
                   <Picker.Item key={client.id} label={client.name} value={client.id} />

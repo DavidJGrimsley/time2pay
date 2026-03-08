@@ -31,7 +31,7 @@
 
 ## Random
 - [x] Add ability edit sessions, make create manual session more robust like clock in, group sessions better(by week and client)
-- [ ] Light/dark mode
+- [x] Light/dark mode
 - [ ] Revise copy icons script and run it to move icons over
 - [ ] set up pwa with automatic updates and persisting data
 - [x] Revamp invoices to have user data in from section with optional branding, further format fixes

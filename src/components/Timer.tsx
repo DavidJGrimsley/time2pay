@@ -1,6 +1,6 @@
 import { Picker } from '@react-native-picker/picker';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { Pressable, Text, TextInput, useColorScheme, View } from 'react-native';
 import {
   createClient,
   createProject,
@@ -107,6 +107,8 @@ function PickerField({
   onSelect,
   onCreateNew,
 }: PickerFieldProps) {
+  const pickerColor = useColorScheme() === 'dark' ? '#f8f7f3' : '#1a1f16';
+
   function handleValueChange(itemValue: string | number): void {
     const next = String(itemValue ?? EMPTY_PICKER_VALUE);
     if (next === createValue) {
@@ -125,8 +127,8 @@ function PickerField({
           enabled={!disabled}
           selectedValue={value ?? EMPTY_PICKER_VALUE}
           onValueChange={handleValueChange}
-          dropdownIconColor="#1a1f16"
-          style={{ color: '#1a1f16' }}
+          dropdownIconColor={pickerColor}
+          style={{ color: pickerColor }}
         >
           <Picker.Item label={placeholder} value={EMPTY_PICKER_VALUE} />
           {options.map((option) => (
@@ -1014,7 +1016,7 @@ export function Timer() {
               </View>
             </Pressable>
           )}
-          <Pressable className="flex-1 rounded-2xl bg-red-600 px-4 py-3" onPress={handleClockOut}>
+          <Pressable className="flex-1 rounded-2xl bg-danger px-4 py-3" onPress={handleClockOut}>
             <View className="flex-row items-center justify-center gap-2">
               <ClockIcon />
               <Text className="text-center font-semibold text-white">Clock Out</Text>
@@ -1139,7 +1141,7 @@ export function Timer() {
               className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
             />
           </View>
-          {manualRangeError ? <Text className="text-red-600">{manualRangeError}</Text> : null}
+          {manualRangeError ? <Text className="text-danger">{manualRangeError}</Text> : null}
           <Text className="text-xs uppercase tracking-wide text-muted">Notes (optional)</Text>
           <TextInput
             value={manualNotes}

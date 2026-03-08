@@ -7,7 +7,7 @@
 - Make invoice and session data transparent and editable.
 
 ## Color System
-- Primary: **Ash Grey** `#B5C2B7`
+- Primary: **Celadon** `#AFE4B7`
 - Secondary: **Cinnamon Wood** `#BB7E5D`
 - Black/Base Ink: **Carbon Black** `#1A1F16`
 - White/Base Canvas: **Off White** `#F8F7F3`

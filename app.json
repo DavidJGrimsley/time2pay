@@ -3,6 +3,7 @@
     "name": "Time2Pay",
     "slug": "time2pay",
     "version": "1.0.0",
+    "userInterfaceStyle": "automatic",
     "orientation": "portrait",
     "plugins": [
       "expo-router",
