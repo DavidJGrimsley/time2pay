@@ -1,14 +1,16 @@
 import * as SQLite from 'expo-sqlite';
-import {
-  assertInvoiceTotal,
-  durationMsToSeconds,
-  ensureNonNegativeDurationMs,
-  parseIsoTimestamp,
-} from './validation';
 
 export type Session = {
   id: string;
   client: string;
+  client_id: string | null;
+  project_id: string | null;
+  task_id: string | null;
+  client_name?: string | null;
+  project_name?: string | null;
+  task_name?: string | null;
+  break_count?: number;
+  is_paused?: number;
   start_time: string;
   end_time: string | null;
   duration: number | null;
@@ -29,6 +31,24 @@ export type Client = {
   deleted_at: string | null;
 };
 
+export type Project = {
+  id: string;
+  client_id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+};
+
+export type Task = {
+  id: string;
+  project_id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+};
+
 export type Invoice = {
   id: string;
   client_id: string;
@@ -36,6 +56,22 @@ export type Invoice = {
   status: 'draft' | 'sent' | 'paid' | 'overdue';
   mercury_invoice_id: string | null;
   payment_link: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+};
+
+export type InvoiceWithClient = Invoice & {
+  client_name?: string | null;
+  client_email?: string | null;
+  client_hourly_rate?: number | null;
+};
+
+export type SessionBreak = {
+  id: string;
+  session_id: string;
+  start_time: string;
+  end_time: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -50,7 +86,7 @@ export type CoreDbValidationReport = {
 };
 
 const DB_NAME = 'time2pay.db';
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 4;
 
 const MIGRATIONS: { version: number; upSql: string }[] = [
   {
@@ -105,6 +141,68 @@ const MIGRATIONS: { version: number; upSql: string }[] = [
       ALTER TABLE sessions ADD COLUMN deleted_at TEXT;
     `,
   },
+  {
+    version: 3,
+    upSql: `
+      CREATE TABLE IF NOT EXISTS projects (
+        id TEXT PRIMARY KEY NOT NULL,
+        client_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        deleted_at TEXT,
+        FOREIGN KEY (client_id) REFERENCES clients(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS tasks (
+        id TEXT PRIMARY KEY NOT NULL,
+        project_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        deleted_at TEXT,
+        FOREIGN KEY (project_id) REFERENCES projects(id)
+      );
+
+      ALTER TABLE sessions ADD COLUMN client_id TEXT;
+      ALTER TABLE sessions ADD COLUMN project_id TEXT;
+      ALTER TABLE sessions ADD COLUMN task_id TEXT;
+
+      UPDATE sessions
+         SET client_id = (
+           SELECT c.id
+             FROM clients c
+            WHERE c.name = sessions.client
+            LIMIT 1
+         )
+       WHERE client_id IS NULL;
+
+      CREATE INDEX IF NOT EXISTS idx_projects_client_id ON projects(client_id);
+      CREATE INDEX IF NOT EXISTS idx_tasks_project_id ON tasks(project_id);
+      CREATE INDEX IF NOT EXISTS idx_sessions_client_id ON sessions(client_id);
+      CREATE INDEX IF NOT EXISTS idx_sessions_project_id ON sessions(project_id);
+      CREATE INDEX IF NOT EXISTS idx_sessions_task_id ON sessions(task_id);
+    `,
+  },
+  {
+    version: 4,
+    upSql: `
+      CREATE TABLE IF NOT EXISTS session_breaks (
+        id TEXT PRIMARY KEY NOT NULL,
+        session_id TEXT NOT NULL,
+        start_time TEXT NOT NULL,
+        end_time TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        deleted_at TEXT,
+        FOREIGN KEY (session_id) REFERENCES sessions(id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_session_breaks_session_id ON session_breaks(session_id);
+      CREATE INDEX IF NOT EXISTS idx_session_breaks_start_time ON session_breaks(start_time);
+      CREATE INDEX IF NOT EXISTS idx_session_breaks_end_time ON session_breaks(end_time);
+    `,
+  },
 ];
 
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
@@ -113,8 +211,12 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
-function buildTestId(prefix: string): string {
+function createDbId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function buildTestId(prefix: string): string {
+  return createDbId(prefix);
 }
 
 function parseDbIsoTimestamp(input: string, fieldName: string): Date {
@@ -139,6 +241,65 @@ function ensureNonNegativeDbDurationMs(start: string, end: string): number {
 
 function dbDurationMsToSeconds(durationMs: number): number {
   return Math.round(durationMs / 1000);
+}
+
+function computeBreakDurationMs(input: {
+  sessionStartIso: string;
+  sessionEndIso: string;
+  breaks: Pick<SessionBreak, 'start_time' | 'end_time'>[];
+}): number {
+  const sessionStartMs = parseDbIsoTimestamp(input.sessionStartIso, 'start_time').getTime();
+  const sessionEndMs = parseDbIsoTimestamp(input.sessionEndIso, 'end_time').getTime();
+
+  if (sessionEndMs <= sessionStartMs) {
+    return 0;
+  }
+
+  const clampedIntervals = input.breaks
+    .map((sessionBreak) => {
+      if (!sessionBreak.end_time) {
+        return null;
+      }
+
+      const breakStartMs = parseDbIsoTimestamp(sessionBreak.start_time, 'break.start_time').getTime();
+      const breakEndMs = parseDbIsoTimestamp(sessionBreak.end_time, 'break.end_time').getTime();
+      if (breakEndMs < breakStartMs) {
+        throw new Error('Invalid break interval: end_time must be after start_time');
+      }
+
+      const intervalStart = Math.max(sessionStartMs, breakStartMs);
+      const intervalEnd = Math.min(sessionEndMs, breakEndMs);
+      if (intervalEnd <= intervalStart) {
+        return null;
+      }
+
+      return [intervalStart, intervalEnd] as const;
+    })
+    .filter((interval): interval is readonly [number, number] => interval !== null)
+    .sort((a, b) => a[0] - b[0]);
+
+  if (clampedIntervals.length === 0) {
+    return 0;
+  }
+
+  let mergedStart = clampedIntervals[0][0];
+  let mergedEnd = clampedIntervals[0][1];
+  let totalMs = 0;
+
+  for (let index = 1; index < clampedIntervals.length; index += 1) {
+    const [currentStart, currentEnd] = clampedIntervals[index];
+    if (currentStart <= mergedEnd) {
+      mergedEnd = Math.max(mergedEnd, currentEnd);
+      continue;
+    }
+
+    totalMs += mergedEnd - mergedStart;
+    mergedStart = currentStart;
+    mergedEnd = currentEnd;
+  }
+
+  totalMs += mergedEnd - mergedStart;
+  return totalMs;
 }
 
 function assertDbInvoiceTotal(total: number): void {
@@ -221,9 +382,93 @@ export async function createClient(input: {
   );
 }
 
+export async function listClients(): Promise<Client[]> {
+  const db = await getDb();
+  return db.getAllAsync<Client>(
+    `SELECT id, name, email, hourly_rate, created_at, updated_at, deleted_at
+     FROM clients
+     WHERE deleted_at IS NULL
+     ORDER BY name COLLATE NOCASE ASC`,
+  );
+}
+
+export async function getClientById(clientId: string): Promise<Client | null> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<Client>(
+    `SELECT id, name, email, hourly_rate, created_at, updated_at, deleted_at
+     FROM clients
+     WHERE id = ? AND deleted_at IS NULL`,
+    clientId,
+  );
+  return row ?? null;
+}
+
+export async function createProject(input: {
+  id: string;
+  client_id: string;
+  name: string;
+}): Promise<void> {
+  const db = await getDb();
+  const timestamp = nowIso();
+
+  await db.runAsync(
+    `INSERT INTO projects (id, client_id, name, created_at, updated_at, deleted_at)
+     VALUES (?, ?, ?, ?, ?, NULL)`,
+    input.id,
+    input.client_id,
+    input.name,
+    timestamp,
+    timestamp,
+  );
+}
+
+export async function listProjectsByClient(clientId: string): Promise<Project[]> {
+  const db = await getDb();
+  return db.getAllAsync<Project>(
+    `SELECT id, client_id, name, created_at, updated_at, deleted_at
+     FROM projects
+     WHERE client_id = ? AND deleted_at IS NULL
+     ORDER BY name COLLATE NOCASE ASC`,
+    clientId,
+  );
+}
+
+export async function createTask(input: {
+  id: string;
+  project_id: string;
+  name: string;
+}): Promise<void> {
+  const db = await getDb();
+  const timestamp = nowIso();
+
+  await db.runAsync(
+    `INSERT INTO tasks (id, project_id, name, created_at, updated_at, deleted_at)
+     VALUES (?, ?, ?, ?, ?, NULL)`,
+    input.id,
+    input.project_id,
+    input.name,
+    timestamp,
+    timestamp,
+  );
+}
+
+export async function listTasksByProject(projectId: string): Promise<Task[]> {
+  const db = await getDb();
+  return db.getAllAsync<Task>(
+    `SELECT id, project_id, name, created_at, updated_at, deleted_at
+     FROM tasks
+     WHERE project_id = ? AND deleted_at IS NULL
+     ORDER BY name COLLATE NOCASE ASC`,
+    projectId,
+  );
+}
+
 export async function startSession(input: {
   id: string;
   client: string;
+  client_id?: string | null;
+  project_id?: string | null;
+  task_id?: string | null;
   start_time?: string;
   notes?: string | null;
 }): Promise<void> {
@@ -233,10 +478,27 @@ export async function startSession(input: {
   parseDbIsoTimestamp(startedAt, 'start_time');
 
   await db.runAsync(
-    `INSERT INTO sessions (id, client, start_time, end_time, duration, notes, invoice_id, created_at, updated_at, deleted_at)
-     VALUES (?, ?, ?, NULL, NULL, ?, NULL, ?, ?, NULL)`,
+    `INSERT INTO sessions (
+      id,
+      client,
+      client_id,
+      project_id,
+      task_id,
+      start_time,
+      end_time,
+      duration,
+      notes,
+      invoice_id,
+      created_at,
+      updated_at,
+      deleted_at
+    )
+     VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, ?, NULL, ?, ?, NULL)`,
     input.id,
     input.client,
+    input.client_id ?? null,
+    input.project_id ?? null,
+    input.task_id ?? null,
     startedAt,
     input.notes ?? null,
     timestamp,
@@ -250,13 +512,14 @@ export async function stopSession(input: {
 }): Promise<void> {
   const db = await getDb();
   const endedAt = input.end_time ?? nowIso();
+  parseDbIsoTimestamp(endedAt, 'end_time');
 
-  const row = await db.getFirstAsync<Pick<Session, 'start_time' | 'end_time'>>(
-    'SELECT start_time, end_time FROM sessions WHERE id = ?',
+  const row = await db.getFirstAsync<Pick<Session, 'start_time' | 'end_time' | 'deleted_at'>>(
+    'SELECT start_time, end_time, deleted_at FROM sessions WHERE id = ?',
     input.id,
   );
 
-  if (!row) {
+  if (!row || row.deleted_at !== null) {
     throw new Error(`Session ${input.id} not found`);
   }
 
@@ -264,15 +527,56 @@ export async function stopSession(input: {
     throw new Error(`Session ${input.id} is already stopped`);
   }
 
-  const durationSeconds = dbDurationMsToSeconds(ensureNonNegativeDbDurationMs(row.start_time, endedAt));
+  const timestamp = nowIso();
+  const openBreak = await db.getFirstAsync<Pick<SessionBreak, 'id' | 'start_time'>>(
+    `SELECT id, start_time
+     FROM session_breaks
+     WHERE session_id = ? AND deleted_at IS NULL AND end_time IS NULL
+     ORDER BY start_time DESC
+     LIMIT 1`,
+    input.id,
+  );
+
+  if (openBreak) {
+    const openBreakStart = parseDbIsoTimestamp(openBreak.start_time, 'break.start_time').getTime();
+    const clockOutAt = parseDbIsoTimestamp(endedAt, 'end_time').getTime();
+    if (clockOutAt < openBreakStart) {
+      throw new Error('Invalid end_time: cannot clock out before active break start');
+    }
+
+    await db.runAsync(
+      `UPDATE session_breaks
+         SET end_time = ?, updated_at = ?
+       WHERE id = ? AND end_time IS NULL`,
+      endedAt,
+      timestamp,
+      openBreak.id,
+    );
+  }
+
+  const breakRows = await db.getAllAsync<Pick<SessionBreak, 'start_time' | 'end_time'>>(
+    `SELECT start_time, end_time
+     FROM session_breaks
+     WHERE session_id = ? AND deleted_at IS NULL`,
+    input.id,
+  );
+
+  const sessionDurationMs = ensureNonNegativeDbDurationMs(row.start_time, endedAt);
+  const breakDurationMs = computeBreakDurationMs({
+    sessionStartIso: row.start_time,
+    sessionEndIso: endedAt,
+    breaks: breakRows,
+  });
+  const billedDurationMs = Math.max(0, sessionDurationMs - breakDurationMs);
+  const durationSeconds = dbDurationMsToSeconds(billedDurationMs);
 
   const result = await db.runAsync(
     `UPDATE sessions
        SET end_time = ?, duration = ?, updated_at = ?
-     WHERE id = ? AND end_time IS NULL`,
+     WHERE id = ? AND end_time IS NULL AND deleted_at IS NULL`,
     endedAt,
     durationSeconds,
-    nowIso(),
+    timestamp,
     input.id,
   );
 
@@ -284,6 +588,9 @@ export async function stopSession(input: {
 export async function addManualSession(input: {
   id: string;
   client: string;
+  client_id?: string | null;
+  project_id?: string | null;
+  task_id?: string | null;
   start_time: string;
   end_time: string;
   notes?: string | null;
@@ -295,10 +602,27 @@ export async function addManualSession(input: {
   );
 
   await db.runAsync(
-    `INSERT INTO sessions (id, client, start_time, end_time, duration, notes, invoice_id, created_at, updated_at, deleted_at)
-     VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, NULL)`,
+    `INSERT INTO sessions (
+      id,
+      client,
+      client_id,
+      project_id,
+      task_id,
+      start_time,
+      end_time,
+      duration,
+      notes,
+      invoice_id,
+      created_at,
+      updated_at,
+      deleted_at
+    )
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, NULL)`,
     input.id,
     input.client,
+    input.client_id ?? null,
+    input.project_id ?? null,
+    input.task_id ?? null,
     input.start_time,
     input.end_time,
     durationSeconds,
@@ -311,9 +635,98 @@ export async function addManualSession(input: {
 export async function listSessions(): Promise<Session[]> {
   const db = await getDb();
   return db.getAllAsync<Session>(
-    `SELECT id, client, start_time, end_time, duration, notes, invoice_id, created_at, updated_at, deleted_at
-     FROM sessions
-     ORDER BY start_time DESC`,
+    `SELECT
+       s.id,
+       s.client,
+       s.client_id,
+       s.project_id,
+       s.task_id,
+       c.name AS client_name,
+       p.name AS project_name,
+       t.name AS task_name,
+       (
+         SELECT COUNT(*)
+           FROM session_breaks sb
+          WHERE sb.session_id = s.id
+            AND sb.deleted_at IS NULL
+       ) AS break_count,
+       EXISTS (
+         SELECT 1
+           FROM session_breaks sb
+          WHERE sb.session_id = s.id
+            AND sb.deleted_at IS NULL
+            AND sb.end_time IS NULL
+       ) AS is_paused,
+       s.start_time,
+       s.end_time,
+       s.duration,
+       s.notes,
+       s.invoice_id,
+       s.created_at,
+       s.updated_at,
+       s.deleted_at
+     FROM sessions s
+     LEFT JOIN clients c ON c.id = s.client_id
+     LEFT JOIN projects p ON p.id = s.project_id
+     LEFT JOIN tasks t ON t.id = s.task_id
+     WHERE s.deleted_at IS NULL
+     ORDER BY s.start_time DESC`,
+  );
+}
+
+export async function listSessionsByClientAndRange(input: {
+  clientId: string;
+  rangeStartIso: string;
+  rangeEndIso: string;
+  uninvoicedOnly?: boolean;
+}): Promise<Session[]> {
+  const db = await getDb();
+  const invoiceFilter = input.uninvoicedOnly ? 'AND s.invoice_id IS NULL' : '';
+
+  return db.getAllAsync<Session>(
+    `SELECT
+       s.id,
+       s.client,
+       s.client_id,
+       s.project_id,
+       s.task_id,
+       c.name AS client_name,
+       p.name AS project_name,
+       t.name AS task_name,
+       (
+         SELECT COUNT(*)
+           FROM session_breaks sb
+          WHERE sb.session_id = s.id
+            AND sb.deleted_at IS NULL
+       ) AS break_count,
+       EXISTS (
+         SELECT 1
+           FROM session_breaks sb
+          WHERE sb.session_id = s.id
+            AND sb.deleted_at IS NULL
+            AND sb.end_time IS NULL
+       ) AS is_paused,
+       s.start_time,
+       s.end_time,
+       s.duration,
+       s.notes,
+       s.invoice_id,
+       s.created_at,
+       s.updated_at,
+       s.deleted_at
+     FROM sessions s
+     LEFT JOIN clients c ON c.id = s.client_id
+     LEFT JOIN projects p ON p.id = s.project_id
+     LEFT JOIN tasks t ON t.id = s.task_id
+     WHERE s.deleted_at IS NULL
+       AND s.client_id = ?
+       AND s.start_time >= ?
+       AND s.start_time < ?
+       ${invoiceFilter}
+     ORDER BY s.start_time ASC`,
+    input.clientId,
+    input.rangeStartIso,
+    input.rangeEndIso,
   );
 }
 
@@ -343,6 +756,73 @@ export async function createInvoice(input: {
   );
 }
 
+export async function listInvoices(): Promise<InvoiceWithClient[]> {
+  const db = await getDb();
+  return db.getAllAsync<InvoiceWithClient>(
+    `SELECT
+       i.id,
+       i.client_id,
+       i.total,
+       i.status,
+       i.mercury_invoice_id,
+       i.payment_link,
+       i.created_at,
+       i.updated_at,
+       i.deleted_at,
+       c.name AS client_name,
+       c.email AS client_email,
+       c.hourly_rate AS client_hourly_rate
+     FROM invoices i
+     LEFT JOIN clients c ON c.id = i.client_id
+     WHERE i.deleted_at IS NULL
+     ORDER BY i.created_at DESC`,
+  );
+}
+
+export async function listSessionsByInvoiceId(invoiceId: string): Promise<Session[]> {
+  const db = await getDb();
+  return db.getAllAsync<Session>(
+    `SELECT
+       s.id,
+       s.client,
+       s.client_id,
+       s.project_id,
+       s.task_id,
+       c.name AS client_name,
+       p.name AS project_name,
+       t.name AS task_name,
+       (
+         SELECT COUNT(*)
+           FROM session_breaks sb
+          WHERE sb.session_id = s.id
+            AND sb.deleted_at IS NULL
+       ) AS break_count,
+       EXISTS (
+         SELECT 1
+           FROM session_breaks sb
+          WHERE sb.session_id = s.id
+            AND sb.deleted_at IS NULL
+            AND sb.end_time IS NULL
+       ) AS is_paused,
+       s.start_time,
+       s.end_time,
+       s.duration,
+       s.notes,
+       s.invoice_id,
+       s.created_at,
+       s.updated_at,
+       s.deleted_at
+     FROM sessions s
+     LEFT JOIN clients c ON c.id = s.client_id
+     LEFT JOIN projects p ON p.id = s.project_id
+     LEFT JOIN tasks t ON t.id = s.task_id
+     WHERE s.deleted_at IS NULL
+       AND s.invoice_id = ?
+     ORDER BY s.start_time ASC`,
+    invoiceId,
+  );
+}
+
 export async function assignSessionsToInvoice(sessionIds: string[], invoiceId: string): Promise<void> {
   if (sessionIds.length === 0) {
     return;
@@ -359,6 +839,186 @@ export async function assignSessionsToInvoice(sessionIds: string[], invoiceId: s
     nowIso(),
     ...sessionIds,
   );
+}
+
+export async function listSessionBreaksBySessionId(sessionId: string): Promise<SessionBreak[]> {
+  const db = await getDb();
+  return db.getAllAsync<SessionBreak>(
+    `SELECT
+       id,
+       session_id,
+       start_time,
+       end_time,
+       created_at,
+       updated_at,
+       deleted_at
+     FROM session_breaks
+     WHERE session_id = ?
+       AND deleted_at IS NULL
+     ORDER BY start_time ASC`,
+    sessionId,
+  );
+}
+
+export async function listSessionBreaksBySessionIds(sessionIds: string[]): Promise<SessionBreak[]> {
+  if (sessionIds.length === 0) {
+    return [];
+  }
+
+  const db = await getDb();
+  const placeholders = sessionIds.map(() => '?').join(',');
+  return db.getAllAsync<SessionBreak>(
+    `SELECT
+       id,
+       session_id,
+       start_time,
+       end_time,
+       created_at,
+       updated_at,
+       deleted_at
+     FROM session_breaks
+     WHERE session_id IN (${placeholders})
+       AND deleted_at IS NULL
+     ORDER BY start_time ASC`,
+    ...sessionIds,
+  );
+}
+
+export async function isSessionPaused(sessionId: string): Promise<boolean> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<{ is_paused: number }>(
+    `SELECT EXISTS (
+       SELECT 1
+         FROM session_breaks
+        WHERE session_id = ?
+          AND deleted_at IS NULL
+          AND end_time IS NULL
+     ) AS is_paused`,
+    sessionId,
+  );
+  return Boolean(row?.is_paused);
+}
+
+export async function pauseSession(input: {
+  sessionId: string;
+  start_time?: string;
+}): Promise<void> {
+  const db = await getDb();
+  const breakStart = input.start_time ?? nowIso();
+  const timestamp = nowIso();
+  const breakStartMs = parseDbIsoTimestamp(breakStart, 'break_start_time').getTime();
+
+  const session = await db.getFirstAsync<Pick<Session, 'start_time' | 'end_time' | 'deleted_at'>>(
+    'SELECT start_time, end_time, deleted_at FROM sessions WHERE id = ?',
+    input.sessionId,
+  );
+
+  if (!session || session.deleted_at !== null) {
+    throw new Error(`Session ${input.sessionId} not found`);
+  }
+
+  if (session.end_time) {
+    throw new Error('Cannot pause a completed session');
+  }
+
+  const sessionStartMs = parseDbIsoTimestamp(session.start_time, 'start_time').getTime();
+  if (breakStartMs < sessionStartMs) {
+    throw new Error('Cannot pause before the session start time');
+  }
+
+  const existingOpenBreak = await db.getFirstAsync<Pick<SessionBreak, 'id'>>(
+    `SELECT id
+     FROM session_breaks
+     WHERE session_id = ?
+       AND deleted_at IS NULL
+       AND end_time IS NULL
+     LIMIT 1`,
+    input.sessionId,
+  );
+
+  if (existingOpenBreak) {
+    throw new Error('Session is already paused');
+  }
+
+  await db.runAsync(
+    `INSERT INTO session_breaks (
+       id,
+       session_id,
+       start_time,
+       end_time,
+       created_at,
+       updated_at,
+       deleted_at
+     )
+     VALUES (?, ?, ?, NULL, ?, ?, NULL)`,
+    createDbId('break'),
+    input.sessionId,
+    breakStart,
+    timestamp,
+    timestamp,
+  );
+
+  await db.runAsync('UPDATE sessions SET updated_at = ? WHERE id = ?', timestamp, input.sessionId);
+}
+
+export async function resumeSession(input: {
+  sessionId: string;
+  end_time?: string;
+}): Promise<void> {
+  const db = await getDb();
+  const resumeAt = input.end_time ?? nowIso();
+  const timestamp = nowIso();
+  parseDbIsoTimestamp(resumeAt, 'resume_time');
+
+  const session = await db.getFirstAsync<Pick<Session, 'end_time' | 'deleted_at'>>(
+    'SELECT end_time, deleted_at FROM sessions WHERE id = ?',
+    input.sessionId,
+  );
+
+  if (!session || session.deleted_at !== null) {
+    throw new Error(`Session ${input.sessionId} not found`);
+  }
+
+  if (session.end_time) {
+    throw new Error('Cannot resume a completed session');
+  }
+
+  const openBreak = await db.getFirstAsync<Pick<SessionBreak, 'id' | 'start_time'>>(
+    `SELECT id, start_time
+     FROM session_breaks
+     WHERE session_id = ?
+       AND deleted_at IS NULL
+       AND end_time IS NULL
+     ORDER BY start_time DESC
+     LIMIT 1`,
+    input.sessionId,
+  );
+
+  if (!openBreak) {
+    throw new Error('Session is not paused');
+  }
+
+  const breakStartMs = parseDbIsoTimestamp(openBreak.start_time, 'break.start_time').getTime();
+  const resumeAtMs = parseDbIsoTimestamp(resumeAt, 'resume_time').getTime();
+  if (resumeAtMs < breakStartMs) {
+    throw new Error('Cannot resume before break start time');
+  }
+
+  const result = await db.runAsync(
+    `UPDATE session_breaks
+       SET end_time = ?, updated_at = ?
+     WHERE id = ?
+       AND end_time IS NULL`,
+    resumeAt,
+    timestamp,
+    openBreak.id,
+  );
+
+  if (result.changes === 0) {
+    throw new Error('Session is not paused');
+  }
+
+  await db.runAsync('UPDATE sessions SET updated_at = ? WHERE id = ?', timestamp, input.sessionId);
 }
 
 export async function runCoreDbValidationScript(): Promise<CoreDbValidationReport> {
@@ -394,6 +1054,34 @@ export async function runCoreDbValidationScript(): Promise<CoreDbValidationRepor
     end_time: timedEnd,
   });
 
+  const pausedSessionId = buildTestId('paused_session');
+  const pausedStart = new Date(baseTimeMs + 200_000).toISOString();
+  const pausedEnd = new Date(baseTimeMs + 320_000).toISOString();
+  const pausedBreakStart = new Date(baseTimeMs + 240_000).toISOString();
+  const pausedBreakEnd = new Date(baseTimeMs + 280_000).toISOString();
+
+  await startSession({
+    id: pausedSessionId,
+    client: 'Validation Client',
+    start_time: pausedStart,
+    notes: 'paused session',
+  });
+
+  await pauseSession({
+    sessionId: pausedSessionId,
+    start_time: pausedBreakStart,
+  });
+
+  await resumeSession({
+    sessionId: pausedSessionId,
+    end_time: pausedBreakEnd,
+  });
+
+  await stopSession({
+    id: pausedSessionId,
+    end_time: pausedEnd,
+  });
+
   await addManualSession({
     id: manualSessionId,
     client: 'Validation Client',
@@ -418,6 +1106,15 @@ export async function runCoreDbValidationScript(): Promise<CoreDbValidationRepor
     timedSessionId,
     manualSessionId,
   );
+
+  const pausedDurationRow = await db.getFirstAsync<Pick<Session, 'duration'>>(
+    'SELECT duration FROM sessions WHERE id = ?',
+    pausedSessionId,
+  );
+
+  if ((pausedDurationRow?.duration ?? 0) !== 80) {
+    throw new Error('Core DB validation failed: paused session duration mismatch');
+  }
 
   const allLinked = linkedRows.length === 2 && linkedRows.every((row) => row.invoice_id === invoiceId);
   if (!allLinked) {

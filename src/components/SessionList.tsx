@@ -13,6 +13,18 @@ function formatDuration(duration: number | null): string {
   return `${hours}h ${minutes}m`;
 }
 
+function getSessionStatus(session: Session): string {
+  if (session.end_time) {
+    return 'Completed';
+  }
+
+  if (session.is_paused) {
+    return 'Paused';
+  }
+
+  return 'Running';
+}
+
 export function SessionList() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -43,21 +55,28 @@ export function SessionList() {
         </Pressable>
       </View>
 
-      {isLoading ? <Text className="text-muted">Loading sessions…</Text> : null}
+      {isLoading ? <Text className="text-muted">Loading sessions...</Text> : null}
       {error ? <Text className="text-red-600">{error}</Text> : null}
 
       {!isLoading && sessions.length === 0 ? (
-        <Text className="text-muted">No sessions yet. Use the Clock In button on Dashboard.</Text>
+        <Text className="text-muted">No sessions yet. Use Clock In on Dashboard.</Text>
       ) : null}
 
       {sessions.slice(0, 10).map((session) => (
         <View key={session.id} className="gap-1 rounded-md border border-border p-3">
-          <Text className="font-semibold text-heading">{session.client}</Text>
+          <Text className="font-semibold text-heading">{session.client_name ?? session.client}</Text>
+          <Text className="text-sm text-muted">
+            {session.project_name ?? 'No project'} | {session.task_name ?? 'No task'}
+          </Text>
           <Text className="text-xs text-muted">{new Date(session.start_time).toLocaleString()}</Text>
           <Text className="text-sm text-muted">Duration: {formatDuration(session.duration)}</Text>
+          {session.notes ? <Text className="text-sm text-muted">Notes: {session.notes}</Text> : null}
+          {typeof session.break_count === 'number' && session.break_count > 0 ? (
+            <Text className="text-xs text-muted">Breaks: {session.break_count}</Text>
+          ) : null}
           <Text className="text-xs text-muted">
-            Status: {session.end_time ? 'Completed' : 'Running'}
-            {session.invoice_id ? ' · Invoiced' : ' · Uninvoiced'}
+            Status: {getSessionStatus(session)}
+            {session.invoice_id ? ' | Invoiced' : ' | Uninvoiced'}
           </Text>
         </View>
       ))}

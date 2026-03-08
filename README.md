@@ -36,9 +36,10 @@ Implemented:
 ## Mercury API setup
 
 1. Copy `.env.example` to `.env`.
-2. Set `EXPO_PUBLIC_MERCURY_API_KEY` with your Mercury API key.
-3. (Optional) Override `EXPO_PUBLIC_MERCURY_BASE_URL` for sandbox/alternate environments.
-4. Start app with `npm run web` and use **Invoices -> Test Mercury Connection**.
+2. Set `MERCURY_API_KEY` with your Mercury API key.
+3. (Optional) Override `MERCURY_BASE_URL` for sandbox/alternate environments.
+4. Mercury requests are now proxied through `src/app/api/mercury+api.ts`, so the API key never reaches client code.
+5. Start app with `npm run web` and use **Invoices -> Test Mercury Connection**.
 
 ## End-to-end testing checklist
 

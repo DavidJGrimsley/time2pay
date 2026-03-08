@@ -6,14 +6,15 @@ export default function RootLayout() {
     <Stack
       screenOptions={{
         headerShown: false,
-        headerStyle: { backgroundColor: '#111827' },
-        headerTintColor: '#f9fafb',
-        contentStyle: { backgroundColor: '#f3f4f6' },
+        headerStyle: { backgroundColor: '#1a1f16' },
+        headerTintColor: '#f8f7f3',
+        contentStyle: { backgroundColor: '#f8f7f3' },
       }}
     >
       <Stack.Screen name="index" options={{ title: 'Dashboard' }} />
       <Stack.Screen name="sessions" options={{ title: 'Sessions' }} />
       <Stack.Screen name="invoices" options={{ title: 'Invoices' }} />
+      <Stack.Screen name="bank" options={{ title: 'Bank' }} />
       <Stack.Screen name="+not-found" options={{ title: 'Not Found' }} />
     </Stack>
   );
