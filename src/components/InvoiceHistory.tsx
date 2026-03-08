@@ -2,6 +2,7 @@ import * as Linking from 'expo-linking';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import {
+  getUserProfile,
   initializeDatabase,
   listInvoices,
   listSessionBreaksBySessionIds,
@@ -19,6 +20,8 @@ import {
 type InvoiceHistoryProps = {
   refreshKey: number;
 };
+
+const FOOTER_LOGO_URL = '/images/time2payLogo.png';
 
 function formatMoney(value: number): string {
   return value.toLocaleString(undefined, { style: 'currency', currency: 'USD' });
@@ -54,13 +57,13 @@ async function buildExportableInvoice(invoice: InvoiceWithClient): Promise<{
 }> {
   const sessions = await listSessionsByInvoiceId(invoice.id);
   const sessionBreaks = await listSessionBreaksBySessionIds(sessions.map((session) => session.id));
+  const userProfile = await getUserProfile();
   const hourlyRate = invoice.client_hourly_rate ?? 0;
   const totals = computeInvoiceTotals(sessions, hourlyRate);
 
   return {
     exportable: {
       invoiceId: invoice.id,
-      clientLabel: invoice.client_name ?? invoice.client_id,
       issuedAtIso: invoice.created_at,
       hourlyRate,
       sessions: totals.sessions,
@@ -68,6 +71,19 @@ async function buildExportableInvoice(invoice: InvoiceWithClient): Promise<{
       totalHours: totals.totalHours,
       totalAmount: totals.totalAmount,
       paymentLink: invoice.payment_link ?? null,
+      sender: {
+        companyName: userProfile.company_name,
+        logoUrl: userProfile.logo_url,
+        fullName: userProfile.full_name,
+        phone: userProfile.phone,
+        email: userProfile.email,
+      },
+      recipient: {
+        companyName: invoice.client_name ?? invoice.client_id,
+        phone: invoice.client_phone ?? null,
+        email: invoice.client_email ?? null,
+      },
+      footerLogoUrl: FOOTER_LOGO_URL,
     },
     totals,
   };

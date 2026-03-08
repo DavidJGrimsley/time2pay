@@ -29,6 +29,16 @@
 - [x] Define API contract for sessions/invoices
 - [x] Map local model fields to PostgreSQL/Supabase schema
 
+## Random
+- [x] Add ability edit sessions, make create manual session more robust like clock in, group sessions better(by week and client)
+- [ ] Light/dark mode
+- [ ] Revise copy icons script and run it to move icons over
+- [ ] set up pwa with automatic updates and persisting data
+- [x] Revamp invoices to have user data in from section with optional branding, further format fixes
+- [ ] move all alerts from inline style to system alert window - inline alerts are not obvious enough and can lead to user frustration 
+- [ ] Export & import user data including all profile, clients, time tracked, etc.
+- [ ] Make comprehensive mercury-api-ui npm package
+
 ## Longer-Term
 - [ ] Multi-user support
 - [ ] Cloud-hosted option

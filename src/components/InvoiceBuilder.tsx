@@ -14,7 +14,7 @@ import {
   createInvoiceFromSessions,
   deriveSessionTimelineRows,
   groupSessionBreaksBySessionId,
-  groupInvoiceLineItemsByTask,
+  groupInvoiceLineItemsByProject,
   type InvoiceComputation,
 } from '@/services/invoice';
 import { testMercuryConnection } from '@/services/mercury';
@@ -27,8 +27,40 @@ type WeekOption = {
   sessions: Session[];
 };
 
-function createId(prefix: string): string {
-  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+function createId(prefix?: string): string {
+  const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  return prefix ? `${prefix}_${suffix}` : suffix;
+}
+
+function WeekCheckIcon({ color }: { color: string }) {
+  return (
+    <View style={{ width: 12, height: 12, position: 'relative' }}>
+      <View
+        style={{
+          position: 'absolute',
+          left: 1,
+          top: 6,
+          width: 4,
+          height: 2,
+          borderRadius: 1,
+          backgroundColor: color,
+          transform: [{ rotate: '45deg' }],
+        }}
+      />
+      <View
+        style={{
+          position: 'absolute',
+          left: 3,
+          top: 5,
+          width: 8,
+          height: 2,
+          borderRadius: 1,
+          backgroundColor: color,
+          transform: [{ rotate: '-45deg' }],
+        }}
+      />
+    </View>
+  );
 }
 
 function startOfWeekMonday(date: Date): Date {
@@ -86,7 +118,7 @@ export function InvoiceBuilder({ onInvoiceCreated }: InvoiceBuilderProps) {
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [weekOptions, setWeekOptions] = useState<WeekOption[]>([]);
-  const [selectedWeekKey, setSelectedWeekKey] = useState<string | null>(null);
+  const [selectedWeekKeys, setSelectedWeekKeys] = useState<string[]>([]);
   const [invoiceStatus, setInvoiceStatus] = useState<string>('No invoice created yet');
   const [mercuryStatus, setMercuryStatus] = useState<string>('Not checked yet');
   const [isCreatingInvoice, setIsCreatingInvoice] = useState(false);
@@ -100,21 +132,49 @@ export function InvoiceBuilder({ onInvoiceCreated }: InvoiceBuilderProps) {
     [clients, selectedClientId],
   );
 
-  const selectedWeek = useMemo(
-    () => weekOptions.find((week) => week.key === selectedWeekKey) ?? null,
-    [weekOptions, selectedWeekKey],
+  const selectedWeeks = useMemo(
+    () => weekOptions.filter((week) => selectedWeekKeys.includes(week.key)),
+    [weekOptions, selectedWeekKeys],
   );
 
-  const preview: InvoiceComputation | null = useMemo(() => {
-    if (!selectedClient || !selectedWeek) {
+  const selectedSessions = useMemo(() => {
+    const uniqueSessions = new Map<string, Session>();
+    for (const week of selectedWeeks) {
+      for (const session of week.sessions) {
+        uniqueSessions.set(session.id, session);
+      }
+    }
+
+    return Array.from(uniqueSessions.values()).sort((a, b) => (a.start_time < b.start_time ? -1 : 1));
+  }, [selectedWeeks]);
+
+  const selectedWeeksLabel = useMemo(() => {
+    if (selectedWeeks.length === 0) {
       return null;
     }
 
-    return computeInvoiceTotals(selectedWeek.sessions, selectedClient.hourly_rate);
-  }, [selectedClient, selectedWeek]);
+    if (selectedWeeks.length === 1) {
+      return selectedWeeks[0].label;
+    }
+
+    return `${selectedWeeks.length} selected weeks`;
+  }, [selectedWeeks]);
+
+  const selectedSessionIds = useMemo(
+    () => selectedSessions.map((session) => session.id),
+    [selectedSessions],
+  );
+
+  const preview: InvoiceComputation | null = useMemo(() => {
+    if (!selectedClient || selectedSessions.length === 0) {
+      return null;
+    }
+
+    return computeInvoiceTotals(selectedSessions, selectedClient.hourly_rate);
+  }, [selectedClient, selectedSessions]);
 
   const groupedLineItems = useMemo(
-    () => (preview ? groupInvoiceLineItemsByTask(preview.sessions) : []),
+    () => (preview ? groupInvoiceLineItemsByProject(preview.sessions) : []),
     [preview],
   );
 
@@ -132,7 +192,7 @@ export function InvoiceBuilder({ onInvoiceCreated }: InvoiceBuilderProps) {
   async function refreshWeeksForClient(clientId: string | null): Promise<void> {
     if (!clientId) {
       setWeekOptions([]);
-      setSelectedWeekKey(null);
+      setSelectedWeekKeys([]);
       return;
     }
 
@@ -147,11 +207,12 @@ export function InvoiceBuilder({ onInvoiceCreated }: InvoiceBuilderProps) {
 
     const weeks = buildWeekOptionsForClient(uninvoiced);
     setWeekOptions(weeks);
-    setSelectedWeekKey((current) => {
-      if (current && weeks.some((week) => week.key === current)) {
-        return current;
+    setSelectedWeekKeys((current) => {
+      const persisted = current.filter((key) => weeks.some((week) => week.key === key));
+      if (persisted.length > 0) {
+        return persisted;
       }
-      return weeks[0]?.key ?? null;
+      return weeks.map((week) => week.key);
     });
   }
 
@@ -170,20 +231,19 @@ export function InvoiceBuilder({ onInvoiceCreated }: InvoiceBuilderProps) {
   }, [selectedClientId]);
 
   useEffect(() => {
-    if (!selectedWeek) {
+    if (selectedSessionIds.length === 0) {
       setPreviewBreaksBySessionId({});
       return;
     }
 
-    const sessionIds = selectedWeek.sessions.map((session) => session.id);
-    listSessionBreaksBySessionIds(sessionIds)
+    listSessionBreaksBySessionIds(selectedSessionIds)
       .then((sessionBreaks) => {
         setPreviewBreaksBySessionId(groupSessionBreaksBySessionId(sessionBreaks));
       })
       .catch((error: unknown) => {
         setInvoiceStatus(error instanceof Error ? error.message : 'Failed to load session breaks');
       });
-  }, [selectedWeek]);
+  }, [selectedSessionIds]);
 
   async function handleMercuryCheck(): Promise<void> {
     setMercuryStatus('Checking Mercury API connection...');
@@ -196,13 +256,13 @@ export function InvoiceBuilder({ onInvoiceCreated }: InvoiceBuilderProps) {
   }
 
   async function handleCreateInvoice(): Promise<void> {
-    if (!selectedClient || !selectedWeek || !preview) {
-      setInvoiceStatus('Select a client and week with uninvoiced sessions.');
+    if (!selectedClient || selectedWeeks.length === 0 || !preview) {
+      setInvoiceStatus('Select a client and at least one week with uninvoiced sessions.');
       return;
     }
 
-    if (selectedWeek.sessions.length === 0) {
-      setInvoiceStatus('No sessions available for the selected week.');
+    if (selectedSessions.length === 0) {
+      setInvoiceStatus('No sessions available for the selected weeks.');
       return;
     }
 
@@ -217,18 +277,18 @@ export function InvoiceBuilder({ onInvoiceCreated }: InvoiceBuilderProps) {
     setInvoiceStatus('Creating invoice...');
 
     try {
-      const invoiceId = createId('invoice');
+      const invoiceId = createId();
       const result = await createInvoiceFromSessions({
         invoiceId,
         clientId: selectedClient.id,
-        sessionIds: selectedWeek.sessions.map((session) => session.id),
+        sessionIds: selectedSessionIds,
         hourlyRate: selectedClient.hourly_rate,
         mercury: syncToMercury
           ? {
               enabled: true,
               customerName: selectedClient.name,
               customerEmail: selectedClient.email ?? undefined,
-              description: `Weekly invoice for ${selectedWeek.label}`,
+              description: `Invoice for ${selectedWeeksLabel ?? `${selectedWeeks.length} week(s)`}`,
             }
           : undefined,
       });
@@ -254,8 +314,8 @@ export function InvoiceBuilder({ onInvoiceCreated }: InvoiceBuilderProps) {
     <View className="gap-3 rounded-xl bg-card p-4">
       <Text className="text-xl font-bold text-heading">Invoice Builder</Text>
       <Text className="text-muted">
-        Create invoices by client and week (Monday through Sunday). Line items are grouped by task
-        with each session listed underneath.
+        Create invoices by client and week (Monday through Sunday). Line items are grouped by
+        project, then task, with each session listed underneath.
       </Text>
 
       <View className="gap-2">
@@ -279,19 +339,28 @@ export function InvoiceBuilder({ onInvoiceCreated }: InvoiceBuilderProps) {
       </View>
 
       <View className="gap-2">
-        <Text className="text-xs uppercase tracking-wide text-muted">Week (Mon-Sun)</Text>
+        <Text className="text-xs uppercase tracking-wide text-muted">Weeks (Mon-Sun)</Text>
         <View className="flex-row flex-wrap gap-2">
           {weekOptions.map((week) => {
-            const active = week.key === selectedWeekKey;
+            const active = selectedWeekKeys.includes(week.key);
             return (
               <Pressable
                 key={week.key}
                 className={active ? 'rounded-full bg-secondary px-3 py-1.5' : 'rounded-full bg-primary px-3 py-1.5'}
-                onPress={() => setSelectedWeekKey(week.key)}
+                onPress={() =>
+                  setSelectedWeekKeys((current) =>
+                    current.includes(week.key)
+                      ? current.filter((existing) => existing !== week.key)
+                      : [...current, week.key],
+                  )
+                }
               >
-                <Text className={active ? 'font-semibold text-white' : 'font-semibold text-heading'}>
-                  {week.label}
-                </Text>
+                <View className="flex-row items-center gap-1.5">
+                  {active ? <WeekCheckIcon color="#ffffff" /> : null}
+                  <Text className={active ? 'font-semibold text-white' : 'font-semibold text-heading'}>
+                    {week.label}
+                  </Text>
+                </View>
               </Pressable>
             );
           })}
@@ -313,7 +382,7 @@ export function InvoiceBuilder({ onInvoiceCreated }: InvoiceBuilderProps) {
       <Pressable
         className="rounded-md bg-secondary px-4 py-2"
         onPress={handleCreateInvoice}
-        disabled={isCreatingInvoice || !selectedClient || !selectedWeek}
+        disabled={isCreatingInvoice || !selectedClient || selectedWeekKeys.length === 0}
       >
         <Text className="text-center font-semibold text-white">
           {isCreatingInvoice ? 'Creating...' : 'Create Invoice'}
@@ -322,66 +391,114 @@ export function InvoiceBuilder({ onInvoiceCreated }: InvoiceBuilderProps) {
 
       <View className="gap-2 rounded-md border border-border bg-background p-3">
         <Text className="font-semibold text-heading">Invoice Preview Line Items</Text>
-        {!preview ? <Text className="text-sm text-muted">Select a client and week to preview.</Text> : null}
-        {groupedLineItems.map((group) => (
-          <View key={group.taskLabel} className="gap-1">
-            <Text className="font-semibold text-heading">
-              {group.taskLabel} - {group.totalHours.toFixed(2)}h - ${group.totalAmount.toFixed(2)}
-            </Text>
-            <View className="ml-4 mt-1 overflow-hidden rounded-md border border-border bg-card">
+        {!preview ? <Text className="text-sm text-muted">Select a client and at least one week to preview.</Text> : null}
+        {groupedLineItems.map((projectGroup) => (
+          <View key={projectGroup.projectLabel} className="gap-1">
+            <Text className="font-semibold text-heading">Project: {projectGroup.projectLabel}</Text>
+            <View className="ml-3 mt-1 overflow-hidden rounded-md border border-border bg-card">
               <View className="flex-row border-b border-border bg-background px-2 py-1">
-                <Text style={{ width: '40%' }} className="text-xs font-semibold uppercase tracking-wide text-muted">
-                  Start
+                <Text style={{ width: '56%' }} className="text-xs font-semibold uppercase tracking-wide text-muted">
+                  Task
                 </Text>
-                <Text style={{ width: '40%' }} className="text-xs font-semibold uppercase tracking-wide text-muted">
-                  End
+                <Text style={{ width: '14%' }} className="text-right text-xs font-semibold uppercase tracking-wide text-muted">
+                  Time
                 </Text>
-                <Text
-                  style={{ width: '10%' }}
-                  className="text-right text-xs font-semibold uppercase tracking-wide text-muted"
-                >
-                  Hrs
+                <Text style={{ width: '14%' }} className="text-right text-xs font-semibold uppercase tracking-wide text-muted">
+                  Rate
                 </Text>
-                <Text
-                  style={{ width: '10%' }}
-                  className="text-right text-xs font-semibold uppercase tracking-wide text-muted"
-                >
-                  $
+                <Text style={{ width: '16%' }} className="text-right text-xs font-semibold uppercase tracking-wide text-muted">
+                  Amount
                 </Text>
               </View>
-              {group.sessions.map((session) => (
-                <View key={session.id} className="border-b border-border/60 px-2 py-1.5">
-                  {deriveSessionTimelineRows({
-                    session,
-                    breaks: previewBreaksBySessionId[session.id] ?? [],
-                    hourlyRate: selectedClient?.hourly_rate ?? 0,
-                  }).map((row) => (
-                    <View key={row.id} className="flex-row py-0.5">
-                      <Text style={{ width: '40%' }} className="text-xs text-muted">
-                        {new Date(row.start_time).toLocaleString()}
+
+              {projectGroup.tasks.map((taskGroup) => (
+                <View key={taskGroup.taskLabel} className="border-b border-border/60 px-2 py-1.5">
+                  <View className="flex-row py-0.5">
+                    <Text style={{ width: '56%' }} className="text-xs font-semibold text-heading">
+                      {taskGroup.taskLabel}
+                    </Text>
+                    <Text style={{ width: '14%' }} className="text-right text-xs text-muted">
+                      {taskGroup.totalHours.toFixed(2)}h
+                    </Text>
+                    <Text style={{ width: '14%' }} className="text-right text-xs text-muted">
+                      ${selectedClient?.hourly_rate.toFixed(2) ?? '0.00'}
+                    </Text>
+                    <Text style={{ width: '16%' }} className="text-right text-xs text-muted">
+                      ${taskGroup.totalAmount.toFixed(2)}
+                    </Text>
+                  </View>
+
+                  <View className="mt-1 border border-border/50 bg-background">
+                    <View className="flex-row border-b border-border/50 px-2 py-1">
+                      <Text style={{ width: '40%' }} className="text-xs font-semibold uppercase tracking-wide text-muted">
+                        Start
                       </Text>
-                      <Text style={{ width: '40%' }} className="text-xs text-muted">
-                        {new Date(row.end_time).toLocaleString()}
+                      <Text style={{ width: '40%' }} className="text-xs font-semibold uppercase tracking-wide text-muted">
+                        End
                       </Text>
-                      <Text
-                        style={{ width: '10%' }}
-                        className={
-                          row.isBreak
-                            ? 'text-right text-xs font-semibold text-secondary'
-                            : 'text-right text-xs text-muted'
-                        }
-                      >
-                        {row.isBreak ? 'Break' : row.hours.toFixed(2)}
+                      <Text style={{ width: '10%' }} className="text-right text-xs font-semibold uppercase tracking-wide text-muted">
+                        Hrs
                       </Text>
-                      <Text style={{ width: '10%' }} className="text-right text-xs text-muted">
-                        {row.isBreak ? '-' : row.amount.toFixed(2)}
+                      <Text style={{ width: '10%' }} className="text-right text-xs font-semibold uppercase tracking-wide text-muted">
+                        $
                       </Text>
                     </View>
-                  ))}
-                  {session.notes ? <Text className="pt-0.5 text-xs text-muted">Note: {session.notes}</Text> : null}
+
+                    {taskGroup.sessions.map((session, sessionIndex) => (
+                      <View
+                        key={session.id}
+                        className={
+                          sessionIndex % 2 === 0
+                            ? 'border-b border-border/50 bg-primary/45 px-2 py-1'
+                            : 'border-b border-border/50 px-2 py-1'
+                        }
+                      >
+                        {deriveSessionTimelineRows({
+                          session,
+                          breaks: previewBreaksBySessionId[session.id] ?? [],
+                          hourlyRate: selectedClient?.hourly_rate ?? 0,
+                        }).map((row) => (
+                          <View key={row.id} className="flex-row py-0.5">
+                            <Text
+                              style={{ width: '40%' }}
+                              className={row.isBreak ? 'text-xs text-secondary' : 'text-xs text-muted'}
+                            >
+                              {new Date(row.start_time).toLocaleString()}
+                            </Text>
+                            <Text
+                              style={{ width: '40%' }}
+                              className={row.isBreak ? 'text-xs text-secondary' : 'text-xs text-muted'}
+                            >
+                              {new Date(row.end_time).toLocaleString()}
+                            </Text>
+                            <Text
+                              style={{ width: '10%' }}
+                              className={
+                                row.isBreak
+                                  ? 'text-right text-xs font-semibold text-secondary'
+                                  : 'text-right text-xs text-muted'
+                              }
+                            >
+                              {row.isBreak ? 'Break' : row.hours.toFixed(2)}
+                            </Text>
+                            <Text
+                              style={{ width: '10%' }}
+                              className={row.isBreak ? 'text-right text-xs text-secondary' : 'text-right text-xs text-muted'}
+                            >
+                              {row.isBreak ? '-' : row.amount.toFixed(2)}
+                            </Text>
+                          </View>
+                        ))}
+                        {session.notes ? <Text className="pt-0.5 text-xs text-muted">Note: {session.notes}</Text> : null}
+                      </View>
+                    ))}
+                  </View>
                 </View>
               ))}
             </View>
+            <Text className="text-right text-sm font-semibold text-heading">
+              Project total: ${projectGroup.totalAmount.toFixed(2)}
+            </Text>
           </View>
         ))}
       </View>

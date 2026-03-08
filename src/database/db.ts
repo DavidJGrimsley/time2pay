@@ -29,6 +29,7 @@ export type Client = {
   id: string;
   name: string;
   email: string | null;
+  phone: string | null;
   hourly_rate: number;
   github_org: string | null;
   created_at: string;
@@ -71,7 +72,19 @@ export type Invoice = {
 export type InvoiceWithClient = Invoice & {
   client_name?: string | null;
   client_email?: string | null;
+  client_phone?: string | null;
   client_hourly_rate?: number | null;
+};
+
+export type UserProfile = {
+  id: string;
+  company_name: string | null;
+  logo_url: string | null;
+  full_name: string | null;
+  phone: string | null;
+  email: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 export type SessionBreak = {
@@ -93,7 +106,8 @@ export type CoreDbValidationReport = {
 };
 
 const DB_NAME = 'time2pay.db';
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
+const USER_PROFILE_ID = 'me';
 
 const MIGRATIONS: { version: number; upSql: string }[] = [
   {
@@ -217,6 +231,23 @@ const MIGRATIONS: { version: number; upSql: string }[] = [
       ALTER TABLE projects ADD COLUMN github_repo TEXT;
       ALTER TABLE tasks ADD COLUMN github_branch TEXT;
       ALTER TABLE sessions ADD COLUMN commit_sha TEXT;
+    `,
+  },
+  {
+    version: 6,
+    upSql: `
+      ALTER TABLE clients ADD COLUMN phone TEXT;
+
+      CREATE TABLE IF NOT EXISTS user_profile (
+        id TEXT PRIMARY KEY NOT NULL,
+        company_name TEXT,
+        logo_url TEXT,
+        full_name TEXT,
+        phone TEXT,
+        email TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
     `,
   },
 ];
@@ -369,6 +400,8 @@ export async function initializeDatabase(): Promise<void> {
       `Schema migration mismatch: expected version ${SCHEMA_VERSION}, got ${finalVersion}`,
     );
   }
+
+  await ensureUserProfileRow(db);
 }
 
 export async function getCurrentSchemaVersion(): Promise<number> {
@@ -380,6 +413,7 @@ export async function createClient(input: {
   id: string;
   name: string;
   email?: string | null;
+  phone?: string | null;
   hourly_rate?: number;
   github_org?: string | null;
 }): Promise<void> {
@@ -387,11 +421,12 @@ export async function createClient(input: {
   const timestamp = nowIso();
 
   await db.runAsync(
-    `INSERT INTO clients (id, name, email, hourly_rate, github_org, created_at, updated_at, deleted_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO clients (id, name, email, phone, hourly_rate, github_org, created_at, updated_at, deleted_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     input.id,
     input.name,
     input.email ?? null,
+    input.phone ?? null,
     input.hourly_rate ?? 0,
     input.github_org ?? null,
     timestamp,
@@ -403,7 +438,7 @@ export async function createClient(input: {
 export async function listClients(): Promise<Client[]> {
   const db = await getDb();
   return db.getAllAsync<Client>(
-    `SELECT id, name, email, hourly_rate, github_org, created_at, updated_at, deleted_at
+    `SELECT id, name, email, phone, hourly_rate, github_org, created_at, updated_at, deleted_at
      FROM clients
      WHERE deleted_at IS NULL
      ORDER BY name COLLATE NOCASE ASC`,
@@ -413,12 +448,115 @@ export async function listClients(): Promise<Client[]> {
 export async function getClientById(clientId: string): Promise<Client | null> {
   const db = await getDb();
   const row = await db.getFirstAsync<Client>(
-    `SELECT id, name, email, hourly_rate, github_org, created_at, updated_at, deleted_at
+    `SELECT id, name, email, phone, hourly_rate, github_org, created_at, updated_at, deleted_at
      FROM clients
      WHERE id = ? AND deleted_at IS NULL`,
     clientId,
   );
   return row ?? null;
+}
+
+async function ensureUserProfileRow(db: SQLite.SQLiteDatabase): Promise<void> {
+  const timestamp = nowIso();
+  await db.runAsync(
+    `INSERT OR IGNORE INTO user_profile (
+       id,
+       company_name,
+       logo_url,
+       full_name,
+       phone,
+       email,
+       created_at,
+       updated_at
+     )
+     VALUES (?, NULL, NULL, NULL, NULL, NULL, ?, ?)`,
+    USER_PROFILE_ID,
+    timestamp,
+    timestamp,
+  );
+}
+
+export async function getUserProfile(): Promise<UserProfile> {
+  const db = await getDb();
+  await ensureUserProfileRow(db);
+  const row = await db.getFirstAsync<UserProfile>(
+    `SELECT
+       id,
+       company_name,
+       logo_url,
+       full_name,
+       phone,
+       email,
+       created_at,
+       updated_at
+     FROM user_profile
+     WHERE id = ?`,
+    USER_PROFILE_ID,
+  );
+
+  if (!row) {
+    throw new Error('User profile could not be loaded');
+  }
+
+  return row;
+}
+
+export async function upsertUserProfile(input: {
+  company_name?: string | null;
+  logo_url?: string | null;
+  full_name?: string | null;
+  phone?: string | null;
+  email?: string | null;
+}): Promise<void> {
+  const db = await getDb();
+  await ensureUserProfileRow(db);
+  const timestamp = nowIso();
+
+  await db.runAsync(
+    `UPDATE user_profile
+       SET company_name = ?,
+           logo_url = ?,
+           full_name = ?,
+           phone = ?,
+           email = ?,
+           updated_at = ?
+     WHERE id = ?`,
+    input.company_name ?? null,
+    input.logo_url ?? null,
+    input.full_name ?? null,
+    input.phone ?? null,
+    input.email ?? null,
+    timestamp,
+    USER_PROFILE_ID,
+  );
+}
+
+export async function updateClientInvoiceContact(input: {
+  id: string;
+  name: string;
+  email?: string | null;
+  phone?: string | null;
+}): Promise<void> {
+  const db = await getDb();
+  const timestamp = nowIso();
+  const result = await db.runAsync(
+    `UPDATE clients
+       SET name = ?,
+           email = ?,
+           phone = ?,
+           updated_at = ?
+     WHERE id = ?
+       AND deleted_at IS NULL`,
+    input.name,
+    input.email ?? null,
+    input.phone ?? null,
+    timestamp,
+    input.id,
+  );
+
+  if (result.changes === 0) {
+    throw new Error('Client not found');
+  }
 }
 
 export async function createProject(input: {
@@ -918,6 +1056,7 @@ export async function listInvoices(): Promise<InvoiceWithClient[]> {
        i.deleted_at,
        c.name AS client_name,
        c.email AS client_email,
+       c.phone AS client_phone,
        c.hourly_rate AS client_hourly_rate
      FROM invoices i
      LEFT JOIN clients c ON c.id = i.client_id

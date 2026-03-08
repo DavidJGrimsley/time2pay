@@ -11,13 +11,14 @@ const routeLinks: RouteLink[] = [
   { href: '/sessions', label: 'Sessions' },
   { href: '/invoices', label: 'Invoices' },
   { href: '/bank', label: 'Bank' },
+  { href: '/profile', label: 'Profile' },
 ];
 
 export function RouteNav() {
   const pathname = usePathname();
 
   return (
-    <View className="flex-row gap-2">
+    <View className="flex-row flex-wrap gap-2">
       {routeLinks.map((routeLink) => {
         const href = routeLink.href as string;
         const active = href === '/' ? pathname === '/' : pathname.startsWith(href);
