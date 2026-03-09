@@ -107,6 +107,22 @@ npm run serve:prod
 - Can be installed by clicking the 3 dots in Google Chrome, 'Cast, save, and share', 'Install ...'
 - On new deploys, service worker updates and the app refreshes into the new version
 
+## Local Data Backup and Restore (Web/PWA)
+
+Use this before switching localhost ports, browser profiles, or machines:
+
+1. Open **Profile -> Data Backup**
+2. Click **Export Data** to download a JSON backup of local data
+3. On the new origin/environment, open the same section and click **Import Data**
+4. Confirm the replace-all prompt to restore your data
+
+Notes:
+
+- Import replaces current local data for that browser origin.
+- You can enable/disable a pre-import rollback backup in the same section.
+- Backups include profile, clients, projects, tasks, sessions, breaks, invoices, and timer selection.
+- Mercury API keys are server-side env vars and are not part of backup files.
+
 ## Plesk Deployment (Node App)
 
 1. Upload project

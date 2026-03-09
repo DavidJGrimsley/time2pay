@@ -1,3 +1,4 @@
+/* global __dirname */
 const path = require('node:path');
 const compression = require('compression');
 const express = require('express');
