@@ -35,7 +35,7 @@
 - [x] Revise copy icons script and run it to move icons over
 - [x] set up pwa with automatic updates and persisting data
 - [x] Revamp invoices to have user data in from section with optional branding, further format fixes
-- [ ] A gate on the entire dashboard buttons and interactivity to ensure the user has filled out the profile screen first
+- [x] A gate on the entire dashboard buttons and interactivity to ensure the user has filled out the profile screen first
 - [ ] Move all alerts from inline style to system alert window because inline alerts are not obvious enough and can lead to user frustration 
 - [ ] Export & import user data including all profile, clients, time tracked, etc.
 - [ ] Make comprehensive mercury-api-ui npm package

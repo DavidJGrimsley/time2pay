@@ -28,6 +28,10 @@ import {
   type SessionCompleteResult,
 } from '@/components/SessionCompleteModal';
 import { CalendarDateField } from '@/components/calendar-date-field';
+import {
+  REQUIRED_PROFILE_FIELD_LABELS,
+  type RequiredProfileField,
+} from '@/services/profile-completion';
 
 const LAST_SELECTIONS_KEY = 'time2pay.timer.last-selection';
 const EMPTY_PICKER_VALUE = '';
@@ -55,6 +59,15 @@ type PickerFieldProps = {
   disabled?: boolean;
   onSelect: (value: string | null) => void;
   onCreateNew: () => void;
+};
+
+type TimerGateState = {
+  locked: boolean;
+  missingFields: RequiredProfileField[];
+};
+
+type TimerProps = {
+  gate?: TimerGateState;
 };
 
 function ClockIcon({ color = '#ffffff' }: { color?: string }) {
@@ -355,7 +368,7 @@ function saveLastSelection(selection: LastSelection): void {
   localStorage.setItem(LAST_SELECTIONS_KEY, JSON.stringify(selection));
 }
 
-export function Timer() {
+export function Timer({ gate }: TimerProps) {
   const defaults = loadLastSelection();
   const [clients, setClients] = useState<Client[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -403,6 +416,16 @@ export function Timer() {
   const [completedSessionNotes, setCompletedSessionNotes] = useState<string | null>(null);
 
   const isClockedIn = useMemo(() => !!activeSession, [activeSession]);
+  const isInteractionLocked = gate?.locked ?? false;
+  const lockReason = useMemo(() => {
+    const fields = gate?.missingFields ?? [];
+    if (fields.length === 0) {
+      return 'Complete your profile before using dashboard actions.';
+    }
+
+    const labels = fields.map((field) => REQUIRED_PROFILE_FIELD_LABELS[field]);
+    return `Complete your profile (${labels.join(', ')}) before using dashboard actions.`;
+  }, [gate?.missingFields]);
   const manualRangeError = useMemo(() => {
     if (!isCreatingManualSession || isClockedIn) {
       return null;
@@ -554,8 +577,24 @@ export function Timer() {
     return () => clearInterval(interval);
   }, [activeSession, isPaused, activeBreaks]);
 
+  useEffect(() => {
+    if (!isInteractionLocked || isClockedIn) {
+      return;
+    }
+
+    setIsCreatingClient(false);
+    setIsCreatingProject(false);
+    setIsCreatingTask(false);
+    setIsCreatingManualSession(false);
+  }, [isClockedIn, isInteractionLocked]);
+
   async function handleCreateClient(): Promise<void> {
     setMessage(null);
+    if (isInteractionLocked) {
+      setMessage(lockReason);
+      return;
+    }
+
     const name = newClientName.trim();
     if (!name) {
       setMessage('Client name is required.');
@@ -588,6 +627,11 @@ export function Timer() {
 
   async function handleCreateProject(): Promise<void> {
     setMessage(null);
+    if (isInteractionLocked) {
+      setMessage(lockReason);
+      return;
+    }
+
     if (!selectedClientId) {
       setMessage('Select a client before creating a project.');
       return;
@@ -616,6 +660,11 @@ export function Timer() {
 
   async function handleCreateTask(): Promise<void> {
     setMessage(null);
+    if (isInteractionLocked) {
+      setMessage(lockReason);
+      return;
+    }
+
     if (!selectedProjectId) {
       setMessage('Select a project before creating a task.');
       return;
@@ -644,6 +693,10 @@ export function Timer() {
 
   async function handleClockIn(): Promise<void> {
     setMessage(null);
+    if (isInteractionLocked) {
+      setMessage(lockReason);
+      return;
+    }
 
     if (!selectedClient || !selectedProject || !selectedTask) {
       setMessage('Select a client, project, and task before clocking in.');
@@ -723,6 +776,10 @@ export function Timer() {
 
   async function handleCreateManualSession(): Promise<void> {
     setMessage(null);
+    if (isInteractionLocked) {
+      setMessage(lockReason);
+      return;
+    }
 
     if (!selectedClient || !selectedProject || !selectedTask) {
       setMessage('Select a client, project, and task before creating a manual session.');
@@ -803,7 +860,7 @@ export function Timer() {
   }
 
   async function handleNotesBlur(): Promise<void> {
-    if (!activeSession) {
+    if (!activeSession || isInteractionLocked) {
       return;
     }
 
@@ -832,19 +889,27 @@ export function Timer() {
         options={clients.map((client) => ({ id: client.id, label: client.name }))}
         placeholder="Select client"
         createValue={CREATE_CLIENT_PICKER_VALUE}
-        disabled={isClockedIn || isLoading}
+        disabled={isClockedIn || isLoading || isInteractionLocked}
         onSelect={(value) => {
+          if (isInteractionLocked) {
+            setMessage(lockReason);
+            return;
+          }
           setSelectedClientId(value);
           setIsCreatingClient(false);
         }}
         onCreateNew={() => {
+          if (isInteractionLocked) {
+            setMessage(lockReason);
+            return;
+          }
           setIsCreatingClient(true);
           setIsCreatingProject(false);
           setIsCreatingTask(false);
         }}
       />
 
-      {isCreatingClient && !isClockedIn ? (
+      {isCreatingClient && !isClockedIn && !isInteractionLocked ? (
         <View className="gap-2 rounded-md border border-border bg-background p-3">
           <TextInput
             value={newClientName}
@@ -894,19 +959,27 @@ export function Timer() {
         options={projects.map((project) => ({ id: project.id, label: project.name }))}
         placeholder="Select project"
         createValue={CREATE_PROJECT_PICKER_VALUE}
-        disabled={isClockedIn || isLoading || !selectedClientId}
+        disabled={isClockedIn || isLoading || isInteractionLocked || !selectedClientId}
         onSelect={(value) => {
+          if (isInteractionLocked) {
+            setMessage(lockReason);
+            return;
+          }
           setSelectedProjectId(value);
           setIsCreatingProject(false);
         }}
         onCreateNew={() => {
+          if (isInteractionLocked) {
+            setMessage(lockReason);
+            return;
+          }
           setIsCreatingProject(true);
           setIsCreatingClient(false);
           setIsCreatingTask(false);
         }}
       />
 
-      {isCreatingProject && !isClockedIn ? (
+      {isCreatingProject && !isClockedIn && !isInteractionLocked ? (
         <View className="gap-2 rounded-md border border-border bg-background p-3">
           <TextInput
             value={newProjectName}
@@ -942,19 +1015,27 @@ export function Timer() {
         options={tasks.map((task) => ({ id: task.id, label: task.name }))}
         placeholder="Select task"
         createValue={CREATE_TASK_PICKER_VALUE}
-        disabled={isClockedIn || isLoading || !selectedProjectId}
+        disabled={isClockedIn || isLoading || isInteractionLocked || !selectedProjectId}
         onSelect={(value) => {
+          if (isInteractionLocked) {
+            setMessage(lockReason);
+            return;
+          }
           setSelectedTaskId(value);
           setIsCreatingTask(false);
         }}
         onCreateNew={() => {
+          if (isInteractionLocked) {
+            setMessage(lockReason);
+            return;
+          }
           setIsCreatingTask(true);
           setIsCreatingClient(false);
           setIsCreatingProject(false);
         }}
       />
 
-      {isCreatingTask && !isClockedIn ? (
+      {isCreatingTask && !isClockedIn && !isInteractionLocked ? (
         <View className="gap-2 rounded-md border border-border bg-background p-3">
           <TextInput
             value={newTaskName}
@@ -989,11 +1070,12 @@ export function Timer() {
         <TextInput
           value={notes}
           onChangeText={setNotes}
+          editable={!isInteractionLocked}
           onBlur={() => {
             handleNotesBlur().catch(() => undefined);
           }}
           placeholder="What you worked on this session"
-          className="rounded-md border border-border bg-background px-3 py-2 text-foreground"
+          className={`rounded-md border border-border bg-background px-3 py-2 text-foreground ${isInteractionLocked ? 'opacity-60' : ''}`}
         />
       </View>
 
@@ -1025,9 +1107,9 @@ export function Timer() {
         </View>
       ) : (
         <Pressable
-          className="rounded-2xl bg-secondary px-4 py-3"
+          className={`rounded-2xl px-4 py-3 ${isInteractionLocked || isLoading ? 'bg-secondary/60' : 'bg-secondary'}`}
           onPress={handleClockIn}
-          disabled={isLoading}
+          disabled={isLoading || isInteractionLocked}
         >
           <View className="flex-row items-center justify-center gap-2">
             <ClockIcon />
@@ -1038,8 +1120,16 @@ export function Timer() {
 
       {!isClockedIn ? (
         <Pressable
-          className="rounded-2xl border border-border bg-background px-4 py-3"
-          onPress={() => setIsCreatingManualSession((open) => !open)}
+          className={`rounded-2xl border border-border bg-background px-4 py-3 ${isInteractionLocked ? 'opacity-60' : ''}`}
+          onPress={() => {
+            if (isInteractionLocked) {
+              setMessage(lockReason);
+              return;
+            }
+
+            setIsCreatingManualSession((open) => !open);
+          }}
+          disabled={isInteractionLocked}
         >
           <Text className="text-center font-semibold text-heading">
             {isCreatingManualSession ? 'Cancel Manual Session' : 'Create Session'}
@@ -1047,7 +1137,7 @@ export function Timer() {
         </Pressable>
       ) : null}
 
-      {isCreatingManualSession && !isClockedIn ? (
+      {isCreatingManualSession && !isClockedIn && !isInteractionLocked ? (
         <View className="gap-2 rounded-md border border-border bg-background p-3">
           <PickerField
             label="Client"
@@ -1055,11 +1145,20 @@ export function Timer() {
             options={clients.map((client) => ({ id: client.id, label: client.name }))}
             placeholder="Select client"
             createValue={CREATE_CLIENT_PICKER_VALUE}
+            disabled={isInteractionLocked}
             onSelect={(value) => {
+              if (isInteractionLocked) {
+                setMessage(lockReason);
+                return;
+              }
               setSelectedClientId(value);
               setIsCreatingClient(false);
             }}
             onCreateNew={() => {
+              if (isInteractionLocked) {
+                setMessage(lockReason);
+                return;
+              }
               setIsCreatingClient(true);
               setIsCreatingProject(false);
               setIsCreatingTask(false);
@@ -1071,12 +1170,20 @@ export function Timer() {
             options={projects.map((project) => ({ id: project.id, label: project.name }))}
             placeholder="Select project"
             createValue={CREATE_PROJECT_PICKER_VALUE}
-            disabled={!selectedClientId}
+            disabled={isInteractionLocked || !selectedClientId}
             onSelect={(value) => {
+              if (isInteractionLocked) {
+                setMessage(lockReason);
+                return;
+              }
               setSelectedProjectId(value);
               setIsCreatingProject(false);
             }}
             onCreateNew={() => {
+              if (isInteractionLocked) {
+                setMessage(lockReason);
+                return;
+              }
               setIsCreatingProject(true);
               setIsCreatingClient(false);
               setIsCreatingTask(false);
@@ -1088,12 +1195,20 @@ export function Timer() {
             options={tasks.map((task) => ({ id: task.id, label: task.name }))}
             placeholder="Select task"
             createValue={CREATE_TASK_PICKER_VALUE}
-            disabled={!selectedProjectId}
+            disabled={isInteractionLocked || !selectedProjectId}
             onSelect={(value) => {
+              if (isInteractionLocked) {
+                setMessage(lockReason);
+                return;
+              }
               setSelectedTaskId(value);
               setIsCreatingTask(false);
             }}
             onCreateNew={() => {
+              if (isInteractionLocked) {
+                setMessage(lockReason);
+                return;
+              }
               setIsCreatingTask(true);
               setIsCreatingClient(false);
               setIsCreatingProject(false);
@@ -1109,6 +1224,7 @@ export function Timer() {
             <TextInput
               value={manualStartTime}
               onChangeText={setManualStartTime}
+              editable={!isInteractionLocked}
               onBlur={() => {
                 const normalized = normalizeTimeInput(manualStartTime);
                 if (normalized) {
@@ -1130,6 +1246,7 @@ export function Timer() {
             <TextInput
               value={manualEndTime}
               onChangeText={setManualEndTime}
+              editable={!isInteractionLocked}
               onBlur={() => {
                 const normalized = normalizeTimeInput(manualEndTime);
                 if (normalized) {
@@ -1146,13 +1263,14 @@ export function Timer() {
           <TextInput
             value={manualNotes}
             onChangeText={setManualNotes}
+            editable={!isInteractionLocked}
             placeholder="What was done in this session"
             className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
           />
           <Pressable
-            className={`rounded-md px-4 py-2 ${manualRangeError ? 'bg-secondary/60' : 'bg-secondary'}`}
+            className={`rounded-md px-4 py-2 ${manualRangeError || isInteractionLocked ? 'bg-secondary/60' : 'bg-secondary'}`}
             onPress={handleCreateManualSession}
-            disabled={Boolean(manualRangeError)}
+            disabled={Boolean(manualRangeError) || isInteractionLocked}
           >
             <Text className="text-center font-semibold text-white">Save Manual Session</Text>
           </Pressable>

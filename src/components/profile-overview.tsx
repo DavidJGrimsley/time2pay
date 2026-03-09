@@ -9,6 +9,10 @@ import {
   updateClientInvoiceContact,
   type Client,
 } from '@/database/db';
+import {
+  evaluateProfileCompletion,
+  REQUIRED_PROFILE_FIELD_LABELS,
+} from '@/services/profile-completion';
 
 const EMPTY_PICKER_VALUE = '';
 
@@ -93,8 +97,19 @@ export function ProfileOverview() {
   async function handleSaveBusiness(): Promise<void> {
     setStatus('');
     const trimmedFullName = fullName.trim();
-    if (!trimmedFullName) {
-      setStatus('Full name is required.');
+    const trimmedBusinessPhone = businessPhone.trim();
+    const trimmedBusinessEmail = businessEmail.trim();
+    const completion = evaluateProfileCompletion({
+      full_name: trimmedFullName,
+      phone: trimmedBusinessPhone,
+      email: trimmedBusinessEmail,
+    });
+
+    if (!completion.isComplete) {
+      const missing = completion.missingFields
+        .map((field) => REQUIRED_PROFILE_FIELD_LABELS[field])
+        .join(', ');
+      setStatus(`Missing required business profile fields: ${missing}.`);
       return;
     }
 
@@ -104,11 +119,11 @@ export function ProfileOverview() {
         company_name: toNullableTrimmed(companyName),
         logo_url: toNullableTrimmed(logoUrl),
         full_name: trimmedFullName,
-        phone: toNullableTrimmed(businessPhone),
-        email: toNullableTrimmed(businessEmail),
+        phone: trimmedBusinessPhone,
+        email: trimmedBusinessEmail,
       });
-      setStatus('Business profile saved.');
       await loadProfileData();
+      setStatus('Business profile saved.');
     } catch (error: unknown) {
       setStatus(error instanceof Error ? error.message : 'Failed to save business profile.');
     } finally {
