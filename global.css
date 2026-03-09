@@ -1,9 +1,48 @@
 @import 'tailwindcss';
 @import 'uniwind';
 
+/* ── Light-mode defaults (registered as Tailwind theme tokens) ── */
 @theme {
-  --color-background: #f3f4f6;
-  --color-card: #ffffff;
-  --color-heading: #111827;
-  --color-muted: #4b5563;
+  --color-primary: #AFE4B7;
+  --color-secondary: #bb7e5d;
+  --color-black: #1a1f16;
+  --color-white: #f8f7f3;
+
+  --color-background: #f8f7f3;
+  --color-card: #f2f0ea;
+  --color-foreground: #1a1f16;
+  --color-heading: #1a1f16;
+  --color-muted: #5f675d;
+  --color-border: #9da89f;
+
+  --color-invoiced-surface: #31362f;
+  --color-invoiced-text: #f8f7f3;
+  --color-invoiced-muted: #d7d8cf;
+  --color-success: #4f8f58;
+  --color-danger: #dc2626;
+  --color-link: #2563eb;
+}
+
+/* ── Dark-mode overrides (earthy dark palette) ── */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-primary: #8fd49a;
+    --color-secondary: #d4955f;
+    --color-black: #f8f7f3;
+    --color-white: #1a1f16;
+
+    --color-background: #1a1f16;
+    --color-card: #24291f;
+    --color-foreground: #f8f7f3;
+    --color-heading: #f8f7f3;
+    --color-muted: #a8b0a5;
+    --color-border: #3d4438;
+
+    --color-invoiced-surface: #0f1210;
+    --color-invoiced-text: #f8f7f3;
+    --color-invoiced-muted: #b8bab2;
+    --color-success: #6aaf72;
+    --color-danger: #f87171;
+    --color-link: #60a5fa;
+  }
 }

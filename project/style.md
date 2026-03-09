@@ -6,6 +6,14 @@
 - Keep flows local-first and resilient offline.
 - Make invoice and session data transparent and editable.
 
+## Color System
+- Primary: **Celadon** `#AFE4B7`
+- Secondary: **Cinnamon Wood** `#BB7E5D`
+- Black/Base Ink: **Carbon Black** `#1A1F16`
+- White/Base Canvas: **Off White** `#F8F7F3`
+- Use tokenized colors from `global.css` (`primary`, `secondary`, `background`, `card`, `heading`, `foreground`, `muted`, `border`).
+- Avoid raw gray/hex utility classes in component markup unless there is a clear one-off exception.
+
 ## Engineering Style
 - Prefer minimal dependencies.
 - Keep business logic separated from UI.

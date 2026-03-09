@@ -1,87 +1,149 @@
-import type { Session } from '@/database/db';
+import {
+  addManualSession,
+  initializeDatabase,
+  isSessionPaused,
+  listSessions,
+  listSessionBreaksBySessionId,
+  pauseSession,
+  resumeSession,
+  startSession,
+  stopSession,
+  updateSession,
+  type Session,
+  type SessionBreak,
+} from '@/database/db';
 
-const STORAGE_KEY = 'time2pay.sessions';
+let initialized = false;
 
-function nowIso(): string {
-  return new Date().toISOString();
-}
-
-function readSessions(): Session[] {
-  if (typeof localStorage === 'undefined') {
-    return [];
-  }
-
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      return [];
-    }
-
-    return JSON.parse(raw) as Session[];
-  } catch {
-    return [];
-  }
-}
-
-function writeSessions(sessions: Session[]): void {
-  if (typeof localStorage === 'undefined') {
+async function ensureDatabaseReady(): Promise<void> {
+  if (initialized) {
     return;
   }
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
+
+  await initializeDatabase();
+  initialized = true;
 }
 
 export async function listRuntimeSessions(): Promise<Session[]> {
-  return readSessions().sort((a, b) => (a.start_time < b.start_time ? 1 : -1));
+  await ensureDatabaseReady();
+  return listSessions();
+}
+
+export type RuntimeSessionState = {
+  runningSession: Session | null;
+  paused: boolean;
+  breaks: SessionBreak[];
+};
+
+export async function getRuntimeSessionState(): Promise<RuntimeSessionState> {
+  await ensureDatabaseReady();
+
+  const sessions = await listSessions();
+  const runningSession = sessions.find((session) => session.end_time === null) ?? null;
+
+  if (!runningSession) {
+    return {
+      runningSession: null,
+      paused: false,
+      breaks: [],
+    };
+  }
+
+  const [paused, breaks] = await Promise.all([
+    isSessionPaused(runningSession.id),
+    listSessionBreaksBySessionId(runningSession.id),
+  ]);
+
+  return {
+    runningSession,
+    paused,
+    breaks,
+  };
 }
 
 export async function startRuntimeSession(input: {
   id: string;
   client: string;
+  clientId?: string | null;
+  projectId?: string | null;
+  taskId?: string | null;
   notes?: string | null;
 }): Promise<void> {
-  const timestamp = nowIso();
-  const sessions = readSessions();
-  sessions.push({
+  await ensureDatabaseReady();
+
+  const sessions = await listSessions();
+  const runningSession = sessions.find((session) => session.end_time === null);
+  if (runningSession) {
+    throw new Error('A session is already running. Clock out first.');
+  }
+
+  await startSession({
     id: input.id,
     client: input.client,
-    start_time: timestamp,
-    end_time: null,
-    duration: null,
+    client_id: input.clientId ?? null,
+    project_id: input.projectId ?? null,
+    task_id: input.taskId ?? null,
     notes: input.notes ?? null,
-    invoice_id: null,
-    created_at: timestamp,
-    updated_at: timestamp,
-    deleted_at: null,
   });
-
-  writeSessions(sessions);
 }
 
 export async function stopRuntimeSession(sessionId: string): Promise<void> {
-  const sessions = readSessions();
-  const index = sessions.findIndex((session) => session.id === sessionId);
+  await ensureDatabaseReady();
+  await stopSession({ id: sessionId });
+}
 
-  if (index < 0) {
-    throw new Error(`Session ${sessionId} not found`);
-  }
+export async function pauseRuntimeSession(sessionId: string): Promise<void> {
+  await ensureDatabaseReady();
+  await pauseSession({ sessionId });
+}
 
-  const existing = sessions[index];
-  if (existing.end_time) {
-    throw new Error(`Session ${sessionId} already stopped`);
-  }
+export async function resumeRuntimeSession(sessionId: string): Promise<void> {
+  await ensureDatabaseReady();
+  await resumeSession({ sessionId });
+}
 
-  const endTime = nowIso();
-  const duration = Math.max(
-    0,
-    Math.round((new Date(endTime).getTime() - new Date(existing.start_time).getTime()) / 1000),
-  );
+export async function createRuntimeManualSession(input: {
+  id: string;
+  client: string;
+  clientId?: string | null;
+  projectId?: string | null;
+  taskId?: string | null;
+  startTimeIso: string;
+  endTimeIso: string;
+  notes?: string | null;
+}): Promise<void> {
+  await ensureDatabaseReady();
 
-  sessions[index] = {
-    ...existing,
-    end_time: endTime,
-    duration,
-    updated_at: endTime,
-  };
+  await addManualSession({
+    id: input.id,
+    client: input.client,
+    client_id: input.clientId ?? null,
+    project_id: input.projectId ?? null,
+    task_id: input.taskId ?? null,
+    start_time: input.startTimeIso,
+    end_time: input.endTimeIso,
+    notes: input.notes ?? null,
+  });
+}
 
-  writeSessions(sessions);
+export async function updateRuntimeSession(input: {
+  id: string;
+  clientId: string;
+  projectId: string;
+  taskId: string;
+  startTimeIso: string;
+  endTimeIso: string;
+  notes?: string | null;
+}): Promise<void> {
+  await ensureDatabaseReady();
+
+  await updateSession({
+    id: input.id,
+    client_id: input.clientId,
+    project_id: input.projectId,
+    task_id: input.taskId,
+    start_time: input.startTimeIso,
+    end_time: input.endTimeIso,
+    notes: input.notes ?? null,
+  });
 }
