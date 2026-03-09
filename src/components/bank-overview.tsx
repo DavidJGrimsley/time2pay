@@ -1,8 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { listMercuryAccounts } from '@/services/mercury';
+import { InlineNotice, type NoticeTone } from '@/components/inline-notice';
+import { showActionErrorAlert } from '@/services/system-alert';
 
 type RecordValue = Record<string, unknown>;
+type StatusNotice = {
+  message: string;
+  tone: NoticeTone;
+};
 
 function asRecord(input: unknown): RecordValue | null {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
@@ -43,27 +49,37 @@ function formatMoney(value: unknown): string {
 
 export function BankOverview() {
   const [accounts, setAccounts] = useState<unknown[]>([]);
-  const [status, setStatus] = useState('Loading Mercury accounts...');
+  const [status, setStatus] = useState<StatusNotice>({
+    message: 'Loading Mercury accounts...',
+    tone: 'neutral',
+  });
   const [loading, setLoading] = useState(false);
 
   const checkingAccount = useMemo(() => findCheckingAccount(accounts), [accounts]);
 
-  async function refreshAccounts(): Promise<void> {
+  async function refreshAccounts(source: 'initial' | 'user' = 'user'): Promise<void> {
     setLoading(true);
-    setStatus('Loading Mercury accounts...');
+    setStatus({ message: 'Loading Mercury accounts...', tone: 'neutral' });
     try {
       const rows = await listMercuryAccounts();
       setAccounts(rows);
-      setStatus(rows.length > 0 ? `Loaded ${rows.length} account(s).` : 'No accounts found.');
+      setStatus({
+        message: rows.length > 0 ? `Loaded ${rows.length} account(s).` : 'No accounts found.',
+        tone: 'neutral',
+      });
     } catch (error: unknown) {
-      setStatus(error instanceof Error ? error.message : 'Failed to load Mercury accounts.');
+      const message = error instanceof Error ? error.message : 'Failed to load Mercury accounts.';
+      if (source === 'user') {
+        showActionErrorAlert(message);
+      }
+      setStatus({ message, tone: 'error' });
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    refreshAccounts().catch(() => undefined);
+    refreshAccounts('initial').catch(() => undefined);
   }, []);
 
   const balances = asRecord(checkingAccount?.balances ?? null);
@@ -82,14 +98,14 @@ export function BankOverview() {
           <Text className="text-xl font-bold text-heading">Checking Account</Text>
           <Pressable
             className="rounded-md border border-border px-3 py-1.5"
-            onPress={() => refreshAccounts()}
+            onPress={() => refreshAccounts('user')}
             disabled={loading}
           >
             <Text className="font-semibold text-heading">{loading ? 'Refreshing...' : 'Refresh'}</Text>
           </Pressable>
         </View>
 
-        <Text className="text-sm text-muted">{status}</Text>
+        <InlineNotice tone={status.tone} message={status.message} />
 
         {!checkingAccount ? (
           <Text className="text-sm text-muted">No account data available.</Text>

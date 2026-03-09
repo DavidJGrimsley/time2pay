@@ -16,9 +16,16 @@ import {
   type ExportableInvoice,
   type InvoiceComputation,
 } from '@/services/invoice';
+import { InlineNotice, type NoticeTone } from '@/components/inline-notice';
+import { showActionErrorAlert, showValidationAlert } from '@/services/system-alert';
 
 type InvoiceHistoryProps = {
   refreshKey: number;
+};
+
+type StatusNotice = {
+  message: string;
+  tone: NoticeTone;
 };
 
 const FOOTER_LOGO_URL = '/images/time2payLogo.png';
@@ -91,33 +98,44 @@ async function buildExportableInvoice(invoice: InvoiceWithClient): Promise<{
 
 export function InvoiceHistory({ refreshKey }: InvoiceHistoryProps) {
   const [invoices, setInvoices] = useState<InvoiceWithClient[]>([]);
-  const [status, setStatus] = useState('Loading saved invoices...');
+  const [status, setStatus] = useState<StatusNotice>({
+    message: 'Loading saved invoices...',
+    tone: 'neutral',
+  });
   const [activeInvoiceId, setActiveInvoiceId] = useState<string | null>(null);
 
   const loadInvoices = useCallback(async () => {
     const rows = await listInvoices();
     setInvoices(rows);
-    setStatus(rows.length > 0 ? `Loaded ${rows.length} saved invoice(s).` : 'No saved invoices yet.');
+    setStatus({
+      message: rows.length > 0 ? `Loaded ${rows.length} saved invoice(s).` : 'No saved invoices yet.',
+      tone: 'neutral',
+    });
   }, []);
 
   useEffect(() => {
     initializeDatabase()
       .then(() => loadInvoices())
       .catch((error: unknown) => {
-        setStatus(error instanceof Error ? error.message : 'Failed to load saved invoices.');
+        setStatus({
+          message: error instanceof Error ? error.message : 'Failed to load saved invoices.',
+          tone: 'error',
+        });
       });
   }, [loadInvoices, refreshKey]);
 
   async function handleDownloadPdf(invoice: InvoiceWithClient): Promise<void> {
     setActiveInvoiceId(invoice.id);
-    setStatus(`Generating PDF for ${invoice.id}...`);
+    setStatus({ message: `Generating PDF for ${invoice.id}...`, tone: 'neutral' });
     try {
       const { exportable } = await buildExportableInvoice(invoice);
       const bytes = await exportInvoicePdf(exportable);
       await triggerPdfDownload(`invoice-${invoice.id}.pdf`, bytes);
-      setStatus(`Downloaded PDF for ${invoice.id}.`);
+      setStatus({ message: `Downloaded PDF for ${invoice.id}.`, tone: 'success' });
     } catch (error: unknown) {
-      setStatus(error instanceof Error ? error.message : 'Failed to generate invoice PDF.');
+      const message = error instanceof Error ? error.message : 'Failed to generate invoice PDF.';
+      showActionErrorAlert(message);
+      setStatus({ message, tone: 'error' });
     } finally {
       setActiveInvoiceId(null);
     }
@@ -125,15 +143,15 @@ export function InvoiceHistory({ refreshKey }: InvoiceHistoryProps) {
 
   async function handleComposeEmail(invoice: InvoiceWithClient): Promise<void> {
     setActiveInvoiceId(invoice.id);
-    setStatus(`Preparing email draft for ${invoice.id}...`);
+    setStatus({ message: `Preparing email draft for ${invoice.id}...`, tone: 'neutral' });
 
     try {
       const { totals } = await buildExportableInvoice(invoice);
       const recipient = (invoice.client_email ?? '').trim();
       if (!recipient) {
-        setStatus(
-          `Invoice ${invoice.id} is ready. Add a client accounting email to open a prefilled draft.`,
-        );
+        const message = `Invoice ${invoice.id} is ready. Add a client accounting email to open a prefilled draft.`;
+        showValidationAlert(message);
+        setStatus({ message, tone: 'error' });
         return;
       }
 
@@ -151,9 +169,14 @@ export function InvoiceHistory({ refreshKey }: InvoiceHistoryProps) {
 
       const mailtoUrl = `mailto:${encodeURIComponent(recipient)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
       await Linking.openURL(mailtoUrl);
-      setStatus(`Opened email draft for ${invoice.id}. Attach the exported PDF before sending.`);
+      setStatus({
+        message: `Opened email draft for ${invoice.id}. Attach the exported PDF before sending.`,
+        tone: 'success',
+      });
     } catch (error: unknown) {
-      setStatus(error instanceof Error ? error.message : 'Failed to compose email draft.');
+      const message = error instanceof Error ? error.message : 'Failed to compose email draft.';
+      showActionErrorAlert(message);
+      setStatus({ message, tone: 'error' });
     } finally {
       setActiveInvoiceId(null);
     }
@@ -210,7 +233,7 @@ export function InvoiceHistory({ refreshKey }: InvoiceHistoryProps) {
         );
       })}
 
-      <Text className="text-sm text-muted">{status}</Text>
+      <InlineNotice tone={status.tone} message={status.message} />
     </View>
   );
 }

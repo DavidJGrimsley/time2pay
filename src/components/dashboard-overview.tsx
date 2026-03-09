@@ -7,6 +7,7 @@ import {
   REQUIRED_PROFILE_FIELD_LABELS,
   type RequiredProfileField,
 } from '@/services/profile-completion';
+import { InlineNotice } from '@/components/inline-notice';
 import { Timer } from './Timer';
 
 type DashboardGateStatus = 'loading' | 'locked' | 'unlocked';
@@ -72,7 +73,7 @@ export function DashboardOverview() {
             Complete your profile to unlock dashboard actions.
           </Text>
           <Text className="text-sm text-muted">Required: {missingFieldSummary}</Text>
-          {gateStatusMessage ? <Text className="text-sm text-danger">{gateStatusMessage}</Text> : null}
+          {gateStatusMessage ? <InlineNotice tone="error" message={gateStatusMessage} /> : null}
           <Pressable
             className="self-start rounded-md bg-secondary px-3 py-2"
             onPress={() => router.push('/profile')}

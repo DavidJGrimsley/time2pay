@@ -7,6 +7,7 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { fetchCommitInfo } from '@/services/github';
+import { InlineNotice } from '@/components/inline-notice';
 
 /* ── types ─────────────────────────────────────────────────── */
 
@@ -298,7 +299,11 @@ export function SessionCompleteModal({
 
                   {/* Error */}
                   {fetchError ? (
-                    <Text className="text-xs text-danger">{fetchError}</Text>
+                    <InlineNotice
+                      tone="error"
+                      message={fetchError}
+                      textClassName="text-xs text-danger"
+                    />
                   ) : null}
 
                   {/* Commit message preview + overwrite/append */}

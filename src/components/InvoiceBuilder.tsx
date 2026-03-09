@@ -18,6 +18,8 @@ import {
   type InvoiceComputation,
 } from '@/services/invoice';
 import { testMercuryConnection } from '@/services/mercury';
+import { InlineNotice, type NoticeTone } from '@/components/inline-notice';
+import { showActionErrorAlert, showValidationAlert } from '@/services/system-alert';
 
 type WeekOption = {
   key: string;
@@ -25,6 +27,11 @@ type WeekOption = {
   startIso: string;
   endIso: string;
   sessions: Session[];
+};
+
+type StatusNotice = {
+  message: string;
+  tone: NoticeTone;
 };
 
 function createId(prefix?: string): string {
@@ -120,8 +127,14 @@ export function InvoiceBuilder({ onInvoiceCreated }: InvoiceBuilderProps) {
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [weekOptions, setWeekOptions] = useState<WeekOption[]>([]);
   const [selectedWeekKeys, setSelectedWeekKeys] = useState<string[]>([]);
-  const [invoiceStatus, setInvoiceStatus] = useState<string>('No invoice created yet');
-  const [mercuryStatus, setMercuryStatus] = useState<string>('Not checked yet');
+  const [invoiceStatus, setInvoiceStatus] = useState<StatusNotice>({
+    message: 'No invoice created yet',
+    tone: 'neutral',
+  });
+  const [mercuryStatus, setMercuryStatus] = useState<StatusNotice>({
+    message: 'Not checked yet',
+    tone: 'neutral',
+  });
   const [isCreatingInvoice, setIsCreatingInvoice] = useState(false);
   const [syncToMercury, setSyncToMercury] = useState(true);
   const [previewBreaksBySessionId, setPreviewBreaksBySessionId] = useState<Record<string, SessionBreak[]>>(
@@ -221,13 +234,19 @@ export function InvoiceBuilder({ onInvoiceCreated }: InvoiceBuilderProps) {
     initializeDatabase()
       .then(() => refreshClients())
       .catch((error: unknown) => {
-      setInvoiceStatus(error instanceof Error ? error.message : 'Failed to load clients');
+        setInvoiceStatus({
+          message: error instanceof Error ? error.message : 'Failed to load clients',
+          tone: 'error',
+        });
       });
   }, []);
 
   useEffect(() => {
     refreshWeeksForClient(selectedClientId).catch((error: unknown) => {
-      setInvoiceStatus(error instanceof Error ? error.message : 'Failed to load invoice weeks');
+      setInvoiceStatus({
+        message: error instanceof Error ? error.message : 'Failed to load invoice weeks',
+        tone: 'error',
+      });
     });
   }, [selectedClientId]);
 
@@ -242,40 +261,49 @@ export function InvoiceBuilder({ onInvoiceCreated }: InvoiceBuilderProps) {
         setPreviewBreaksBySessionId(groupSessionBreaksBySessionId(sessionBreaks));
       })
       .catch((error: unknown) => {
-        setInvoiceStatus(error instanceof Error ? error.message : 'Failed to load session breaks');
+        setInvoiceStatus({
+          message: error instanceof Error ? error.message : 'Failed to load session breaks',
+          tone: 'error',
+        });
       });
   }, [selectedSessionIds]);
 
   async function handleMercuryCheck(): Promise<void> {
-    setMercuryStatus('Checking Mercury API connection...');
+    setMercuryStatus({ message: 'Checking Mercury API connection...', tone: 'neutral' });
     try {
       const result = await testMercuryConnection();
-      setMercuryStatus(`Mercury connected (${result.environment}).`);
+      setMercuryStatus({ message: `Mercury connected (${result.environment}).`, tone: 'success' });
     } catch (error: unknown) {
-      setMercuryStatus(error instanceof Error ? error.message : 'Mercury connection failed');
+      const message = error instanceof Error ? error.message : 'Mercury connection failed';
+      showActionErrorAlert(message);
+      setMercuryStatus({ message, tone: 'error' });
     }
   }
 
   async function handleCreateInvoice(): Promise<void> {
     if (!selectedClient || selectedWeeks.length === 0 || !preview) {
-      setInvoiceStatus('Select a client and at least one week with uninvoiced sessions.');
+      const message = 'Select a client and at least one week with uninvoiced sessions.';
+      showValidationAlert(message);
+      setInvoiceStatus({ message, tone: 'error' });
       return;
     }
 
     if (selectedSessions.length === 0) {
-      setInvoiceStatus('No sessions available for the selected weeks.');
+      const message = 'No sessions available for the selected weeks.';
+      showValidationAlert(message);
+      setInvoiceStatus({ message, tone: 'error' });
       return;
     }
 
     if (syncToMercury && !selectedClient.email) {
-      setInvoiceStatus(
-        'Add an accounting email to this client before creating a Mercury payable invoice.',
-      );
+      const message = 'Add an accounting email to this client before creating a Mercury payable invoice.';
+      showValidationAlert(message);
+      setInvoiceStatus({ message, tone: 'error' });
       return;
     }
 
     setIsCreatingInvoice(true);
-    setInvoiceStatus('Creating invoice...');
+    setInvoiceStatus({ message: 'Creating invoice...', tone: 'neutral' });
 
     try {
       const invoiceId = createId();
@@ -298,14 +326,17 @@ export function InvoiceBuilder({ onInvoiceCreated }: InvoiceBuilderProps) {
         ? ` Payment link: ${result.mercuryInvoice.hosted_url}`
         : '';
       const warningLabel = result.mercuryWarning ? ` ${result.mercuryWarning}` : '';
-      setInvoiceStatus(
-        `Invoice ${invoiceId} created for ${selectedClient.name}. Total $${result.totalAmount.toFixed(2)}.${paymentLabel}${warningLabel}`,
-      );
+      setInvoiceStatus({
+        message: `Invoice ${invoiceId} created for ${selectedClient.name}. Total $${result.totalAmount.toFixed(2)}.${paymentLabel}${warningLabel}`,
+        tone: 'success',
+      });
 
       await refreshWeeksForClient(selectedClient.id);
       onInvoiceCreated?.();
     } catch (error: unknown) {
-      setInvoiceStatus(error instanceof Error ? error.message : 'Failed to create invoice');
+      const message = error instanceof Error ? error.message : 'Failed to create invoice';
+      showActionErrorAlert(message);
+      setInvoiceStatus({ message, tone: 'error' });
     } finally {
       setIsCreatingInvoice(false);
     }
@@ -507,8 +538,8 @@ export function InvoiceBuilder({ onInvoiceCreated }: InvoiceBuilderProps) {
       <Pressable className="rounded-md border border-border px-4 py-2" onPress={handleMercuryCheck}>
         <Text className="text-center font-semibold text-heading">Test Mercury Connection</Text>
       </Pressable>
-      <Text className="text-sm text-muted">{mercuryStatus}</Text>
-      <Text className="text-sm text-muted">{invoiceStatus}</Text>
+      <InlineNotice tone={mercuryStatus.tone} message={mercuryStatus.message} />
+      <InlineNotice tone={invoiceStatus.tone} message={invoiceStatus.message} />
     </View>
   );
 }

@@ -15,7 +15,9 @@ import {
   type Task,
 } from '@/database/db';
 import { CalendarDateField } from '@/components/calendar-date-field';
+import { InlineNotice, type NoticeTone } from '@/components/inline-notice';
 import { listRuntimeSessions, updateRuntimeSession } from '@/services/session-runtime';
+import { showActionErrorAlert, showBlockedAlert, showValidationAlert } from '@/services/system-alert';
 
 const EMPTY_PICKER_VALUE = '';
 const CREATE_CLIENT_PICKER_VALUE = '__create_client__';
@@ -31,6 +33,11 @@ type WeekGroup = {
   key: string;
   label: string;
   sessions: Session[];
+};
+
+type StatusNotice = {
+  message: string;
+  tone: NoticeTone;
 };
 
 type SelectFieldProps = {
@@ -244,7 +251,7 @@ export function SessionList() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [status, setStatus] = useState<string | null>(null);
+  const [status, setStatus] = useState<StatusNotice | null>(null);
 
   const [editingSession, setEditingSession] = useState<Session | null>(null);
   const [editClientId, setEditClientId] = useState<string | null>(null);
@@ -416,12 +423,16 @@ export function SessionList() {
     setStatus(null);
 
     if (session.invoice_id) {
-      setStatus('Invoiced sessions are locked and cannot be edited.');
+      const message = 'Invoiced sessions are locked and cannot be edited.';
+      showBlockedAlert(message);
+      setStatus({ message, tone: 'error' });
       return;
     }
 
     if (!session.end_time) {
-      setStatus('Only completed sessions can be edited.');
+      const message = 'Only completed sessions can be edited.';
+      showBlockedAlert(message);
+      setStatus({ message, tone: 'error' });
       return;
     }
 
@@ -446,13 +457,17 @@ export function SessionList() {
     setEditError(null);
     const name = newEditClientName.trim();
     if (!name) {
-      setEditError('Client name is required.');
+      const message = 'Client name is required.';
+      showValidationAlert(message);
+      setEditError(message);
       return;
     }
 
     const parsedRate = Number(newEditClientRate || '0');
     if (!Number.isFinite(parsedRate) || parsedRate < 0) {
-      setEditError('Hourly rate must be a non-negative number.');
+      const message = 'Hourly rate must be a non-negative number.';
+      showValidationAlert(message);
+      setEditError(message);
       return;
     }
 
@@ -478,13 +493,17 @@ export function SessionList() {
   async function handleCreateEditProject(): Promise<void> {
     setEditError(null);
     if (!editClientId) {
-      setEditError('Select a client before creating a project.');
+      const message = 'Select a client before creating a project.';
+      showValidationAlert(message);
+      setEditError(message);
       return;
     }
 
     const name = newEditProjectName.trim();
     if (!name) {
-      setEditError('Project name is required.');
+      const message = 'Project name is required.';
+      showValidationAlert(message);
+      setEditError(message);
       return;
     }
 
@@ -507,13 +526,17 @@ export function SessionList() {
   async function handleCreateEditTask(): Promise<void> {
     setEditError(null);
     if (!editProjectId) {
-      setEditError('Select a project before creating a task.');
+      const message = 'Select a project before creating a task.';
+      showValidationAlert(message);
+      setEditError(message);
       return;
     }
 
     const name = newEditTaskName.trim();
     if (!name) {
-      setEditError('Task name is required.');
+      const message = 'Task name is required.';
+      showValidationAlert(message);
+      setEditError(message);
       return;
     }
 
@@ -541,11 +564,14 @@ export function SessionList() {
     setEditError(null);
 
     if (!editClientId || !editProjectId || !editTaskId) {
-      setEditError('Client, project, and task are required.');
+      const message = 'Client, project, and task are required.';
+      showValidationAlert(message);
+      setEditError(message);
       return;
     }
 
     if (editRangeError) {
+      showValidationAlert(editRangeError);
       setEditError(editRangeError);
       return;
     }
@@ -553,7 +579,9 @@ export function SessionList() {
     const startIso = combineLocalDateAndTime(editStartDate, editStartTime);
     const endIso = combineLocalDateAndTime(editEndDate, editEndTime);
     if (!startIso || !endIso) {
-      setEditError('Start and end must be valid date and time values (e.g. 1:30 PM).');
+      const message = 'Start and end must be valid date and time values (e.g. 1:30 PM).';
+      showValidationAlert(message);
+      setEditError(message);
       return;
     }
 
@@ -571,9 +599,11 @@ export function SessionList() {
       });
       closeEditModal();
       await load();
-      setStatus('Session updated successfully.');
+      setStatus({ message: 'Session updated successfully.', tone: 'success' });
     } catch (saveError: unknown) {
-      setEditError(saveError instanceof Error ? saveError.message : 'Failed to update session.');
+      const message = saveError instanceof Error ? saveError.message : 'Failed to update session.';
+      showActionErrorAlert(message);
+      setEditError(message);
     } finally {
       setIsSavingEdit(false);
     }
@@ -600,8 +630,8 @@ export function SessionList() {
       </View>
 
       {isLoading ? <Text className="text-muted">Loading sessions...</Text> : null}
-      {error ? <Text className="text-danger">{error}</Text> : null}
-      {status ? <Text className="text-sm text-muted">{status}</Text> : null}
+      {error ? <InlineNotice tone="error" message={error} /> : null}
+      {status ? <InlineNotice tone={status.tone} message={status.message} /> : null}
 
       {!isLoading && groupedWeeks.length === 0 ? (
         <Text className="text-muted">
@@ -729,7 +759,10 @@ export function SessionList() {
                         className="rounded-md bg-secondary px-3 py-2"
                         onPress={() => {
                           handleCreateEditClient().catch((error: unknown) => {
-                            setEditError(error instanceof Error ? error.message : 'Failed to create client.');
+                            const message =
+                              error instanceof Error ? error.message : 'Failed to create client.';
+                            showActionErrorAlert(message);
+                            setEditError(message);
                           });
                         }}
                       >
@@ -783,7 +816,10 @@ export function SessionList() {
                         className="rounded-md bg-secondary px-3 py-2"
                         onPress={() => {
                           handleCreateEditProject().catch((error: unknown) => {
-                            setEditError(error instanceof Error ? error.message : 'Failed to create project.');
+                            const message =
+                              error instanceof Error ? error.message : 'Failed to create project.';
+                            showActionErrorAlert(message);
+                            setEditError(message);
                           });
                         }}
                       >
@@ -837,7 +873,10 @@ export function SessionList() {
                         className="rounded-md bg-secondary px-3 py-2"
                         onPress={() => {
                           handleCreateEditTask().catch((error: unknown) => {
-                            setEditError(error instanceof Error ? error.message : 'Failed to create task.');
+                            const message =
+                              error instanceof Error ? error.message : 'Failed to create task.';
+                            showActionErrorAlert(message);
+                            setEditError(message);
                           });
                         }}
                       >
@@ -890,7 +929,7 @@ export function SessionList() {
                     className="rounded-md border border-border bg-background px-3 py-2 text-foreground"
                   />
                 </View>
-                {editRangeError ? <Text className="text-danger">{editRangeError}</Text> : null}
+                {editRangeError ? <InlineNotice tone="error" message={editRangeError} /> : null}
 
                 <View className="gap-2">
                   <Text className="text-xs uppercase tracking-wide text-muted">Notes (optional)</Text>
@@ -902,7 +941,7 @@ export function SessionList() {
                   />
                 </View>
 
-                {editError ? <Text className="text-danger">{editError}</Text> : null}
+                {editError ? <InlineNotice tone="error" message={editError} /> : null}
 
                 <View className="flex-row gap-2">
                   <Pressable

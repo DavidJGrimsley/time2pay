@@ -13,8 +13,15 @@ import {
   evaluateProfileCompletion,
   REQUIRED_PROFILE_FIELD_LABELS,
 } from '@/services/profile-completion';
+import { InlineNotice, type NoticeTone } from '@/components/inline-notice';
+import { showActionErrorAlert, showValidationAlert } from '@/services/system-alert';
 
 const EMPTY_PICKER_VALUE = '';
+
+type StatusNotice = {
+  message: string;
+  tone: NoticeTone;
+};
 
 function toNullableTrimmed(value: string): string | null {
   const trimmed = value.trim();
@@ -28,7 +35,10 @@ export function ProfileOverview() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingBusiness, setIsSavingBusiness] = useState(false);
   const [isSavingClient, setIsSavingClient] = useState(false);
-  const [status, setStatus] = useState<string>('Loading profile...');
+  const [status, setStatus] = useState<StatusNotice | null>({
+    message: 'Loading profile...',
+    tone: 'neutral',
+  });
 
   const [companyName, setCompanyName] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
@@ -62,7 +72,7 @@ export function ProfileOverview() {
   }, []);
 
   const loadProfileData = useCallback(async (): Promise<void> => {
-    setStatus('Loading profile...');
+    setStatus({ message: 'Loading profile...', tone: 'neutral' });
     const profile = await getUserProfile();
     setCompanyName(profile.company_name ?? '');
     setLogoUrl(profile.logo_url ?? '');
@@ -74,9 +84,12 @@ export function ProfileOverview() {
   useEffect(() => {
     initializeDatabase()
       .then(() => Promise.all([loadProfileData(), refreshClients()]))
-      .then(() => setStatus('Profile loaded.'))
+      .then(() => setStatus({ message: 'Profile loaded.', tone: 'neutral' }))
       .catch((error: unknown) => {
-        setStatus(error instanceof Error ? error.message : 'Failed to load profile.');
+        setStatus({
+          message: error instanceof Error ? error.message : 'Failed to load profile.',
+          tone: 'error',
+        });
       })
       .finally(() => setIsLoading(false));
   }, [loadProfileData, refreshClients]);
@@ -95,7 +108,7 @@ export function ProfileOverview() {
   }, [selectedClient]);
 
   async function handleSaveBusiness(): Promise<void> {
-    setStatus('');
+    setStatus(null);
     const trimmedFullName = fullName.trim();
     const trimmedBusinessPhone = businessPhone.trim();
     const trimmedBusinessEmail = businessEmail.trim();
@@ -109,7 +122,9 @@ export function ProfileOverview() {
       const missing = completion.missingFields
         .map((field) => REQUIRED_PROFILE_FIELD_LABELS[field])
         .join(', ');
-      setStatus(`Missing required business profile fields: ${missing}.`);
+      const message = `Missing required business profile fields: ${missing}.`;
+      showValidationAlert(message);
+      setStatus({ message, tone: 'error' });
       return;
     }
 
@@ -123,9 +138,11 @@ export function ProfileOverview() {
         email: trimmedBusinessEmail,
       });
       await loadProfileData();
-      setStatus('Business profile saved.');
+      setStatus({ message: 'Business profile saved.', tone: 'success' });
     } catch (error: unknown) {
-      setStatus(error instanceof Error ? error.message : 'Failed to save business profile.');
+      const message = error instanceof Error ? error.message : 'Failed to save business profile.';
+      showActionErrorAlert(message);
+      setStatus({ message, tone: 'error' });
     } finally {
       setIsSavingBusiness(false);
     }
@@ -133,13 +150,17 @@ export function ProfileOverview() {
 
   async function handleSaveClient(): Promise<void> {
     if (!selectedClientId) {
-      setStatus('Select a client to update.');
+      const message = 'Select a client to update.';
+      showValidationAlert(message);
+      setStatus({ message, tone: 'error' });
       return;
     }
 
     const trimmedClientName = clientName.trim();
     if (!trimmedClientName) {
-      setStatus('Client company/name is required.');
+      const message = 'Client company/name is required.';
+      showValidationAlert(message);
+      setStatus({ message, tone: 'error' });
       return;
     }
 
@@ -152,9 +173,11 @@ export function ProfileOverview() {
         email: toNullableTrimmed(clientEmail),
       });
       await refreshClients(selectedClientId);
-      setStatus('Client invoice contact saved.');
+      setStatus({ message: 'Client invoice contact saved.', tone: 'success' });
     } catch (error: unknown) {
-      setStatus(error instanceof Error ? error.message : 'Failed to save client contact.');
+      const message = error instanceof Error ? error.message : 'Failed to save client contact.';
+      showActionErrorAlert(message);
+      setStatus({ message, tone: 'error' });
     } finally {
       setIsSavingClient(false);
     }
@@ -279,7 +302,7 @@ export function ProfileOverview() {
         )}
       </View>
 
-      {status ? <Text className="text-sm text-muted">{status}</Text> : null}
+      {status ? <InlineNotice tone={status.tone} message={status.message} /> : null}
     </View>
   );
 }

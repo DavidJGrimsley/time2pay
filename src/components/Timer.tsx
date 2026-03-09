@@ -28,10 +28,12 @@ import {
   type SessionCompleteResult,
 } from '@/components/SessionCompleteModal';
 import { CalendarDateField } from '@/components/calendar-date-field';
+import { InlineNotice, type NoticeTone } from '@/components/inline-notice';
 import {
   REQUIRED_PROFILE_FIELD_LABELS,
   type RequiredProfileField,
 } from '@/services/profile-completion';
+import { showActionErrorAlert, showBlockedAlert, showValidationAlert } from '@/services/system-alert';
 
 const LAST_SELECTIONS_KEY = 'time2pay.timer.last-selection';
 const EMPTY_PICKER_VALUE = '';
@@ -68,6 +70,11 @@ type TimerGateState = {
 
 type TimerProps = {
   gate?: TimerGateState;
+};
+
+type StatusNotice = {
+  text: string;
+  tone: NoticeTone;
 };
 
 function ClockIcon({ color = '#ffffff' }: { color?: string }) {
@@ -409,7 +416,7 @@ export function Timer({ gate }: TimerProps) {
   const [isPaused, setIsPaused] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<StatusNotice | null>(null);
 
   const [showCompleteModal, setShowCompleteModal] = useState(false);
   const [completedSessionId, setCompletedSessionId] = useState<string | null>(null);
@@ -426,6 +433,21 @@ export function Timer({ gate }: TimerProps) {
     const labels = fields.map((field) => REQUIRED_PROFILE_FIELD_LABELS[field]);
     return `Complete your profile (${labels.join(', ')}) before using dashboard actions.`;
   }, [gate?.missingFields]);
+  const clearMessage = (): void => setMessage(null);
+  const showSuccessMessage = (text: string): void => setMessage({ text, tone: 'success' });
+  const showInlineErrorMessage = (text: string): void => setMessage({ text, tone: 'error' });
+  const showBlockedMessage = (text: string): void => {
+    showBlockedAlert(text);
+    showInlineErrorMessage(text);
+  };
+  const showValidationMessage = (text: string): void => {
+    showValidationAlert(text);
+    showInlineErrorMessage(text);
+  };
+  const showActionErrorMessage = (text: string): void => {
+    showActionErrorAlert(text);
+    showInlineErrorMessage(text);
+  };
   const manualRangeError = useMemo(() => {
     if (!isCreatingManualSession || isClockedIn) {
       return null;
@@ -542,20 +564,20 @@ export function Timer({ gate }: TimerProps) {
       .then(() => refreshClients())
       .then(() => refreshActiveSession())
       .catch((error: unknown) => {
-        setMessage(error instanceof Error ? error.message : 'Failed to initialize timer');
+        showInlineErrorMessage(error instanceof Error ? error.message : 'Failed to initialize timer');
       })
       .finally(() => setIsLoading(false));
   }, []);
 
   useEffect(() => {
     refreshProjects(selectedClientId).catch((error: unknown) => {
-      setMessage(error instanceof Error ? error.message : 'Failed to load projects');
+      showInlineErrorMessage(error instanceof Error ? error.message : 'Failed to load projects');
     });
   }, [selectedClientId]);
 
   useEffect(() => {
     refreshTasks(selectedProjectId).catch((error: unknown) => {
-      setMessage(error instanceof Error ? error.message : 'Failed to load tasks');
+      showInlineErrorMessage(error instanceof Error ? error.message : 'Failed to load tasks');
     });
   }, [selectedProjectId]);
 
@@ -589,117 +611,132 @@ export function Timer({ gate }: TimerProps) {
   }, [isClockedIn, isInteractionLocked]);
 
   async function handleCreateClient(): Promise<void> {
-    setMessage(null);
+    clearMessage();
     if (isInteractionLocked) {
-      setMessage(lockReason);
+      showBlockedMessage(lockReason);
       return;
     }
 
     const name = newClientName.trim();
     if (!name) {
-      setMessage('Client name is required.');
+      showValidationMessage('Client name is required.');
       return;
     }
 
     const parsedRate = Number(newClientRate);
     if (!Number.isFinite(parsedRate) || parsedRate < 0) {
-      setMessage('Hourly rate must be a non-negative number.');
+      showValidationMessage('Hourly rate must be a non-negative number.');
       return;
     }
 
-    const newId = createId('client');
-    await createClient({
-      id: newId,
-      name,
-      email: newClientEmail.trim() ? newClientEmail.trim() : null,
-      hourly_rate: parsedRate,
-      github_org: newClientGithubOrg.trim() ? newClientGithubOrg.trim() : null,
-    });
+    try {
+      const newId = createId('client');
+      await createClient({
+        id: newId,
+        name,
+        email: newClientEmail.trim() ? newClientEmail.trim() : null,
+        hourly_rate: parsedRate,
+        github_org: newClientGithubOrg.trim() ? newClientGithubOrg.trim() : null,
+      });
 
-    await refreshClients();
-    setSelectedClientId(newId);
-    setIsCreatingClient(false);
-    setNewClientName('');
-    setNewClientEmail('');
-    setNewClientRate('');
-    setNewClientGithubOrg('');
+      await refreshClients();
+      setSelectedClientId(newId);
+      setIsCreatingClient(false);
+      setNewClientName('');
+      setNewClientEmail('');
+      setNewClientRate('');
+      setNewClientGithubOrg('');
+      showSuccessMessage('Client created successfully.');
+    } catch (error: unknown) {
+      showActionErrorMessage(error instanceof Error ? error.message : 'Failed to create client.');
+    }
   }
 
   async function handleCreateProject(): Promise<void> {
-    setMessage(null);
+    clearMessage();
     if (isInteractionLocked) {
-      setMessage(lockReason);
+      showBlockedMessage(lockReason);
       return;
     }
 
     if (!selectedClientId) {
-      setMessage('Select a client before creating a project.');
+      showValidationMessage('Select a client before creating a project.');
       return;
     }
 
     const name = newProjectName.trim();
     if (!name) {
-      setMessage('Project name is required.');
+      showValidationMessage('Project name is required.');
       return;
     }
 
-    const newId = createId('project');
-    await createProject({
-      id: newId,
-      client_id: selectedClientId,
-      name,
-      github_repo: newProjectGithubRepo.trim() ? newProjectGithubRepo.trim() : null,
-    });
+    try {
+      const newId = createId('project');
+      await createProject({
+        id: newId,
+        client_id: selectedClientId,
+        name,
+        github_repo: newProjectGithubRepo.trim() ? newProjectGithubRepo.trim() : null,
+      });
 
-    await refreshProjects(selectedClientId);
-    setSelectedProjectId(newId);
-    setIsCreatingProject(false);
-    setNewProjectName('');
-    setNewProjectGithubRepo('');
+      await refreshProjects(selectedClientId);
+      setSelectedProjectId(newId);
+      setIsCreatingProject(false);
+      setNewProjectName('');
+      setNewProjectGithubRepo('');
+      showSuccessMessage('Project created successfully.');
+    } catch (error: unknown) {
+      showActionErrorMessage(error instanceof Error ? error.message : 'Failed to create project.');
+    }
   }
 
   async function handleCreateTask(): Promise<void> {
-    setMessage(null);
+    clearMessage();
     if (isInteractionLocked) {
-      setMessage(lockReason);
+      showBlockedMessage(lockReason);
       return;
     }
 
     if (!selectedProjectId) {
-      setMessage('Select a project before creating a task.');
+      showValidationMessage('Select a project before creating a task.');
       return;
     }
 
     const name = newTaskName.trim();
     if (!name) {
-      setMessage('Task name is required.');
+      showValidationMessage('Task name is required.');
       return;
     }
 
-    const newId = createId('task');
-    await createTask({
-      id: newId,
-      project_id: selectedProjectId,
-      name,
-      github_branch: newTaskGithubBranch.trim() ? newTaskGithubBranch.trim() : null,
-    });
+    try {
+      const newId = createId('task');
+      await createTask({
+        id: newId,
+        project_id: selectedProjectId,
+        name,
+        github_branch: newTaskGithubBranch.trim() ? newTaskGithubBranch.trim() : null,
+      });
 
-    await refreshTasks(selectedProjectId);
-    setSelectedTaskId(newId);
-    setIsCreatingTask(false);
-    setNewTaskName('');
-    setNewTaskGithubBranch('');
+      await refreshTasks(selectedProjectId);
+      setSelectedTaskId(newId);
+      setIsCreatingTask(false);
+      setNewTaskName('');
+      setNewTaskGithubBranch('');
+      showSuccessMessage('Task created successfully.');
+    } catch (error: unknown) {
+      showActionErrorMessage(error instanceof Error ? error.message : 'Failed to create task.');
+    }
   }
 
   async function handleClockIn(): Promise<void> {
-    setMessage(null);
+    clearMessage();
     if (isInteractionLocked) {
-      setMessage(lockReason);
+      showBlockedMessage(lockReason);
       return;
     }
 
     if (!selectedClient || !selectedProject || !selectedTask) {
-      setMessage('Select a client, project, and task before clocking in.');
+      showValidationMessage('Select a client, project, and task before clocking in.');
       return;
     }
 
@@ -714,9 +751,9 @@ export function Timer({ gate }: TimerProps) {
       });
       await refreshActiveSession();
       setNotes('');
-      setMessage('Clocked in successfully.');
+      showSuccessMessage('Clocked in successfully.');
     } catch (error: unknown) {
-      setMessage(error instanceof Error ? error.message : 'Failed to clock in.');
+      showActionErrorMessage(error instanceof Error ? error.message : 'Failed to clock in.');
     }
   }
 
@@ -725,7 +762,7 @@ export function Timer({ gate }: TimerProps) {
       return;
     }
 
-    setMessage(null);
+    clearMessage();
 
     try {
       await stopRuntimeSession(activeSession.id);
@@ -740,7 +777,7 @@ export function Timer({ gate }: TimerProps) {
       setCompletedSessionNotes(currentNotes);
       setShowCompleteModal(true);
     } catch (error: unknown) {
-      setMessage(error instanceof Error ? error.message : 'Failed to clock out.');
+      showActionErrorMessage(error instanceof Error ? error.message : 'Failed to clock out.');
     }
   }
 
@@ -749,13 +786,13 @@ export function Timer({ gate }: TimerProps) {
       return;
     }
 
-    setMessage(null);
+    clearMessage();
     try {
       await pauseRuntimeSession(activeSession.id);
       await refreshActiveSession();
-      setMessage('Session paused.');
+      showSuccessMessage('Session paused.');
     } catch (error: unknown) {
-      setMessage(error instanceof Error ? error.message : 'Failed to pause session.');
+      showActionErrorMessage(error instanceof Error ? error.message : 'Failed to pause session.');
     }
   }
 
@@ -764,30 +801,30 @@ export function Timer({ gate }: TimerProps) {
       return;
     }
 
-    setMessage(null);
+    clearMessage();
     try {
       await resumeRuntimeSession(activeSession.id);
       await refreshActiveSession();
-      setMessage('Session resumed.');
+      showSuccessMessage('Session resumed.');
     } catch (error: unknown) {
-      setMessage(error instanceof Error ? error.message : 'Failed to resume session.');
+      showActionErrorMessage(error instanceof Error ? error.message : 'Failed to resume session.');
     }
   }
 
   async function handleCreateManualSession(): Promise<void> {
-    setMessage(null);
+    clearMessage();
     if (isInteractionLocked) {
-      setMessage(lockReason);
+      showBlockedMessage(lockReason);
       return;
     }
 
     if (!selectedClient || !selectedProject || !selectedTask) {
-      setMessage('Select a client, project, and task before creating a manual session.');
+      showValidationMessage('Select a client, project, and task before creating a manual session.');
       return;
     }
 
     if (manualRangeError) {
-      setMessage(manualRangeError);
+      showValidationMessage(manualRangeError);
       return;
     }
 
@@ -795,7 +832,7 @@ export function Timer({ gate }: TimerProps) {
     const endIso = toIsoFromLocalDateAndTime(manualEndDate, manualEndTime);
 
     if (!startIso || !endIso) {
-      setMessage('Start and end must be valid date and time values (e.g. 1:30 PM).');
+      showValidationMessage('Start and end must be valid date and time values (e.g. 1:30 PM).');
       return;
     }
 
@@ -823,9 +860,9 @@ export function Timer({ gate }: TimerProps) {
       setManualEndDate(resetEnd.datePart);
       setManualEndTime(resetEnd.timePart);
       setIsCreatingManualSession(false);
-      setMessage('Manual session created successfully.');
+      showSuccessMessage('Manual session created successfully.');
     } catch (error: unknown) {
-      setMessage(error instanceof Error ? error.message : 'Failed to create manual session.');
+      showActionErrorMessage(error instanceof Error ? error.message : 'Failed to create manual session.');
     }
   }
 
@@ -847,7 +884,7 @@ export function Timer({ gate }: TimerProps) {
     setCompletedSessionNotes(null);
     setNotes('');
     await refreshActiveSession();
-    setMessage('Clocked out successfully.');
+    showSuccessMessage('Clocked out successfully.');
   }
 
   async function handleSessionCompleteSkip(): Promise<void> {
@@ -856,7 +893,7 @@ export function Timer({ gate }: TimerProps) {
     setCompletedSessionNotes(null);
     setNotes('');
     await refreshActiveSession();
-    setMessage('Clocked out successfully.');
+    showSuccessMessage('Clocked out successfully.');
   }
 
   async function handleNotesBlur(): Promise<void> {
@@ -892,7 +929,7 @@ export function Timer({ gate }: TimerProps) {
         disabled={isClockedIn || isLoading || isInteractionLocked}
         onSelect={(value) => {
           if (isInteractionLocked) {
-            setMessage(lockReason);
+            showBlockedMessage(lockReason);
             return;
           }
           setSelectedClientId(value);
@@ -900,7 +937,7 @@ export function Timer({ gate }: TimerProps) {
         }}
         onCreateNew={() => {
           if (isInteractionLocked) {
-            setMessage(lockReason);
+            showBlockedMessage(lockReason);
             return;
           }
           setIsCreatingClient(true);
@@ -962,7 +999,7 @@ export function Timer({ gate }: TimerProps) {
         disabled={isClockedIn || isLoading || isInteractionLocked || !selectedClientId}
         onSelect={(value) => {
           if (isInteractionLocked) {
-            setMessage(lockReason);
+            showBlockedMessage(lockReason);
             return;
           }
           setSelectedProjectId(value);
@@ -970,7 +1007,7 @@ export function Timer({ gate }: TimerProps) {
         }}
         onCreateNew={() => {
           if (isInteractionLocked) {
-            setMessage(lockReason);
+            showBlockedMessage(lockReason);
             return;
           }
           setIsCreatingProject(true);
@@ -1018,7 +1055,7 @@ export function Timer({ gate }: TimerProps) {
         disabled={isClockedIn || isLoading || isInteractionLocked || !selectedProjectId}
         onSelect={(value) => {
           if (isInteractionLocked) {
-            setMessage(lockReason);
+            showBlockedMessage(lockReason);
             return;
           }
           setSelectedTaskId(value);
@@ -1026,7 +1063,7 @@ export function Timer({ gate }: TimerProps) {
         }}
         onCreateNew={() => {
           if (isInteractionLocked) {
-            setMessage(lockReason);
+            showBlockedMessage(lockReason);
             return;
           }
           setIsCreatingTask(true);
@@ -1123,7 +1160,7 @@ export function Timer({ gate }: TimerProps) {
           className={`rounded-2xl border border-border bg-background px-4 py-3 ${isInteractionLocked ? 'opacity-60' : ''}`}
           onPress={() => {
             if (isInteractionLocked) {
-              setMessage(lockReason);
+              showBlockedMessage(lockReason);
               return;
             }
 
@@ -1148,7 +1185,7 @@ export function Timer({ gate }: TimerProps) {
             disabled={isInteractionLocked}
             onSelect={(value) => {
               if (isInteractionLocked) {
-                setMessage(lockReason);
+                showBlockedMessage(lockReason);
                 return;
               }
               setSelectedClientId(value);
@@ -1156,7 +1193,7 @@ export function Timer({ gate }: TimerProps) {
             }}
             onCreateNew={() => {
               if (isInteractionLocked) {
-                setMessage(lockReason);
+                showBlockedMessage(lockReason);
                 return;
               }
               setIsCreatingClient(true);
@@ -1173,7 +1210,7 @@ export function Timer({ gate }: TimerProps) {
             disabled={isInteractionLocked || !selectedClientId}
             onSelect={(value) => {
               if (isInteractionLocked) {
-                setMessage(lockReason);
+                showBlockedMessage(lockReason);
                 return;
               }
               setSelectedProjectId(value);
@@ -1181,7 +1218,7 @@ export function Timer({ gate }: TimerProps) {
             }}
             onCreateNew={() => {
               if (isInteractionLocked) {
-                setMessage(lockReason);
+                showBlockedMessage(lockReason);
                 return;
               }
               setIsCreatingProject(true);
@@ -1198,7 +1235,7 @@ export function Timer({ gate }: TimerProps) {
             disabled={isInteractionLocked || !selectedProjectId}
             onSelect={(value) => {
               if (isInteractionLocked) {
-                setMessage(lockReason);
+                showBlockedMessage(lockReason);
                 return;
               }
               setSelectedTaskId(value);
@@ -1206,7 +1243,7 @@ export function Timer({ gate }: TimerProps) {
             }}
             onCreateNew={() => {
               if (isInteractionLocked) {
-                setMessage(lockReason);
+                showBlockedMessage(lockReason);
                 return;
               }
               setIsCreatingTask(true);
@@ -1258,7 +1295,7 @@ export function Timer({ gate }: TimerProps) {
               className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
             />
           </View>
-          {manualRangeError ? <Text className="text-danger">{manualRangeError}</Text> : null}
+          {manualRangeError ? <InlineNotice tone="error" message={manualRangeError} /> : null}
           <Text className="text-xs uppercase tracking-wide text-muted">Notes (optional)</Text>
           <TextInput
             value={manualNotes}
@@ -1277,7 +1314,7 @@ export function Timer({ gate }: TimerProps) {
         </View>
       ) : null}
 
-      {message ? <Text className="text-sm text-muted">{message}</Text> : null}
+      {message ? <InlineNotice tone={message.tone} message={message.text} /> : null}
 
       <SessionCompleteModal
         visible={showCompleteModal}
