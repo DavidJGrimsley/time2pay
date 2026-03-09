@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, Text, useWindowDimensions, View } from 'react-native';
 import { listMercuryAccounts } from '@/services/mercury';
 import { InlineNotice, type NoticeTone } from '@/components/inline-notice';
 import { showActionErrorAlert } from '@/services/system-alert';
@@ -48,6 +48,14 @@ function formatMoney(value: unknown): string {
 }
 
 export function BankOverview() {
+  const { width } = useWindowDimensions();
+  const isLargeScreen = width >= 1200;
+  const isTablet = width >= 768 && width < 1200;
+  const contentWidthStyle = isLargeScreen
+    ? { width: '90%' as const, maxWidth: 1500 }
+    : isTablet
+      ? { width: '75%' as const }
+      : { width: '90%' as const };
   const [accounts, setAccounts] = useState<unknown[]>([]);
   const [status, setStatus] = useState<StatusNotice>({
     message: 'Loading Mercury accounts...',
@@ -93,38 +101,42 @@ export function BankOverview() {
         Mercury checking visibility. Use this to confirm your account context before sending invoices.
       </Text>
 
-      <View className="gap-2 rounded-xl bg-card p-4">
-        <View className="flex-row items-center justify-between">
-          <Text className="text-xl font-bold text-heading">Checking Account</Text>
-          <Pressable
-            className="rounded-md border border-border px-3 py-1.5"
-            onPress={() => refreshAccounts('user')}
-            disabled={loading}
-          >
-            <Text className="font-semibold text-heading">{loading ? 'Refreshing...' : 'Refresh'}</Text>
-          </Pressable>
-        </View>
+      <View className="items-center">
+        <View className="w-full" style={contentWidthStyle}>
+          <View className="gap-2 rounded-xl bg-card p-4">
+            <View className="flex-row items-center justify-between">
+              <Text className="text-xl font-bold text-heading">Checking Account</Text>
+              <Pressable
+                className="rounded-md border border-border px-3 py-1.5"
+                onPress={() => refreshAccounts('user')}
+                disabled={loading}
+              >
+                <Text className="font-semibold text-heading">{loading ? 'Refreshing...' : 'Refresh'}</Text>
+              </Pressable>
+            </View>
 
-        <InlineNotice tone={status.tone} message={status.message} />
+            <InlineNotice tone={status.tone} message={status.message} />
 
-        {!checkingAccount ? (
-          <Text className="text-sm text-muted">No account data available.</Text>
-        ) : (
-          <View className="gap-1">
-            <Text className="font-semibold text-heading">
-              {`${checkingAccount.nickname ?? checkingAccount.name ?? 'Primary account'}`}
-            </Text>
-            <Text className="text-sm text-muted">
-              Account ID: {`${checkingAccount.id ?? 'n/a'}`}
-            </Text>
-            <Text className="text-sm text-muted">
-              Available: {formatMoney(available)}
-            </Text>
-            <Text className="text-sm text-muted">
-              Current: {formatMoney(current)}
-            </Text>
+            {!checkingAccount ? (
+              <Text className="text-sm text-muted">No account data available.</Text>
+            ) : (
+              <View className="gap-1">
+                <Text className="font-semibold text-heading">
+                  {`${checkingAccount.nickname ?? checkingAccount.name ?? 'Primary account'}`}
+                </Text>
+                <Text className="text-sm text-muted">
+                  Account ID: {`${checkingAccount.id ?? 'n/a'}`}
+                </Text>
+                <Text className="text-sm text-muted">
+                  Available: {formatMoney(available)}
+                </Text>
+                <Text className="text-sm text-muted">
+                  Current: {formatMoney(current)}
+                </Text>
+              </View>
+            )}
           </View>
-        )}
+        </View>
       </View>
     </View>
   );

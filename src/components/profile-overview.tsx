@@ -1,6 +1,6 @@
 import { Picker } from '@react-native-picker/picker';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, Text, TextInput, useColorScheme, View } from 'react-native';
+import { Pressable, Text, TextInput, useColorScheme, useWindowDimensions, View } from 'react-native';
 import {
   getUserProfile,
   initializeDatabase,
@@ -120,8 +120,18 @@ async function pickBackupJsonFile(): Promise<PickedBackupFile> {
 }
 
 export function ProfileOverview() {
+  const { width } = useWindowDimensions();
   const scheme = useColorScheme();
-  const pickerColor = scheme === 'dark' ? '#e8e6e1' : '#1a1f16';
+  const pickerTextColor = scheme === 'dark' ? '#f8f7f3' : '#1a1f16';
+  const pickerPlaceholderColor = scheme === 'dark' ? '#b8b7b2' : '#6f7868';
+  const pickerSurfaceColor = scheme === 'dark' ? '#1a1f16' : '#f8f7f3';
+  const isLargeScreen = width >= 1200;
+  const isTablet = width >= 768 && width < 1200;
+  const contentWidthStyle = isLargeScreen
+    ? { width: '90%' as const, maxWidth: 1500 }
+    : isTablet
+      ? { width: '75%' as const }
+      : { width: '90%' as const };
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingBusiness, setIsSavingBusiness] = useState(false);
@@ -362,6 +372,8 @@ export function ProfileOverview() {
       <Text className="text-muted">
         Manage invoice sender details and client invoice contact details.
       </Text>
+      <View className="items-center">
+        <View className="w-full gap-3" style={contentWidthStyle}>
 
       <View className="gap-3 rounded-xl bg-card p-4">
         <Text className="text-xl font-bold text-heading">Your Business</Text>
@@ -429,11 +441,23 @@ export function ProfileOverview() {
                   const next = String(value ?? EMPTY_PICKER_VALUE);
                   setSelectedClientId(next || null);
                 }}
-                dropdownIconColor={pickerColor}
-                style={{ color: pickerColor }}
+                dropdownIconColor={pickerTextColor}
+                style={{ color: pickerTextColor, backgroundColor: pickerSurfaceColor }}
               >
+                <Picker.Item
+                  label="Select client"
+                  value={EMPTY_PICKER_VALUE}
+                  color={pickerPlaceholderColor}
+                  style={{ color: pickerPlaceholderColor, backgroundColor: pickerSurfaceColor }}
+                />
                 {clients.map((client) => (
-                  <Picker.Item key={client.id} label={client.name} value={client.id} />
+                  <Picker.Item
+                    key={client.id}
+                    label={client.name}
+                    value={client.id}
+                    color={pickerTextColor}
+                    style={{ color: pickerTextColor, backgroundColor: pickerSurfaceColor }}
+                  />
                 ))}
               </Picker>
             </View>
@@ -524,6 +548,8 @@ export function ProfileOverview() {
       </View>
 
       {status ? <InlineNotice tone={status.tone} message={status.message} /> : null}
+        </View>
+      </View>
     </View>
   );
 }

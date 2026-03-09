@@ -1,6 +1,7 @@
 import { Picker } from '@react-native-picker/picker';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, Text, TextInput, useColorScheme, View } from 'react-native';
+import { Pressable, Text, TextInput, useColorScheme, useWindowDimensions, View } from 'react-native';
+import Animated, { FadeInDown, FadeOutUp, LinearTransition } from 'react-native-reanimated';
 import {
   createClient,
   createProject,
@@ -58,6 +59,7 @@ type PickerFieldProps = {
   options: Option[];
   placeholder: string;
   createValue: string;
+  large?: boolean;
   disabled?: boolean;
   onSelect: (value: string | null) => void;
   onCreateNew: () => void;
@@ -77,14 +79,19 @@ type StatusNotice = {
   tone: NoticeTone;
 };
 
-function ClockIcon({ color = '#ffffff' }: { color?: string }) {
+function ClockIcon({ color = '#ffffff', size = 16 }: { color?: string; size?: number }) {
+  const stroke = Math.max(2, Math.round(size * 0.12));
+  const center = size / 2;
+  const minuteHandHeight = Math.max(4, Math.round(size * 0.3));
+  const hourHandWidth = Math.max(4, Math.round(size * 0.26));
+
   return (
-    <View className="h-5 w-5 items-center justify-center">
+    <View style={{ width: size + 6, height: size + 6 }} className="items-center justify-center">
       <View
         style={{
-          width: 16,
-          height: 16,
-          borderWidth: 2,
+          width: size,
+          height: size,
+          borderWidth: stroke,
           borderColor: color,
           borderRadius: 999,
           position: 'relative',
@@ -93,10 +100,10 @@ function ClockIcon({ color = '#ffffff' }: { color?: string }) {
         <View
           style={{
             position: 'absolute',
-            left: 6,
-            top: 2,
-            width: 2,
-            height: 5,
+            left: center - stroke / 2,
+            top: stroke,
+            width: stroke,
+            height: minuteHandHeight,
             borderRadius: 2,
             backgroundColor: color,
           }}
@@ -104,10 +111,10 @@ function ClockIcon({ color = '#ffffff' }: { color?: string }) {
         <View
           style={{
             position: 'absolute',
-            left: 6,
-            top: 6,
-            width: 5,
-            height: 2,
+            left: center - stroke / 2,
+            top: center - stroke / 2,
+            width: hourHandWidth,
+            height: stroke,
             borderRadius: 2,
             backgroundColor: color,
           }}
@@ -123,11 +130,15 @@ function PickerField({
   options,
   placeholder,
   createValue,
+  large = false,
   disabled = false,
   onSelect,
   onCreateNew,
 }: PickerFieldProps) {
-  const pickerColor = useColorScheme() === 'dark' ? '#f8f7f3' : '#1a1f16';
+  const isDark = useColorScheme() === 'dark';
+  const pickerTextColor = isDark ? '#f8f7f3' : '#1a1f16';
+  const pickerPlaceholderColor = isDark ? '#b8b7b2' : '#6f7868';
+  const pickerSurfaceColor = isDark ? '#1a1f16' : '#f8f7f3';
 
   function handleValueChange(itemValue: string | number): void {
     const next = String(itemValue ?? EMPTY_PICKER_VALUE);
@@ -141,20 +152,44 @@ function PickerField({
 
   return (
     <View className="gap-2">
-      <Text className="text-xs uppercase tracking-wide text-muted">{label}</Text>
-      <View className={`rounded-md border border-border bg-background ${disabled ? 'opacity-60' : ''}`}>
+      <Text className={large ? 'text-sm uppercase tracking-wide text-muted' : 'text-xs uppercase tracking-wide text-muted'}>
+        {label}
+      </Text>
+      <View
+        className={`rounded-md border border-border bg-background ${large ? 'px-1 py-1' : ''} ${disabled ? 'opacity-60' : ''}`}
+      >
         <Picker
           enabled={!disabled}
           selectedValue={value ?? EMPTY_PICKER_VALUE}
           onValueChange={handleValueChange}
-          dropdownIconColor={pickerColor}
-          style={{ color: pickerColor }}
+          dropdownIconColor={pickerTextColor}
+          style={{
+            color: pickerTextColor,
+            backgroundColor: pickerSurfaceColor,
+            fontSize: large ? 24 : 16,
+          }}
         >
-          <Picker.Item label={placeholder} value={EMPTY_PICKER_VALUE} />
+          <Picker.Item
+            label={placeholder}
+            value={EMPTY_PICKER_VALUE}
+            color={pickerPlaceholderColor}
+            style={{ color: pickerPlaceholderColor, backgroundColor: pickerSurfaceColor }}
+          />
           {options.map((option) => (
-            <Picker.Item key={option.id} label={option.label} value={option.id} />
+            <Picker.Item
+              key={option.id}
+              label={option.label}
+              value={option.id}
+              color={pickerTextColor}
+              style={{ color: pickerTextColor, backgroundColor: pickerSurfaceColor }}
+            />
           ))}
-          <Picker.Item label="+ Create new" value={createValue} />
+          <Picker.Item
+            label="+ Create new"
+            value={createValue}
+            color={pickerTextColor}
+            style={{ color: pickerTextColor, backgroundColor: pickerSurfaceColor }}
+          />
         </Picker>
       </View>
     </View>
@@ -376,6 +411,7 @@ function saveLastSelection(selection: LastSelection): void {
 }
 
 export function Timer({ gate }: TimerProps) {
+  const { width: viewportWidth } = useWindowDimensions();
   const defaults = loadLastSelection();
   const [clients, setClients] = useState<Client[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -913,41 +949,82 @@ export function Timer({ gate }: TimerProps) {
     }
   }
 
+  const isLargeScreen = viewportWidth >= 1200;
+  const isTablet = viewportWidth >= 768 && viewportWidth < 1200;
+  const containerWidthStyle = isLargeScreen
+    ? { width: '90%' as const, maxWidth: 1500 }
+    : isTablet
+      ? { width: '75%' as const }
+      : { width: '90%' as const };
+  const smoothLayout = LinearTransition.springify().damping(20).stiffness(170);
+  const timerValueClassName = isLargeScreen
+    ? 'text-center text-7xl font-black text-heading'
+    : 'text-3xl font-black text-heading';
+  const actionButtonPaddingClassName = isLargeScreen ? 'px-8 py-7' : 'px-4 py-3';
+  const actionButtonLabelClassName = isLargeScreen
+    ? 'text-center text-3xl font-semibold'
+    : 'text-center font-semibold';
+  const actionIconSize = isLargeScreen ? 28 : 16;
+  const timerContainerClassName = isLargeScreen ? 'gap-4 rounded-xl bg-card p-6' : 'gap-3 rounded-xl bg-card p-4';
+  const timerTitleClassName = isLargeScreen ? 'text-3xl font-bold text-heading' : 'text-xl font-bold text-heading';
+  const timerStatusClassName = isLargeScreen ? 'text-lg text-muted' : 'text-muted';
+  const notesInputClassName = isLargeScreen
+    ? `rounded-md border border-border bg-background px-4 py-4 text-xl text-foreground ${isInteractionLocked ? 'opacity-60' : ''}`
+    : `rounded-md border border-border bg-background px-3 py-2 text-foreground ${isInteractionLocked ? 'opacity-60' : ''}`;
+  const createSessionButtonClassName = isLargeScreen
+    ? `rounded-2xl border border-border bg-background px-8 py-5 ${isInteractionLocked ? 'opacity-60' : ''}`
+    : `rounded-2xl border border-border bg-background px-4 py-3 ${isInteractionLocked ? 'opacity-60' : ''}`;
+  const createSessionTextClassName = isLargeScreen
+    ? 'text-center text-2xl font-semibold text-heading'
+    : 'text-center font-semibold text-heading';
+
   return (
-    <View className="gap-3 rounded-xl bg-card p-4">
-      <Text className="text-xl font-bold text-heading">Timer</Text>
-      <Text className="text-muted">
+    <Animated.View className="items-center" layout={smoothLayout}>
+      <Animated.View className={timerContainerClassName} style={containerWidthStyle} layout={smoothLayout}>
+      <Text className={timerTitleClassName}>Timer</Text>
+      <Text className={timerStatusClassName}>
         {isClockedIn ? (isPaused ? 'Currently paused' : 'Currently clocked in') : 'Currently clocked out'}
       </Text>
-
-      <PickerField
-        label="Client"
-        value={selectedClientId}
-        options={clients.map((client) => ({ id: client.id, label: client.name }))}
-        placeholder="Select client"
-        createValue={CREATE_CLIENT_PICKER_VALUE}
-        disabled={isClockedIn || isLoading || isInteractionLocked}
-        onSelect={(value) => {
-          if (isInteractionLocked) {
-            showBlockedMessage(lockReason);
-            return;
-          }
-          setSelectedClientId(value);
-          setIsCreatingClient(false);
-        }}
-        onCreateNew={() => {
-          if (isInteractionLocked) {
-            showBlockedMessage(lockReason);
-            return;
-          }
-          setIsCreatingClient(true);
-          setIsCreatingProject(false);
-          setIsCreatingTask(false);
-        }}
-      />
+      <Animated.View
+        className="gap-3"
+        layout={smoothLayout}
+        style={isLargeScreen ? { flexDirection: 'row', alignItems: 'stretch', gap: 16 } : undefined}
+      >
+        <Animated.View className="gap-3" layout={smoothLayout} style={isLargeScreen ? { flex: 1 } : undefined}>
+          <PickerField
+            label="Client"
+            value={selectedClientId}
+            options={clients.map((client) => ({ id: client.id, label: client.name }))}
+            placeholder="Select client"
+            createValue={CREATE_CLIENT_PICKER_VALUE}
+            large={isLargeScreen}
+            disabled={isClockedIn || isLoading || isInteractionLocked}
+            onSelect={(value) => {
+              if (isInteractionLocked) {
+                showBlockedMessage(lockReason);
+                return;
+              }
+              setSelectedClientId(value);
+              setIsCreatingClient(false);
+            }}
+            onCreateNew={() => {
+              if (isInteractionLocked) {
+                showBlockedMessage(lockReason);
+                return;
+              }
+              setIsCreatingClient(true);
+              setIsCreatingProject(false);
+              setIsCreatingTask(false);
+            }}
+          />
 
       {isCreatingClient && !isClockedIn && !isInteractionLocked ? (
-        <View className="gap-2 rounded-md border border-border bg-background p-3">
+        <Animated.View
+          className="gap-2 rounded-md border border-border bg-background p-3"
+          entering={FadeInDown.duration(180)}
+          exiting={FadeOutUp.duration(160)}
+          layout={smoothLayout}
+        >
           <TextInput
             value={newClientName}
             onChangeText={setNewClientName}
@@ -987,7 +1064,7 @@ export function Timer({ gate }: TimerProps) {
               <Text className="font-semibold text-heading">Cancel</Text>
             </Pressable>
           </View>
-        </View>
+        </Animated.View>
       ) : null}
 
       <PickerField
@@ -996,6 +1073,7 @@ export function Timer({ gate }: TimerProps) {
         options={projects.map((project) => ({ id: project.id, label: project.name }))}
         placeholder="Select project"
         createValue={CREATE_PROJECT_PICKER_VALUE}
+        large={isLargeScreen}
         disabled={isClockedIn || isLoading || isInteractionLocked || !selectedClientId}
         onSelect={(value) => {
           if (isInteractionLocked) {
@@ -1017,7 +1095,12 @@ export function Timer({ gate }: TimerProps) {
       />
 
       {isCreatingProject && !isClockedIn && !isInteractionLocked ? (
-        <View className="gap-2 rounded-md border border-border bg-background p-3">
+        <Animated.View
+          className="gap-2 rounded-md border border-border bg-background p-3"
+          entering={FadeInDown.duration(180)}
+          exiting={FadeOutUp.duration(160)}
+          layout={smoothLayout}
+        >
           <TextInput
             value={newProjectName}
             onChangeText={setNewProjectName}
@@ -1043,7 +1126,7 @@ export function Timer({ gate }: TimerProps) {
               <Text className="font-semibold text-heading">Cancel</Text>
             </Pressable>
           </View>
-        </View>
+        </Animated.View>
       ) : null}
 
       <PickerField
@@ -1052,6 +1135,7 @@ export function Timer({ gate }: TimerProps) {
         options={tasks.map((task) => ({ id: task.id, label: task.name }))}
         placeholder="Select task"
         createValue={CREATE_TASK_PICKER_VALUE}
+        large={isLargeScreen}
         disabled={isClockedIn || isLoading || isInteractionLocked || !selectedProjectId}
         onSelect={(value) => {
           if (isInteractionLocked) {
@@ -1073,7 +1157,12 @@ export function Timer({ gate }: TimerProps) {
       />
 
       {isCreatingTask && !isClockedIn && !isInteractionLocked ? (
-        <View className="gap-2 rounded-md border border-border bg-background p-3">
+        <Animated.View
+          className="gap-2 rounded-md border border-border bg-background p-3"
+          entering={FadeInDown.duration(180)}
+          exiting={FadeOutUp.duration(160)}
+          layout={smoothLayout}
+        >
           <TextInput
             value={newTaskName}
             onChangeText={setNewTaskName}
@@ -1099,11 +1188,13 @@ export function Timer({ gate }: TimerProps) {
               <Text className="font-semibold text-heading">Cancel</Text>
             </Pressable>
           </View>
-        </View>
+        </Animated.View>
       ) : null}
 
       <View className="gap-2">
-        <Text className="text-xs uppercase tracking-wide text-muted">Session Notes (Optional)</Text>
+        <Text className={isLargeScreen ? 'text-sm uppercase tracking-wide text-muted' : 'text-xs uppercase tracking-wide text-muted'}>
+          Session Notes (Optional)
+        </Text>
         <TextInput
           value={notes}
           onChangeText={setNotes}
@@ -1112,76 +1203,93 @@ export function Timer({ gate }: TimerProps) {
             handleNotesBlur().catch(() => undefined);
           }}
           placeholder="What you worked on this session"
-          className={`rounded-md border border-border bg-background px-3 py-2 text-foreground ${isInteractionLocked ? 'opacity-60' : ''}`}
+          className={notesInputClassName}
         />
       </View>
+        </Animated.View>
 
-      <Text className="text-3xl font-black text-heading">{formatSeconds(elapsedSeconds)}</Text>
+        <Animated.View
+          className={`gap-4 ${isLargeScreen ? 'rounded-xl border border-border bg-background p-4' : ''}`}
+          layout={smoothLayout}
+          style={isLargeScreen ? { flex: 1, justifyContent: 'space-between' } : undefined}
+        >
+          <Text className={timerValueClassName}>{formatSeconds(elapsedSeconds)}</Text>
 
       {isClockedIn ? (
         <View className="flex-row gap-2">
           {isPaused ? (
-            <Pressable className="flex-1 rounded-2xl bg-secondary px-4 py-3" onPress={handleResume}>
+            <Pressable className={`flex-1 rounded-2xl bg-secondary ${actionButtonPaddingClassName}`} onPress={handleResume}>
               <View className="flex-row items-center justify-center gap-2">
-                <ClockIcon />
-                <Text className="text-center font-semibold text-white">Resume</Text>
+                <ClockIcon size={actionIconSize} />
+                <Text className={`${actionButtonLabelClassName} text-white`}>Resume</Text>
               </View>
             </Pressable>
           ) : (
-            <Pressable className="flex-1 rounded-2xl bg-primary px-4 py-3" onPress={handlePause}>
+            <Pressable className={`flex-1 rounded-2xl bg-primary ${actionButtonPaddingClassName}`} onPress={handlePause}>
               <View className="flex-row items-center justify-center gap-2">
-                <ClockIcon />
-                <Text className="text-center font-semibold text-heading">Pause</Text>
+                <ClockIcon size={actionIconSize} />
+                <Text className={`${actionButtonLabelClassName} text-heading`}>Pause</Text>
               </View>
             </Pressable>
           )}
-          <Pressable className="flex-1 rounded-2xl bg-danger px-4 py-3" onPress={handleClockOut}>
+          <Pressable className={`flex-1 rounded-2xl bg-danger ${actionButtonPaddingClassName}`} onPress={handleClockOut}>
             <View className="flex-row items-center justify-center gap-2">
-              <ClockIcon />
-              <Text className="text-center font-semibold text-white">Clock Out</Text>
+              <ClockIcon size={actionIconSize} />
+              <Text className={`${actionButtonLabelClassName} text-white`}>Clock Out</Text>
             </View>
           </Pressable>
         </View>
       ) : (
         <Pressable
-          className={`rounded-2xl px-4 py-3 ${isInteractionLocked || isLoading ? 'bg-secondary/60' : 'bg-secondary'}`}
+          className={`rounded-2xl ${actionButtonPaddingClassName} ${isInteractionLocked || isLoading ? 'bg-secondary/60' : 'bg-secondary'}`}
           onPress={handleClockIn}
           disabled={isLoading || isInteractionLocked}
         >
           <View className="flex-row items-center justify-center gap-2">
-            <ClockIcon />
-            <Text className="text-center font-semibold text-white">Clock In</Text>
+            <ClockIcon size={actionIconSize} />
+            <Text className={`${actionButtonLabelClassName} text-white`}>Clock In</Text>
           </View>
         </Pressable>
       )}
+        </Animated.View>
+      </Animated.View>
 
       {!isClockedIn ? (
-        <Pressable
-          className={`rounded-2xl border border-border bg-background px-4 py-3 ${isInteractionLocked ? 'opacity-60' : ''}`}
-          onPress={() => {
-            if (isInteractionLocked) {
-              showBlockedMessage(lockReason);
-              return;
-            }
+        <View className="items-center">
+          <Pressable
+            className={createSessionButtonClassName}
+            style={isLargeScreen ? { width: '40%', minWidth: 320 } : undefined}
+            onPress={() => {
+              if (isInteractionLocked) {
+                showBlockedMessage(lockReason);
+                return;
+              }
 
-            setIsCreatingManualSession((open) => !open);
-          }}
-          disabled={isInteractionLocked}
-        >
-          <Text className="text-center font-semibold text-heading">
-            {isCreatingManualSession ? 'Cancel Manual Session' : 'Create Session'}
-          </Text>
-        </Pressable>
+              setIsCreatingManualSession((open) => !open);
+            }}
+            disabled={isInteractionLocked}
+          >
+            <Text className={createSessionTextClassName}>
+              {isCreatingManualSession ? 'Cancel Manual Session' : 'Create Session'}
+            </Text>
+          </Pressable>
+        </View>
       ) : null}
 
       {isCreatingManualSession && !isClockedIn && !isInteractionLocked ? (
-        <View className="gap-2 rounded-md border border-border bg-background p-3">
+        <Animated.View
+          className="gap-2 rounded-md border border-border bg-background p-3"
+          entering={FadeInDown.duration(180)}
+          exiting={FadeOutUp.duration(160)}
+          layout={smoothLayout}
+        >
           <PickerField
             label="Client"
             value={selectedClientId}
             options={clients.map((client) => ({ id: client.id, label: client.name }))}
             placeholder="Select client"
             createValue={CREATE_CLIENT_PICKER_VALUE}
+            large={isLargeScreen}
             disabled={isInteractionLocked}
             onSelect={(value) => {
               if (isInteractionLocked) {
@@ -1207,6 +1315,7 @@ export function Timer({ gate }: TimerProps) {
             options={projects.map((project) => ({ id: project.id, label: project.name }))}
             placeholder="Select project"
             createValue={CREATE_PROJECT_PICKER_VALUE}
+            large={isLargeScreen}
             disabled={isInteractionLocked || !selectedClientId}
             onSelect={(value) => {
               if (isInteractionLocked) {
@@ -1232,6 +1341,7 @@ export function Timer({ gate }: TimerProps) {
             options={tasks.map((task) => ({ id: task.id, label: task.name }))}
             placeholder="Select task"
             createValue={CREATE_TASK_PICKER_VALUE}
+            large={isLargeScreen}
             disabled={isInteractionLocked || !selectedProjectId}
             onSelect={(value) => {
               if (isInteractionLocked) {
@@ -1311,10 +1421,14 @@ export function Timer({ gate }: TimerProps) {
           >
             <Text className="text-center font-semibold text-white">Save Manual Session</Text>
           </Pressable>
-        </View>
+        </Animated.View>
       ) : null}
 
-      {message ? <InlineNotice tone={message.tone} message={message.text} /> : null}
+      {message ? (
+        <Animated.View entering={FadeInDown.duration(180)} exiting={FadeOutUp.duration(160)} layout={smoothLayout}>
+          <InlineNotice tone={message.tone} message={message.text} />
+        </Animated.View>
+      ) : null}
 
       <SessionCompleteModal
         visible={showCompleteModal}
@@ -1329,6 +1443,7 @@ export function Timer({ gate }: TimerProps) {
           handleSessionCompleteSkip().catch(() => undefined);
         }}
       />
-    </View>
+      </Animated.View>
+    </Animated.View>
   );
 }

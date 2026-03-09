@@ -1,6 +1,6 @@
 import { Picker } from '@react-native-picker/picker';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, Text, TextInput, useColorScheme, View } from 'react-native';
+import { Modal, Pressable, ScrollView, Text, TextInput, useColorScheme, useWindowDimensions, View } from 'react-native';
 import {
   createClient,
   createProject,
@@ -63,7 +63,10 @@ function SelectField({
   onSelect,
   onCreateNew,
 }: SelectFieldProps) {
-  const pickerColor = useColorScheme() === 'dark' ? '#f8f7f3' : '#1a1f16';
+  const isDark = useColorScheme() === 'dark';
+  const pickerTextColor = isDark ? '#f8f7f3' : '#1a1f16';
+  const pickerPlaceholderColor = isDark ? '#b8b7b2' : '#6f7868';
+  const pickerSurfaceColor = isDark ? '#1a1f16' : '#f8f7f3';
 
   function handleValueChange(itemValue: string | number): void {
     const next = String(itemValue ?? EMPTY_PICKER_VALUE);
@@ -83,14 +86,32 @@ function SelectField({
           enabled={!disabled}
           selectedValue={value ?? EMPTY_PICKER_VALUE}
           onValueChange={handleValueChange}
-          dropdownIconColor={pickerColor}
-          style={{ color: pickerColor }}
+          dropdownIconColor={pickerTextColor}
+          style={{ color: pickerTextColor, backgroundColor: pickerSurfaceColor }}
         >
-          <Picker.Item label={placeholder} value={EMPTY_PICKER_VALUE} />
+          <Picker.Item
+            label={placeholder}
+            value={EMPTY_PICKER_VALUE}
+            color={pickerPlaceholderColor}
+            style={{ color: pickerPlaceholderColor, backgroundColor: pickerSurfaceColor }}
+          />
           {options.map((option) => (
-            <Picker.Item key={option.id} label={option.label} value={option.id} />
+            <Picker.Item
+              key={option.id}
+              label={option.label}
+              value={option.id}
+              color={pickerTextColor}
+              style={{ color: pickerTextColor, backgroundColor: pickerSurfaceColor }}
+            />
           ))}
-          {createValue ? <Picker.Item label="+ Create new" value={createValue} /> : null}
+          {createValue ? (
+            <Picker.Item
+              label="+ Create new"
+              value={createValue}
+              color={pickerTextColor}
+              style={{ color: pickerTextColor, backgroundColor: pickerSurfaceColor }}
+            />
+          ) : null}
         </Picker>
       </View>
     </View>
@@ -242,6 +263,7 @@ function createId(prefix: string): string {
 }
 
 export function SessionList() {
+  const { width } = useWindowDimensions();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -274,6 +296,13 @@ export function SessionList() {
   const [newEditProjectGithubRepo, setNewEditProjectGithubRepo] = useState('');
   const [newEditTaskName, setNewEditTaskName] = useState('');
   const [newEditTaskGithubBranch, setNewEditTaskGithubBranch] = useState('');
+  const isLargeScreen = width >= 1200;
+  const isTablet = width >= 768 && width < 1200;
+  const contentWidthStyle = isLargeScreen
+    ? { width: '90%' as const, maxWidth: 1500 }
+    : isTablet
+      ? { width: '75%' as const }
+      : { width: '90%' as const };
 
   const load = useCallback(async () => {
     setError(null);
@@ -628,68 +657,72 @@ export function SessionList() {
           <Text className="text-muted">Track and review your logged work sessions.</Text>
         </View>
       </View>
+      <View className="items-center">
+        <View className="w-full gap-4" style={contentWidthStyle}>
 
-      {isLoading ? <Text className="text-muted">Loading sessions...</Text> : null}
-      {error ? <InlineNotice tone="error" message={error} /> : null}
-      {status ? <InlineNotice tone={status.tone} message={status.message} /> : null}
+          {isLoading ? <Text className="text-muted">Loading sessions...</Text> : null}
+          {error ? <InlineNotice tone="error" message={error} /> : null}
+          {status ? <InlineNotice tone={status.tone} message={status.message} /> : null}
 
-      {!isLoading && groupedWeeks.length === 0 ? (
-        <Text className="text-muted">
-          {selectedClientFilterId
-            ? 'No sessions found for this client.'
-            : 'No sessions yet. Use Clock In on Dashboard.'}
-        </Text>
-      ) : null}
+          {!isLoading && groupedWeeks.length === 0 ? (
+            <Text className="text-muted">
+              {selectedClientFilterId
+                ? 'No sessions found for this client.'
+                : 'No sessions yet. Use Clock In on Dashboard.'}
+            </Text>
+          ) : null}
 
-      {groupedWeeks.map((weekGroup) => (
-        <View key={weekGroup.key} className="gap-3 rounded-xl border border-border bg-card p-4">
-          <Text className="text-lg font-bold text-heading">{weekGroup.label}</Text>
-          {weekGroup.sessions.map((session) => {
-            const isInvoiced = session.invoice_id !== null;
-            const cardClass = isInvoiced
-              ? 'gap-2 rounded-md border border-invoiced-surface bg-invoiced-surface p-3'
-              : 'gap-2 rounded-md border border-border bg-background p-3';
-            const headingTextClass = isInvoiced ? 'font-semibold text-invoiced-text' : 'font-semibold text-heading';
-            const bodyTextClass = isInvoiced ? 'text-sm text-invoiced-muted' : 'text-sm text-foreground';
-            const metaTextClass = isInvoiced ? 'text-xs text-invoiced-muted' : 'text-xs text-muted';
-            const buttonClass = isInvoiced
-              ? 'rounded-md border border-invoiced-muted px-3 py-1'
-              : 'rounded-md border border-border px-3 py-1';
-            const buttonTextClass = isInvoiced
-              ? 'text-sm font-semibold text-invoiced-text'
-              : 'text-sm font-semibold text-heading';
+          {groupedWeeks.map((weekGroup) => (
+            <View key={weekGroup.key} className="gap-3 rounded-xl border border-border bg-card p-4">
+              <Text className="text-lg font-bold text-heading">{weekGroup.label}</Text>
+              {weekGroup.sessions.map((session) => {
+                const isInvoiced = session.invoice_id !== null;
+                const cardClass = isInvoiced
+                  ? 'gap-2 rounded-md border border-invoiced-surface bg-invoiced-surface p-3'
+                  : 'gap-2 rounded-md border border-border bg-background p-3';
+                const headingTextClass = isInvoiced ? 'font-semibold text-invoiced-text' : 'font-semibold text-heading';
+                const bodyTextClass = isInvoiced ? 'text-sm text-invoiced-muted' : 'text-sm text-foreground';
+                const metaTextClass = isInvoiced ? 'text-xs text-invoiced-muted' : 'text-xs text-muted';
+                const buttonClass = isInvoiced
+                  ? 'rounded-md border border-invoiced-muted px-3 py-1'
+                  : 'rounded-md border border-border px-3 py-1';
+                const buttonTextClass = isInvoiced
+                  ? 'text-sm font-semibold text-invoiced-text'
+                  : 'text-sm font-semibold text-heading';
 
-            return (
-              <View key={session.id} className={cardClass}>
-                <View className="flex-row items-start justify-between gap-3">
-                  <View className="flex-1 gap-1">
-                    <Text className={headingTextClass}>{session.client_name ?? session.client}</Text>
-                    <Text className={bodyTextClass}>
-                      {session.project_name ?? 'No project'} | {session.task_name ?? 'No task'}
+                return (
+                  <View key={session.id} className={cardClass}>
+                    <View className="flex-row items-start justify-between gap-3">
+                      <View className="flex-1 gap-1">
+                        <Text className={headingTextClass}>{session.client_name ?? session.client}</Text>
+                        <Text className={bodyTextClass}>
+                          {session.project_name ?? 'No project'} | {session.task_name ?? 'No task'}
+                        </Text>
+                      </View>
+                      <Pressable className={buttonClass} onPress={() => openEditModal(session)}>
+                        <Text className={buttonTextClass}>Edit</Text>
+                      </Pressable>
+                    </View>
+
+                    <Text className={metaTextClass}>{new Date(session.start_time).toLocaleString()}</Text>
+                    <Text className={bodyTextClass}>Duration: {formatDuration(session.duration)}</Text>
+                    {session.notes ? <Text className={bodyTextClass}>Notes: {session.notes}</Text> : null}
+                    {typeof session.break_count === 'number' && session.break_count > 0 ? (
+                      <Text className={metaTextClass}>Breaks: {session.break_count}</Text>
+                    ) : null}
+                    <Text className={metaTextClass}>
+                      Status: {getSessionStatus(session)} |{' '}
+                      <Text className={isInvoiced ? 'font-semibold text-success' : 'font-semibold text-secondary'}>
+                        {isInvoiced ? 'Invoiced' : 'Uninvoiced'}
+                      </Text>
                     </Text>
                   </View>
-                  <Pressable className={buttonClass} onPress={() => openEditModal(session)}>
-                    <Text className={buttonTextClass}>Edit</Text>
-                  </Pressable>
-                </View>
-
-                <Text className={metaTextClass}>{new Date(session.start_time).toLocaleString()}</Text>
-                <Text className={bodyTextClass}>Duration: {formatDuration(session.duration)}</Text>
-                {session.notes ? <Text className={bodyTextClass}>Notes: {session.notes}</Text> : null}
-                {typeof session.break_count === 'number' && session.break_count > 0 ? (
-                  <Text className={metaTextClass}>Breaks: {session.break_count}</Text>
-                ) : null}
-                <Text className={metaTextClass}>
-                  Status: {getSessionStatus(session)} |{' '}
-                  <Text className={isInvoiced ? 'font-semibold text-success' : 'font-semibold text-secondary'}>
-                    {isInvoiced ? 'Invoiced' : 'Uninvoiced'}
-                  </Text>
-                </Text>
-              </View>
-            );
-          })}
+                );
+              })}
+            </View>
+          ))}
         </View>
-      ))}
+      </View>
 
       <Modal
         visible={editingSession !== null}
