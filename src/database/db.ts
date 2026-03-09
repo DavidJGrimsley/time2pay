@@ -106,7 +106,7 @@ export type CoreDbValidationReport = {
 };
 
 const DB_NAME = 'time2pay.db';
-const SCHEMA_VERSION = 6;
+const SCHEMA_VERSION = 7;
 const USER_PROFILE_ID = 'me';
 
 const MIGRATIONS: { version: number; upSql: string }[] = [
@@ -248,6 +248,12 @@ const MIGRATIONS: { version: number; upSql: string }[] = [
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
+    `,
+  },
+  {
+    version: 7,
+    upSql: `
+      ALTER TABLE user_profile ADD COLUMN mercury_api_key TEXT;
     `,
   },
 ];

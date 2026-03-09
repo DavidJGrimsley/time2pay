@@ -6,7 +6,16 @@
     "userInterfaceStyle": "automatic",
     "orientation": "portrait",
     "plugins": [
-      "expo-router",
+      [
+        "expo-router",
+        {
+          "origin": "https://lucid-lewin.108-175-12-95.plesk.page",
+          "headers": {
+            "Cross-Origin-Embedder-Policy": "credentialless",
+            "Cross-Origin-Opener-Policy": "same-origin"
+          }
+        }
+      ],
       "expo-sqlite"
     ],
     "experiments": {

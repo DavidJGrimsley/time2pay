@@ -13,7 +13,7 @@ type MercuryProxyPayload = {
 };
 
 function getMercuryApiConfig(): { apiKey: string; baseUrl: string } {
-  const apiKey = process.env.MERCURY_API_KEY;
+  const apiKey = process.env.MERCURY_API_KEY?.trim();
   const baseUrl = process.env.MERCURY_BASE_URL ?? DEFAULT_MERCURY_BASE_URL;
 
   if (!apiKey) {

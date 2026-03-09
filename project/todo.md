@@ -32,10 +32,11 @@
 ## Random
 - [x] Add ability edit sessions, make create manual session more robust like clock in, group sessions better(by week and client)
 - [x] Light/dark mode
-- [ ] Revise copy icons script and run it to move icons over
-- [ ] set up pwa with automatic updates and persisting data
+- [x] Revise copy icons script and run it to move icons over
+- [x] set up pwa with automatic updates and persisting data
 - [x] Revamp invoices to have user data in from section with optional branding, further format fixes
-- [ ] move all alerts from inline style to system alert window - inline alerts are not obvious enough and can lead to user frustration 
+- [ ] A gate on the entire dashboard buttons and interactivity to ensure the user has filled out the profile screen first
+- [ ] Move all alerts from inline style to system alert window because inline alerts are not obvious enough and can lead to user frustration 
 - [ ] Export & import user data including all profile, clients, time tracked, etc.
 - [ ] Make comprehensive mercury-api-ui npm package
 
@@ -45,3 +46,31 @@
 - [ ] Accounting integrations
 - [ ] Automated invoice reminders
 - [ ] Financial dashboards
+
+## Business Model: OSS + Hosted SaaS
+
+### Pricing (Agreed Starter)
+- [ ] `Free`: self-host, unlimited projects/clients, basic invoices
+- [ ] `Pro $5/mo`: hosted, backups, recurring invoices, templates
+- [ ] `Team $20/mo`: includes 2 users; +$5 per additional user; multi-user roles, approvals, export/reporting
+
+### Mercury API Key Security (Hosted SaaS)
+- [ ] Keep Mercury API keys server-side only (never in client JS, never in local profile UI)
+- [ ] Encrypt keys at rest with envelope encryption (KMS-managed master key + per-record data key)
+- [ ] Decrypt only inside backend route handlers when proxying Mercury requests
+- [ ] Add key rotation flow (user can replace key, old encrypted value retired)
+- [ ] Redact secrets in logs and add audit trail for key create/update/delete events
+
+### Deployment Strategy Changes (Hosted SaaS Path)
+- [ ] Split architecture into:
+- [ ] `Self-host OSS`: current Expo Router server output + local SQLite (free tier)
+- [ ] `Hosted SaaS`: managed Postgres, auth, backups, billing, and secure secrets store
+- [ ] Add tenant model and data isolation for hosted users
+- [ ] Add backup/restore jobs and disaster recovery checklist
+- [ ] Add billing provider integration (Stripe) for Pro/Team plans
+
+### Licensing Strategy
+- [ ] Keep self-hostable core open source
+- [ ] Keep hosted SaaS operations/private services proprietary (billing, managed backups, multi-tenant infra)
+- [ ] Choose OSS license for core (default candidate: MIT) and document what is not included
+- [ ] Add `LICENSE`, `CONTRIBUTING.md`, and `SECURITY.md` before public launch
