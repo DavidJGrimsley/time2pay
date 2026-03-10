@@ -15,7 +15,9 @@ import {
   type Task,
 } from '@/database/db';
 import { CalendarDateField } from '@/components/calendar-date-field';
+import { GitHubCommitBadge } from '@/components/github-commit-badge';
 import { InlineNotice, type NoticeTone } from '@/components/inline-notice';
+import { prettifyBranchName } from '@/services/github';
 import { listRuntimeSessions, updateRuntimeSession } from '@/services/session-runtime';
 import { showActionErrorAlert, showBlockedAlert, showValidationAlert } from '@/services/system-alert';
 
@@ -296,6 +298,7 @@ export function SessionList() {
   const [newEditProjectGithubRepo, setNewEditProjectGithubRepo] = useState('');
   const [newEditTaskName, setNewEditTaskName] = useState('');
   const [newEditTaskGithubBranch, setNewEditTaskGithubBranch] = useState('');
+  const [isEditTaskNameAutoFilled, setIsEditTaskNameAutoFilled] = useState(false);
   const isLargeScreen = width >= 1200;
   const isTablet = width >= 768 && width < 1200;
   const contentWidthStyle = isLargeScreen
@@ -445,6 +448,7 @@ export function SessionList() {
     setIsCreatingEditClient(false);
     setIsCreatingEditProject(false);
     setIsCreatingEditTask(false);
+    setIsEditTaskNameAutoFilled(false);
   }
 
   function openEditModal(session: Session): void {
@@ -480,6 +484,7 @@ export function SessionList() {
     setIsCreatingEditClient(false);
     setIsCreatingEditProject(false);
     setIsCreatingEditTask(false);
+    setIsEditTaskNameAutoFilled(false);
   }
 
   async function handleCreateEditClient(): Promise<void> {
@@ -583,6 +588,7 @@ export function SessionList() {
     setIsCreatingEditTask(false);
     setNewEditTaskName('');
     setNewEditTaskGithubBranch('');
+    setIsEditTaskNameAutoFilled(false);
   }
 
   async function handleSaveEdit(): Promise<void> {
@@ -706,7 +712,12 @@ export function SessionList() {
 
                     <Text className={metaTextClass}>{new Date(session.start_time).toLocaleString()}</Text>
                     <Text className={bodyTextClass}>Duration: {formatDuration(session.duration)}</Text>
-                    {session.notes ? <Text className={bodyTextClass}>Notes: {session.notes}</Text> : null}
+                    <GitHubCommitBadge
+                      commitSha={session.commit_sha}
+                      commitUrl={session.commit_url ?? null}
+                      textClassName={isInvoiced ? 'text-xs text-invoiced-muted' : 'text-xs text-secondary'}
+                    />
+                    {session.notes ? <Text className={bodyTextClass}>{session.notes}</Text> : null}
                     {typeof session.break_count === 'number' && session.break_count > 0 ? (
                       <Text className={metaTextClass}>Breaks: {session.break_count}</Text>
                     ) : null}
@@ -883,19 +894,35 @@ export function SessionList() {
                     setIsCreatingEditTask(true);
                     setIsCreatingEditClient(false);
                     setIsCreatingEditProject(false);
+                    setIsEditTaskNameAutoFilled(false);
                   }}
                 />
                 {isCreatingEditTask ? (
                   <View className="gap-2 rounded-md border border-border bg-background p-3">
                     <TextInput
                       value={newEditTaskName}
-                      onChangeText={setNewEditTaskName}
+                      onChangeText={(value) => {
+                        setNewEditTaskName(value);
+                        setIsEditTaskNameAutoFilled(false);
+                      }}
                       placeholder="Task name"
                       className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
                     />
+                    {isEditTaskNameAutoFilled ? (
+                      <Text className="text-xs text-muted">Auto-filled from branch name.</Text>
+                    ) : null}
                     <TextInput
                       value={newEditTaskGithubBranch}
-                      onChangeText={setNewEditTaskGithubBranch}
+                      onChangeText={(value) => {
+                        setNewEditTaskGithubBranch(value);
+                        if (!newEditTaskName.trim()) {
+                          const prettyName = prettifyBranchName(value);
+                          if (prettyName) {
+                            setNewEditTaskName(prettyName);
+                            setIsEditTaskNameAutoFilled(true);
+                          }
+                        }
+                      }}
                       placeholder="GitHub branch (optional)"
                       autoCapitalize="none"
                       autoCorrect={false}
@@ -917,7 +944,10 @@ export function SessionList() {
                       </Pressable>
                       <Pressable
                         className="rounded-md border border-border px-3 py-2"
-                        onPress={() => setIsCreatingEditTask(false)}
+                        onPress={() => {
+                          setIsCreatingEditTask(false);
+                          setIsEditTaskNameAutoFilled(false);
+                        }}
                       >
                         <Text className="font-semibold text-heading">Cancel</Text>
                       </Pressable>

@@ -19,6 +19,7 @@ export type Session = {
   duration: number | null;
   notes: string | null;
   commit_sha: string | null;
+  commit_url?: string | null;
   invoice_id: string | null;
   created_at: string;
   updated_at: string;
@@ -83,6 +84,7 @@ export type UserProfile = {
   full_name: string | null;
   phone: string | null;
   email: string | null;
+  github_pat?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -106,7 +108,7 @@ export type CoreDbValidationReport = {
 };
 
 const DB_NAME = 'time2pay.db';
-const SCHEMA_VERSION = 7;
+const SCHEMA_VERSION = 8;
 const USER_PROFILE_ID = 'me';
 
 const MIGRATIONS: { version: number; upSql: string }[] = [
@@ -254,6 +256,12 @@ const MIGRATIONS: { version: number; upSql: string }[] = [
     version: 7,
     upSql: `
       ALTER TABLE user_profile ADD COLUMN mercury_api_key TEXT;
+    `,
+  },
+  {
+    version: 8,
+    upSql: `
+      ALTER TABLE user_profile ADD COLUMN github_pat TEXT;
     `,
   },
 ];
@@ -493,6 +501,7 @@ export async function getUserProfile(): Promise<UserProfile> {
        full_name,
        phone,
        email,
+       github_pat,
        created_at,
        updated_at
      FROM user_profile
@@ -513,10 +522,18 @@ export async function upsertUserProfile(input: {
   full_name?: string | null;
   phone?: string | null;
   email?: string | null;
+  github_pat?: string | null;
 }): Promise<void> {
   const db = await getDb();
   await ensureUserProfileRow(db);
+  const existing = await getUserProfile();
   const timestamp = nowIso();
+  const nextCompanyName = input.company_name === undefined ? existing.company_name : input.company_name;
+  const nextLogoUrl = input.logo_url === undefined ? existing.logo_url : input.logo_url;
+  const nextFullName = input.full_name === undefined ? existing.full_name : input.full_name;
+  const nextPhone = input.phone === undefined ? existing.phone : input.phone;
+  const nextEmail = input.email === undefined ? existing.email : input.email;
+  const nextGithubPat = input.github_pat === undefined ? existing.github_pat : input.github_pat;
 
   await db.runAsync(
     `UPDATE user_profile
@@ -525,13 +542,15 @@ export async function upsertUserProfile(input: {
            full_name = ?,
            phone = ?,
            email = ?,
+           github_pat = ?,
            updated_at = ?
      WHERE id = ?`,
-    input.company_name ?? null,
-    input.logo_url ?? null,
-    input.full_name ?? null,
-    input.phone ?? null,
-    input.email ?? null,
+    nextCompanyName ?? null,
+    nextLogoUrl ?? null,
+    nextFullName ?? null,
+    nextPhone ?? null,
+    nextEmail ?? null,
+    nextGithubPat ?? null,
     timestamp,
     USER_PROFILE_ID,
   );
@@ -948,6 +967,13 @@ export async function listSessions(): Promise<Session[]> {
        s.duration,
        s.notes,
        s.commit_sha,
+       CASE
+         WHEN s.commit_sha IS NOT NULL
+           AND c.github_org IS NOT NULL
+           AND p.github_repo IS NOT NULL
+         THEN 'https://github.com/' || c.github_org || '/' || p.github_repo || '/commit/' || s.commit_sha
+         ELSE NULL
+       END AS commit_url,
        s.invoice_id,
        s.created_at,
        s.updated_at,
@@ -1001,6 +1027,13 @@ export async function listSessionsByClientAndRange(input: {
        s.duration,
        s.notes,
        s.commit_sha,
+       CASE
+         WHEN s.commit_sha IS NOT NULL
+           AND c.github_org IS NOT NULL
+           AND p.github_repo IS NOT NULL
+         THEN 'https://github.com/' || c.github_org || '/' || p.github_repo || '/commit/' || s.commit_sha
+         ELSE NULL
+       END AS commit_url,
        s.invoice_id,
        s.created_at,
        s.updated_at,
@@ -1104,6 +1137,13 @@ export async function listSessionsByInvoiceId(invoiceId: string): Promise<Sessio
        s.duration,
        s.notes,
        s.commit_sha,
+       CASE
+         WHEN s.commit_sha IS NOT NULL
+           AND c.github_org IS NOT NULL
+           AND p.github_repo IS NOT NULL
+         THEN 'https://github.com/' || c.github_org || '/' || p.github_repo || '/commit/' || s.commit_sha
+         ELSE NULL
+       END AS commit_url,
        s.invoice_id,
        s.created_at,
        s.updated_at,

@@ -1,6 +1,7 @@
+import { Octicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, Text, TextInput, useColorScheme, useWindowDimensions, View } from 'react-native';
+import { Linking, Modal, Platform, Pressable, ScrollView, Text, TextInput, useColorScheme, useWindowDimensions, View } from 'react-native';
 import {
   getUserProfile,
   initializeDatabase,
@@ -25,6 +26,13 @@ import { showActionErrorAlert, showSystemConfirm, showValidationAlert } from '@/
 
 const EMPTY_PICKER_VALUE = '';
 const FILE_PICKER_CANCELED_MESSAGE = 'Backup import canceled.';
+const GITHUB_PAT_CREATE_URL = 'https://github.com/settings/personal-access-tokens/new';
+const GITHUB_PAT_DOCS_URL =
+  'https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens';
+const GITHUB_OAUTH_AUTHORIZE_URL = 'https://github.com/login/oauth/authorize';
+const GITHUB_OAUTH_PROXY_PATH = '/api/github';
+const GITHUB_OAUTH_SCOPE = 'repo,read:user';
+const GITHUB_OAUTH_STATE_KEY = 'time2pay_github_oauth_state';
 
 type StatusNotice = {
   message: string;
@@ -135,6 +143,7 @@ export function ProfileOverview() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingBusiness, setIsSavingBusiness] = useState(false);
+  const [isSavingIntegrations, setIsSavingIntegrations] = useState(false);
   const [isSavingClient, setIsSavingClient] = useState(false);
   const [isExportingData, setIsExportingData] = useState(false);
   const [isImportingData, setIsImportingData] = useState(false);
@@ -149,6 +158,10 @@ export function ProfileOverview() {
   const [fullName, setFullName] = useState('');
   const [businessPhone, setBusinessPhone] = useState('');
   const [businessEmail, setBusinessEmail] = useState('');
+  const [githubPat, setGithubPat] = useState('');
+  const [showIntegrations, setShowIntegrations] = useState(true);
+  const [showPatInfoModal, setShowPatInfoModal] = useState(false);
+  const [isSigningInWithGitHub, setIsSigningInWithGitHub] = useState(false);
 
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
@@ -160,6 +173,8 @@ export function ProfileOverview() {
     () => clients.find((client) => client.id === selectedClientId) ?? null,
     [clients, selectedClientId],
   );
+  const githubClientId = process.env.EXPO_PUBLIC_GITHUB_CLIENT_ID?.trim() ?? '';
+  const isGitHubOAuthEnabled = process.env.EXPO_OS === 'web' && Boolean(githubClientId);
 
   const refreshClients = useCallback(async (preferredClientId?: string | null): Promise<void> => {
     const clientRows = await listClients();
@@ -183,6 +198,7 @@ export function ProfileOverview() {
     setFullName(profile.full_name ?? '');
     setBusinessPhone(profile.phone ?? '');
     setBusinessEmail(profile.email ?? '');
+    setGithubPat(profile.github_pat ?? '');
   }, []);
 
   useEffect(() => {
@@ -210,6 +226,117 @@ export function ProfileOverview() {
     setClientPhone(selectedClient.phone ?? '');
     setClientEmail(selectedClient.email ?? '');
   }, [selectedClient]);
+
+  useEffect(() => {
+    if (!isGitHubOAuthEnabled || typeof window === 'undefined') {
+      return;
+    }
+
+    const url = new URL(window.location.href);
+    const oauthCode = url.searchParams.get('code')?.trim() ?? '';
+    const oauthError = url.searchParams.get('error')?.trim() ?? '';
+    if (!oauthCode && !oauthError) {
+      return;
+    }
+
+    const clearOAuthQueryParams = (): void => {
+      url.searchParams.delete('code');
+      url.searchParams.delete('state');
+      url.searchParams.delete('error');
+      url.searchParams.delete('error_description');
+      window.history.replaceState({}, document.title, url.toString());
+    };
+
+    if (oauthError) {
+      const errorDescription = url.searchParams.get('error_description')?.trim();
+      setStatus({
+        tone: 'error',
+        message: errorDescription ? `GitHub OAuth failed: ${errorDescription}` : 'GitHub OAuth failed.',
+      });
+      clearOAuthQueryParams();
+      return;
+    }
+
+    const returnedState = url.searchParams.get('state')?.trim() ?? '';
+    const expectedState = window.sessionStorage.getItem(GITHUB_OAUTH_STATE_KEY) ?? '';
+    if (!returnedState || !expectedState || returnedState !== expectedState) {
+      setStatus({
+        tone: 'error',
+        message: 'GitHub OAuth failed: state verification did not match.',
+      });
+      clearOAuthQueryParams();
+      return;
+    }
+
+    window.sessionStorage.removeItem(GITHUB_OAUTH_STATE_KEY);
+    const redirectUri = `${window.location.origin}/profile`;
+    let cancelled = false;
+    setIsSigningInWithGitHub(true);
+    setStatus({ tone: 'neutral', message: 'Completing GitHub sign-in...' });
+
+    fetch(GITHUB_OAUTH_PROXY_PATH, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        code: oauthCode,
+        redirectUri,
+      }),
+    })
+      .then(async (response) => {
+        const payload = (await response.json()) as {
+          access_token?: string;
+          token_type?: string;
+          error?: string;
+        };
+
+        if (!response.ok || !payload.access_token) {
+          throw new Error(payload.error ?? 'GitHub token exchange failed.');
+        }
+
+        const token = payload.access_token.trim();
+        await upsertUserProfile({ github_pat: token });
+        setGithubPat(token);
+
+        const githubUserResponse = await fetch('https://api.github.com/user', {
+          method: 'GET',
+          headers: {
+            Accept: 'application/vnd.github+json',
+            Authorization: `${payload.token_type ?? 'Bearer'} ${token}`,
+          },
+        });
+        const githubUser = (await githubUserResponse.json()) as {
+          login?: string;
+          name?: string;
+        };
+
+        if (cancelled) {
+          return;
+        }
+
+        await loadProfileData();
+        const display = githubUser.name?.trim() || githubUser.login?.trim() || 'GitHub account';
+        setStatus({
+          tone: 'success',
+          message: `GitHub OAuth connected. Token saved for ${display}.`,
+        });
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          const message = error instanceof Error ? error.message : 'GitHub OAuth failed.';
+          setStatus({ tone: 'error', message });
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsSigningInWithGitHub(false);
+          clearOAuthQueryParams();
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isGitHubOAuthEnabled, loadProfileData]);
 
   async function handleSaveBusiness(): Promise<void> {
     setStatus(null);
@@ -285,6 +412,52 @@ export function ProfileOverview() {
     } finally {
       setIsSavingClient(false);
     }
+  }
+
+  async function handleSaveIntegrations(): Promise<void> {
+    setStatus(null);
+    setIsSavingIntegrations(true);
+
+    try {
+      await upsertUserProfile({
+        github_pat: toNullableTrimmed(githubPat),
+      });
+      await loadProfileData();
+      setStatus({ message: 'Integrations saved.', tone: 'success' });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to save integrations.';
+      showActionErrorAlert(message);
+      setStatus({ message, tone: 'error' });
+    } finally {
+      setIsSavingIntegrations(false);
+    }
+  }
+
+  function openExternalUrl(url: string): void {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.open(url, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
+    Linking.openURL(url).catch(() => undefined);
+  }
+
+  function startGitHubOAuth(): void {
+    if (!isGitHubOAuthEnabled || typeof window === 'undefined') {
+      return;
+    }
+
+    const oauthState = `gh_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    window.sessionStorage.setItem(GITHUB_OAUTH_STATE_KEY, oauthState);
+    const redirectUri = `${window.location.origin}/profile`;
+
+    const authorizeUrl = new URL(GITHUB_OAUTH_AUTHORIZE_URL);
+    authorizeUrl.searchParams.set('client_id', githubClientId);
+    authorizeUrl.searchParams.set('redirect_uri', redirectUri);
+    authorizeUrl.searchParams.set('scope', GITHUB_OAUTH_SCOPE);
+    authorizeUrl.searchParams.set('state', oauthState);
+
+    window.location.assign(authorizeUrl.toString());
   }
 
   async function handleExportData(): Promise<void> {
@@ -364,7 +537,13 @@ export function ProfileOverview() {
     }
   }
 
-  const backupBusy = isLoading || isSavingBusiness || isSavingClient || isExportingData || isImportingData;
+  const backupBusy =
+    isLoading ||
+    isSavingBusiness ||
+    isSavingIntegrations ||
+    isSavingClient ||
+    isExportingData ||
+    isImportingData;
 
   return (
     <View className="gap-3">
@@ -424,6 +603,92 @@ export function ProfileOverview() {
             {isSavingBusiness ? 'Saving...' : 'Save Business Profile'}
           </Text>
         </Pressable>
+      </View>
+
+      <View className="gap-3 rounded-xl bg-card p-4">
+        <Pressable
+          className="flex-row items-center justify-between"
+          onPress={() => setShowIntegrations((current) => !current)}
+        >
+          <Text className="text-xl font-bold text-heading">Integrations</Text>
+          <Text className="text-sm font-semibold text-secondary">
+            {showIntegrations ? 'Hide' : 'Show'}
+          </Text>
+        </Pressable>
+
+        {showIntegrations ? (
+          <View className="gap-2">
+            <Text className="text-sm text-muted">
+              GitHub connection is for repository/commit access only. It does not auto-fill your
+              personal profile name or email.
+            </Text>
+            {isGitHubOAuthEnabled && !githubPat.trim() ? (
+              <Pressable
+                className={`self-start rounded-full border px-4 py-2 ${isSigningInWithGitHub ? 'opacity-70' : ''}`}
+                style={{ borderColor: '#ffffff', backgroundColor: '#24292f' }}
+                onPress={startGitHubOAuth}
+                disabled={isSigningInWithGitHub}
+              >
+                <View className="flex-row items-center gap-2">
+                  <Octicons name="mark-github" size={16} color="#ffffff" />
+                  <Text className="font-semibold" style={{ color: '#ffffff' }}>
+                    {isSigningInWithGitHub ? 'Connecting GitHub...' : 'Sign in with GitHub'}
+                  </Text>
+                </View>
+              </Pressable>
+            ) : null}
+            <View className="flex-row items-center justify-between gap-2">
+              <Text className="flex-1 text-sm text-muted">
+                Optional. Increases GitHub API rate limit from 60 to 5,000 requests/hour.
+              </Text>
+              <Pressable
+                className="h-7 w-7 items-center justify-center rounded-full border border-border bg-background"
+                onPress={() => setShowPatInfoModal(true)}
+              >
+                <Text className="text-sm font-bold text-heading">i</Text>
+              </Pressable>
+            </View>
+            <Pressable
+              className="self-start rounded-full border px-4 py-2"
+              style={{ borderColor: '#d0d7de', backgroundColor: '#f6f8fa' }}
+              onPress={() => openExternalUrl(GITHUB_PAT_CREATE_URL)}
+            >
+              <View className="flex-row items-center gap-2">
+                <Octicons name="mark-github" size={16} color="#24292f" />
+                <Text className="font-semibold" style={{ color: '#24292f' }}>
+                  Create GitHub PAT
+                </Text>
+              </View>
+            </Pressable>
+            {githubPat.trim() ? (
+              <InlineNotice
+                tone="success"
+                message="GitHub is connected. OAuth/PAT token is saved."
+                textClassName="text-xs text-success"
+              />
+            ) : null}
+            <TextInput
+              value={githubPat}
+              onChangeText={setGithubPat}
+              placeholder="GitHub Personal Access Token (optional)"
+              autoCapitalize="none"
+              autoCorrect={false}
+              secureTextEntry
+              className="rounded-md border border-border bg-background px-3 py-2 text-foreground"
+            />
+            <Pressable
+              className="rounded-md bg-secondary px-4 py-2"
+              onPress={() => {
+                handleSaveIntegrations().catch(() => undefined);
+              }}
+              disabled={isSavingIntegrations || isLoading}
+            >
+              <Text className="text-center font-semibold text-white">
+                {isSavingIntegrations ? 'Saving...' : 'Save Integrations'}
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
       </View>
 
       <View className="gap-3 rounded-xl bg-card p-4">
@@ -550,6 +815,65 @@ export function ProfileOverview() {
       {status ? <InlineNotice tone={status.tone} message={status.message} /> : null}
         </View>
       </View>
+
+      <Modal
+        visible={showPatInfoModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowPatInfoModal(false)}
+      >
+        <View className="flex-1 items-center justify-center bg-black/55 px-4">
+          <View className="w-full max-w-lg rounded-xl bg-card p-4">
+            <Text className="text-lg font-bold text-heading">GitHub PAT Help</Text>
+            <ScrollView
+              className="mt-3 max-h-[420px]"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 8 }}
+            >
+              <Text className="text-sm leading-6 text-muted">
+                A Personal Access Token (PAT) is a secret key from your GitHub account. This app
+                uses it only to authenticate GitHub API calls so commit/branch lookups are more
+                reliable and less likely to hit public rate limits.
+              </Text>
+              <Text className="mt-3 text-sm font-semibold text-heading">What it does here</Text>
+              <Text className="mt-1 text-sm leading-6 text-muted">
+                Increases GitHub API rate limit from 60 to 5,000 requests/hour and improves
+                commit/branch fetch success.
+              </Text>
+              <Text className="mt-3 text-sm font-semibold text-heading">Where to create it</Text>
+              <Text className="mt-1 text-sm leading-6 text-muted">
+                GitHub Settings / Developer settings / Personal access tokens. Use the button
+                below to open the creation page.
+              </Text>
+              <Text className="mt-3 text-sm font-semibold text-heading">Recommended scope</Text>
+              <Text className="mt-1 text-sm leading-6 text-muted">
+                For private-repo commit lookups, set repository Contents to Read-only (Metadata
+                Read-only stays enabled by default). Do not grant more permissions than needed.
+              </Text>
+            </ScrollView>
+            <View className="mt-3 gap-2">
+              <Pressable
+                className="rounded-md bg-secondary px-3 py-2"
+                onPress={() => openExternalUrl(GITHUB_PAT_CREATE_URL)}
+              >
+                <Text className="text-center font-semibold text-white">Open PAT Creation Page</Text>
+              </Pressable>
+              <Pressable
+                className="rounded-md border border-border px-3 py-2"
+                onPress={() => openExternalUrl(GITHUB_PAT_DOCS_URL)}
+              >
+                <Text className="text-center font-semibold text-heading">Open PAT Docs</Text>
+              </Pressable>
+              <Pressable
+                className="rounded-md border border-border px-3 py-2"
+                onPress={() => setShowPatInfoModal(false)}
+              >
+                <Text className="text-center font-semibold text-heading">Close</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
