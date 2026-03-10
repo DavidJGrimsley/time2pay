@@ -19,6 +19,7 @@ export type Session = {
   duration: number | null;
   notes: string | null;
   commit_sha: string | null;
+  commit_url?: string | null;
   invoice_id: string | null;
   created_at: string;
   updated_at: string;
@@ -948,6 +949,13 @@ export async function listSessions(): Promise<Session[]> {
        s.duration,
        s.notes,
        s.commit_sha,
+       CASE
+         WHEN s.commit_sha IS NOT NULL
+           AND c.github_org IS NOT NULL
+           AND p.github_repo IS NOT NULL
+         THEN 'https://github.com/' || c.github_org || '/' || p.github_repo || '/commit/' || s.commit_sha
+         ELSE NULL
+       END AS commit_url,
        s.invoice_id,
        s.created_at,
        s.updated_at,
@@ -1001,6 +1009,13 @@ export async function listSessionsByClientAndRange(input: {
        s.duration,
        s.notes,
        s.commit_sha,
+       CASE
+         WHEN s.commit_sha IS NOT NULL
+           AND c.github_org IS NOT NULL
+           AND p.github_repo IS NOT NULL
+         THEN 'https://github.com/' || c.github_org || '/' || p.github_repo || '/commit/' || s.commit_sha
+         ELSE NULL
+       END AS commit_url,
        s.invoice_id,
        s.created_at,
        s.updated_at,
@@ -1104,6 +1119,13 @@ export async function listSessionsByInvoiceId(invoiceId: string): Promise<Sessio
        s.duration,
        s.notes,
        s.commit_sha,
+       CASE
+         WHEN s.commit_sha IS NOT NULL
+           AND c.github_org IS NOT NULL
+           AND p.github_repo IS NOT NULL
+         THEN 'https://github.com/' || c.github_org || '/' || p.github_repo || '/commit/' || s.commit_sha
+         ELSE NULL
+       END AS commit_url,
        s.invoice_id,
        s.created_at,
        s.updated_at,

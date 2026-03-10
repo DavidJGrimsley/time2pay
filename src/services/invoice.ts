@@ -11,6 +11,7 @@ import {
   type MercuryInvoiceResponse,
   type MercuryLineItemPayload,
 } from '@/services/mercury';
+import { shortCommitSha } from '@/services/github';
 
 export type SessionWithComputed = Session & {
   hours: number;
@@ -494,7 +495,8 @@ export async function exportInvoicePdf(invoice: ExportableInvoice): Promise<Uint
     throw new Error('PDF dependency missing. Install `pdf-lib` to enable PDF export.');
   }
 
-  const { PDFDocument, StandardFonts, rgb } = pdfLibModule;
+  const { PDFDocument, PDFArray, PDFName, PDFNumber, PDFString, StandardFonts, rgb } =
+    pdfLibModule;
   const pdfDoc = await PDFDocument.create();
   const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
@@ -658,6 +660,49 @@ export async function exportInvoicePdf(invoice: ExportableInvoice): Promise<Uint
     const nextPage = pdfDoc.addPage([pageWidth, pageHeight]);
     drawFooter(nextPage);
     return nextPage;
+  }
+
+  function addLinkAnnotation(input: {
+    targetPage: any;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    url: string;
+  }): void {
+    const sanitizedUrl = input.url.trim();
+    if (!sanitizedUrl || input.width <= 0 || input.height <= 0) {
+      return;
+    }
+
+    const context = pdfDoc.context;
+    const rect = context.obj([
+      PDFNumber.of(input.x),
+      PDFNumber.of(input.y),
+      PDFNumber.of(input.x + input.width),
+      PDFNumber.of(input.y + input.height),
+    ]);
+    const border = context.obj([PDFNumber.of(0), PDFNumber.of(0), PDFNumber.of(0)]);
+    const action = context.obj({
+      Type: PDFName.of('Action'),
+      S: PDFName.of('URI'),
+      URI: PDFString.of(sanitizedUrl),
+      // Best-effort hint for viewers that support opening URI actions in a new tab/window.
+      NewWindow: true,
+    });
+    const annotation = context.obj({
+      Type: PDFName.of('Annot'),
+      Subtype: PDFName.of('Link'),
+      Rect: rect,
+      Border: border,
+      A: action,
+    });
+    const annotationRef = context.register(annotation);
+    const existingAnnots =
+      input.targetPage.node.lookupMaybe(PDFName.of('Annots'), PDFArray) ??
+      context.obj([]);
+    existingAnnots.push(annotationRef);
+    input.targetPage.node.set(PDFName.of('Annots'), existingAnnots);
   }
 
   let page = createPage();
@@ -939,6 +984,33 @@ export async function exportInvoicePdf(invoice: ExportableInvoice): Promise<Uint
           } else {
             drawRightText(page, row.hours.toFixed(2), detailHoursRightX, y, 7.5, false, mutedText);
             drawRightText(page, row.amount.toFixed(2), amountRightX, y, 7.5, false, mutedText);
+          }
+          y -= 10;
+        }
+
+        if (session.commit_sha) {
+          const commitText = `Commit: ${shortCommitSha(session.commit_sha)}`;
+          const commitTextSize = 7.5;
+          const commitX = detailStartX + 2;
+          ensurePageSpace(10, true);
+          const commitY = y;
+          page.drawText(commitText, {
+            x: commitX,
+            y: commitY,
+            size: commitTextSize,
+            font: fontRegular,
+            color: secondaryColor,
+          });
+
+          if (session.commit_url) {
+            addLinkAnnotation({
+              targetPage: page,
+              x: commitX,
+              y: commitY - 1.25,
+              width: fontRegular.widthOfTextAtSize(commitText, commitTextSize),
+              height: commitTextSize + 2.5,
+              url: session.commit_url,
+            });
           }
           y -= 10;
         }

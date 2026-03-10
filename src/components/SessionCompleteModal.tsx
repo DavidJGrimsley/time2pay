@@ -1,15 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
-import { LayoutChangeEvent, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-  Easing,
-} from 'react-native-reanimated';
-import { fetchCommitInfo } from '@/services/github';
+import { useEffect, useMemo, useState } from 'react';
+import { Modal, Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { fetchCommitInfo, inferBranchFromCommit } from '@/services/github';
 import { InlineNotice } from '@/components/inline-notice';
-
-/* ── types ─────────────────────────────────────────────────── */
 
 export type SessionCompleteResult = {
   notes: string | null;
@@ -26,22 +18,41 @@ type SessionCompleteModalProps = {
   onSkip: () => void;
 };
 
-/* ── helpers ───────────────────────────────────────────────── */
+type ParsedCommitUrl = {
+  owner: string;
+  repo: string;
+  sha: string;
+};
 
 const COMMIT_URL_RE =
   /^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/commit\/([0-9a-f]{7,40})/i;
 
-/** Parse a GitHub commit URL → { owner, repo, sha } or null */
-function parseCommitUrl(input: string): { owner: string; repo: string; sha: string } | null {
-  const m = input.trim().match(COMMIT_URL_RE);
-  if (!m) return null;
-  return { owner: m[1], repo: m[2], sha: m[3] };
+function parseCommitUrl(input: string): ParsedCommitUrl | null {
+  const match = input.trim().match(COMMIT_URL_RE);
+  if (!match) {
+    return null;
+  }
+
+  return {
+    owner: match[1],
+    repo: match[2],
+    sha: match[3],
+  };
 }
 
-const ANIM_DURATION = 280;
-const TIMING_CONFIG = { duration: ANIM_DURATION, easing: Easing.out(Easing.cubic) };
+function normalizeCompare(input: string | null | undefined): string {
+  return input?.trim().toLowerCase() ?? '';
+}
 
-/* ── component ─────────────────────────────────────────────── */
+function formatGitHubCommitLine(sha: string, message: string): string {
+  const shortSha = sha.trim().slice(0, 7);
+  const trimmedMessage = message.trim();
+  if (!trimmedMessage) {
+    return `GH commit ${shortSha}`;
+  }
+
+  return `GH commit ${shortSha}: ${trimmedMessage}`;
+}
 
 export function SessionCompleteModal({
   visible,
@@ -52,114 +63,127 @@ export function SessionCompleteModal({
   onSave,
   onSkip,
 }: SessionCompleteModalProps) {
+  const { height: viewportHeight, width: viewportWidth } = useWindowDimensions();
+  const isLargeScreen = viewportWidth >= 1200;
   const [notes, setNotes] = useState(initialNotes ?? '');
-  const [showGitSection, setShowGitSection] = useState(false);
   const [commitUrl, setCommitUrl] = useState('');
-  const [org, setOrg] = useState(githubOrg ?? '');
-  const [repo, setRepo] = useState(githubRepo ?? '');
-  const [branch, setBranch] = useState(githubBranch ?? '');
   const [commitSha, setCommitSha] = useState('');
-  const [commitMessage, setCommitMessage] = useState<string | null>(null);
   const [isFetching, setIsFetching] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
-
-  /* ── animated accordion ──────────────────────────────────── */
-  const contentHeight = useSharedValue(0);
-  const animatedOpacity = useSharedValue(0);
-  const [measuredHeight, setMeasuredHeight] = useState(0);
-
-  const onContentLayout = useCallback(
-    (e: LayoutChangeEvent) => {
-      const h = e.nativeEvent.layout.height;
-      if (h > 0 && h !== measuredHeight) {
-        setMeasuredHeight(h);
-        if (showGitSection) {
-          contentHeight.value = withTiming(h, TIMING_CONFIG);
-        }
-      }
-    },
-    [contentHeight, showGitSection, measuredHeight],
-  );
+  const [branchWarning, setBranchWarning] = useState<string | null>(null);
+  const [requiresBranchConfirmation, setRequiresBranchConfirmation] = useState(false);
+  const [branchConfirmed, setBranchConfirmed] = useState(false);
+  const [fetchStatus, setFetchStatus] = useState<string | null>(null);
 
   useEffect(() => {
-    if (showGitSection) {
-      contentHeight.value = withTiming(measuredHeight || 400, TIMING_CONFIG);
-      animatedOpacity.value = withTiming(1, TIMING_CONFIG);
-    } else {
-      contentHeight.value = withTiming(0, TIMING_CONFIG);
-      animatedOpacity.value = withTiming(0, TIMING_CONFIG);
+    if (!visible) {
+      return;
     }
-  }, [showGitSection, measuredHeight, contentHeight, animatedOpacity]);
 
-  const animatedContainerStyle = useAnimatedStyle(() => ({
-    height: contentHeight.value,
-    opacity: animatedOpacity.value,
-    overflow: 'hidden' as const,
-  }));
-
-  /* ── sync props on open ──────────────────────────────────── */
-  useEffect(() => {
-    if (visible) {
-      setNotes(initialNotes ?? '');
-      setOrg(githubOrg ?? '');
-      setRepo(githubRepo ?? '');
-      setBranch(githubBranch ?? '');
-      setCommitUrl('');
-      setCommitSha('');
-      setCommitMessage(null);
-      setFetchError(null);
-      setShowGitSection(false);
-      setIsFetching(false);
-      contentHeight.value = 0;
-      animatedOpacity.value = 0;
-    }
-  }, [visible, initialNotes, githubOrg, githubRepo, githubBranch, contentHeight, animatedOpacity]);
-
-  /* ── URL paste handler ───────────────────────────────────── */
-  function handleCommitUrlChange(text: string): void {
-    setCommitUrl(text);
-    setCommitMessage(null);
+    setNotes(initialNotes ?? '');
+    setCommitUrl('');
+    setCommitSha('');
+    setIsFetching(false);
     setFetchError(null);
+    setBranchWarning(null);
+    setRequiresBranchConfirmation(false);
+    setBranchConfirmed(false);
+    setFetchStatus(null);
+  }, [visible, initialNotes]);
 
-    const parsed = parseCommitUrl(text);
-    if (parsed) {
-      setOrg(parsed.owner);
-      setRepo(parsed.repo);
-      setCommitSha(parsed.sha);
+  const expectedTargetSummary = useMemo(() => {
+    const owner = githubOrg?.trim() || '(owner not set)';
+    const repo = githubRepo?.trim() || '(repo not set)';
+    const branch = githubBranch?.trim() || '(branch not set)';
+    return `${owner}/${repo} • ${branch}`;
+  }, [githubOrg, githubRepo, githubBranch]);
+
+  async function handleFetchAndApply(mode: 'overwrite' | 'append'): Promise<void> {
+    const parsed = parseCommitUrl(commitUrl);
+    if (!parsed) {
+      setFetchError('Paste a valid GitHub commit URL.');
+      setBranchWarning(null);
+      setRequiresBranchConfirmation(false);
+      setBranchConfirmed(false);
+      setFetchStatus(null);
+      setCommitSha('');
+      return;
     }
-  }
-
-  /* ── fetch ───────────────────────────────────────────────── */
-  const canFetch = Boolean(org.trim() && repo.trim() && commitSha.trim());
-
-  async function handleFetchCommit(): Promise<void> {
-    const sha = commitSha.trim();
-    const owner = org.trim();
-    const repoName = repo.trim();
-    if (!sha || !owner || !repoName) return;
 
     setIsFetching(true);
     setFetchError(null);
-    setCommitMessage(null);
+    setBranchWarning(null);
+    setRequiresBranchConfirmation(false);
+    setFetchStatus(null);
+    setCommitSha('');
 
-    const info = await fetchCommitInfo(owner, repoName, sha);
-    if (info) {
-      setCommitMessage(info.message);
-    } else {
-      setFetchError('Could not fetch commit. Check the URL/SHA, or repo access.');
-    }
-    setIsFetching(false);
-  }
+    try {
+      const hardMismatches: string[] = [];
 
-  /* ── notes helpers ───────────────────────────────────────── */
-  function handleOverwrite(): void {
-    if (commitMessage) setNotes(commitMessage);
-  }
+      if (githubOrg?.trim()) {
+        if (normalizeCompare(parsed.owner) !== normalizeCompare(githubOrg)) {
+          hardMismatches.push(
+            `Owner mismatch: expected "${githubOrg.trim()}", commit has "${parsed.owner}".`,
+          );
+        }
+      }
 
-  function handleAppend(): void {
-    if (commitMessage) {
-      const current = notes.trim();
-      setNotes(current ? `${current}\n\n${commitMessage}` : commitMessage);
+      if (githubRepo?.trim()) {
+        if (normalizeCompare(parsed.repo) !== normalizeCompare(githubRepo)) {
+          hardMismatches.push(
+            `Repo mismatch: expected "${githubRepo.trim()}", commit has "${parsed.repo}".`,
+          );
+        }
+      }
+
+      if (hardMismatches.length > 0) {
+        setFetchError(hardMismatches.join(' '));
+        return;
+      }
+
+      if (githubBranch?.trim()) {
+        const inferred = await inferBranchFromCommit(parsed.owner, parsed.repo, parsed.sha);
+        const inferredBranch = inferred.branch?.trim() ?? null;
+
+        let nextBranchWarning: string | null = null;
+        if (!inferredBranch) {
+          nextBranchWarning = `Branch could not be verified. Clocked-in branch is "${githubBranch.trim()}".`;
+        } else if (normalizeCompare(inferredBranch) !== normalizeCompare(githubBranch)) {
+          nextBranchWarning = `Branch mismatch: expected "${githubBranch.trim()}", inferred "${inferredBranch}".`;
+        }
+
+        if (nextBranchWarning) {
+          setBranchWarning(nextBranchWarning);
+          setRequiresBranchConfirmation(true);
+          if (!branchConfirmed) {
+            setFetchStatus(null);
+            return;
+          }
+        }
+      }
+
+      const info = await fetchCommitInfo(parsed.owner, parsed.repo, parsed.sha);
+      if (!info) {
+        setFetchError('Could not fetch commit. Check URL/SHA and repository access.');
+        return;
+      }
+
+      const ghLine = formatGitHubCommitLine(info.sha, info.message);
+      if (mode === 'overwrite') {
+        setNotes(ghLine);
+      } else {
+        setNotes((current) => {
+          const trimmed = current.trim();
+          return trimmed ? `${trimmed}\n\n${ghLine}` : ghLine;
+        });
+      }
+
+      setCommitSha(info.sha.trim());
+      setFetchStatus(`Fetched ${info.sha.slice(0, 7)} and updated notes.`);
+    } catch {
+      setFetchError('GitHub fetch failed. Please try again.');
+    } finally {
+      setIsFetching(false);
     }
   }
 
@@ -170,15 +194,21 @@ export function SessionCompleteModal({
     });
   }
 
-  /* ── render ──────────────────────────────────────────────── */
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onSkip}>
-      <View className="flex-1 items-center justify-center bg-black/50 px-4">
-        <View className="w-full max-w-lg rounded-xl bg-card p-5 shadow-lg">
-          <ScrollView showsVerticalScrollIndicator={false}>
+      <View className="flex-1 items-center justify-center bg-black/50 px-4 py-4">
+        <View
+          className="w-full max-w-lg rounded-xl bg-card shadow-lg"
+          style={{ maxHeight: Math.max(360, viewportHeight - 32) }}
+        >
+          <ScrollView
+            className="flex-1"
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12 }}
+          >
             <Text className="mb-4 text-xl font-bold text-heading">Session Complete</Text>
 
-            {/* ── Notes ─────────────────────────────────── */}
             <Text className="mb-1 text-xs uppercase tracking-wide text-muted">Session Notes</Text>
             <TextInput
               value={notes}
@@ -186,175 +216,109 @@ export function SessionCompleteModal({
               placeholder="What did you work on?"
               multiline
               numberOfLines={4}
-              className="mb-4 min-h-[80px] rounded-md border border-border bg-background px-3 py-2 text-foreground"
+              className="mb-4 min-h-[72px] rounded-md border border-border bg-background px-3 py-2 text-foreground"
               textAlignVertical="top"
             />
 
-            {/* ── Toggle button ─────────────────────────── */}
-            <Pressable
-              className="mb-3 rounded-md border border-border bg-background px-3 py-2"
-              onPress={() => setShowGitSection((o) => !o)}
-            >
-              <Text className="text-center text-sm font-medium text-heading">
-                {showGitSection ? 'Hide Git Commit' : 'Link GitHub Commit'}
-              </Text>
-            </Pressable>
+            <View className="mb-4 gap-3 rounded-md border border-border bg-background p-3">
+              <Text className="text-xs uppercase tracking-wide text-muted">GitHub Commit</Text>
+              <Text className="text-xs text-muted">Clocked-in target: {expectedTargetSummary}</Text>
+              <TextInput
+                value={commitUrl}
+                onChangeText={(value) => {
+                  setCommitUrl(value);
+                  setFetchError(null);
+                  setBranchWarning(null);
+                  setRequiresBranchConfirmation(false);
+                  setBranchConfirmed(false);
+                  setFetchStatus(null);
+                }}
+                placeholder="https://github.com/owner/repo/commit/sha"
+                autoCapitalize="none"
+                autoCorrect={false}
+                className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
+              />
 
-            {/* ── Animated git section ──────────────────── */}
-            <Animated.View style={animatedContainerStyle}>
-              <View onLayout={onContentLayout}>
-                <View className="mb-4 gap-3 rounded-md border border-border bg-background p-3">
-                  {/* Paste commit URL */}
-                  <View className="gap-1">
-                    <Text className="text-xs uppercase tracking-wide text-muted">
-                      Paste Commit URL
-                    </Text>
-                    <TextInput
-                      value={commitUrl}
-                      onChangeText={handleCommitUrlChange}
-                      placeholder="https://github.com/owner/repo/commit/sha"
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
-                    />
-                  </View>
-
-                  {/* Divider */}
-                  <View className="flex-row items-center gap-2">
-                    <View className="h-px flex-1 bg-border" />
-                    <Text className="text-xs text-muted">or fill manually</Text>
-                    <View className="h-px flex-1 bg-border" />
-                  </View>
-
-                  {/* Manual fields */}
-                  <View className="gap-2">
-                    <View className="gap-1">
-                      <Text className="text-xs uppercase tracking-wide text-muted">
-                        GitHub Owner / Org
-                      </Text>
-                      <TextInput
-                        value={org}
-                        onChangeText={setOrg}
-                        placeholder="e.g. DavidJGrimsley"
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
-                      />
-                    </View>
-                    <View className="gap-1">
-                      <Text className="text-xs uppercase tracking-wide text-muted">
-                        Repository
-                      </Text>
-                      <TextInput
-                        value={repo}
-                        onChangeText={setRepo}
-                        placeholder="e.g. time2pay"
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
-                      />
-                    </View>
-                    <View className="gap-1">
-                      <Text className="text-xs uppercase tracking-wide text-muted">
-                        Branch (optional)
-                      </Text>
-                      <TextInput
-                        value={branch}
-                        onChangeText={setBranch}
-                        placeholder="e.g. final-mvp-pass"
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
-                      />
-                    </View>
-                    <View className="gap-1">
-                      <Text className="text-xs uppercase tracking-wide text-muted">
-                        Commit SHA
-                      </Text>
-                      <TextInput
-                        value={commitSha}
-                        onChangeText={(text) => {
-                          setCommitSha(text);
-                          setCommitMessage(null);
-                          setFetchError(null);
-                        }}
-                        placeholder="e.g. abc1234 or full SHA"
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
-                      />
-                    </View>
-                  </View>
-
-                  {/* Fetch button */}
-                  <Pressable
-                    className={`items-center rounded-md px-3 py-2 ${canFetch ? 'bg-secondary' : 'bg-muted/40'}`}
-                    onPress={handleFetchCommit}
-                    disabled={isFetching || !canFetch}
+              {fetchError ? (
+                <InlineNotice tone="error" message={fetchError} textClassName="text-xs text-danger" />
+              ) : null}
+              {branchWarning ? (
+                <InlineNotice
+                  tone="neutral"
+                  message={branchWarning}
+                  className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2"
+                  textClassName="text-xs text-warning"
+                />
+              ) : null}
+              {requiresBranchConfirmation ? (
+                <Pressable
+                  className={`rounded-md border px-3 py-2 ${
+                    branchConfirmed
+                      ? 'border-success/60 bg-success/20'
+                      : 'border-warning/60 bg-warning/20'
+                  }`}
+                  onPress={() => {
+                    setBranchConfirmed((value) => !value);
+                    setFetchError(null);
+                  }}
+                >
+                  <Text
+                    className={`text-xs font-semibold ${
+                      branchConfirmed ? 'text-foreground' : 'text-foreground'
+                    }`}
                   >
-                    <Text className="font-semibold text-white">
-                      {isFetching ? 'Fetching...' : 'Fetch Commit'}
-                    </Text>
-                  </Pressable>
+                    {branchConfirmed
+                      ? 'Branch warning confirmed. Fetch is allowed.'
+                      : 'Confirm to fetch anyway despite branch warning.'}
+                  </Text>
+                </Pressable>
+              ) : null}
+              {fetchStatus ? (
+                <InlineNotice
+                  tone="success"
+                  message={fetchStatus}
+                  textClassName="text-xs text-success"
+                />
+              ) : null}
 
-                  {/* Error */}
-                  {fetchError ? (
-                    <InlineNotice
-                      tone="error"
-                      message={fetchError}
-                      textClassName="text-xs text-danger"
-                    />
-                  ) : null}
-
-                  {/* Commit message preview + overwrite/append */}
-                  {commitMessage ? (
-                    <View className="gap-2">
-                      <Text className="text-xs uppercase tracking-wide text-muted">
-                        Commit Message
-                      </Text>
-                      <View className="rounded-md border border-border bg-card p-2">
-                        <Text className="text-sm text-foreground">{commitMessage}</Text>
-                      </View>
-                      <View className="flex-row gap-2">
-                        <Pressable
-                          className="flex-1 rounded-md bg-secondary px-3 py-2"
-                          onPress={handleOverwrite}
-                        >
-                          <Text className="text-center text-sm font-semibold text-white">
-                            Overwrite Notes
-                          </Text>
-                        </Pressable>
-                        <Pressable
-                          className="flex-1 rounded-md border border-secondary px-3 py-2"
-                          onPress={handleAppend}
-                        >
-                          <Text className="text-center text-sm font-semibold text-secondary">
-                            Append to Notes
-                          </Text>
-                        </Pressable>
-                      </View>
-                    </View>
-                  ) : null}
-                </View>
+              <View className={isLargeScreen ? 'flex-row gap-2' : 'gap-2'}>
+                <Pressable
+                  className={`${isLargeScreen ? 'flex-1' : ''} items-center rounded-md bg-secondary px-3 py-2`}
+                  onPress={() => {
+                    handleFetchAndApply('overwrite').catch(() => undefined);
+                  }}
+                  disabled={isFetching}
+                >
+                  <Text className="font-semibold text-white">
+                    {isFetching ? 'Fetching...' : 'Fetch & Overwrite'}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  className={`${isLargeScreen ? 'flex-1' : ''} items-center rounded-md border border-secondary px-3 py-2`}
+                  onPress={() => {
+                    handleFetchAndApply('append').catch(() => undefined);
+                  }}
+                  disabled={isFetching}
+                >
+                  <Text className="font-semibold text-secondary">
+                    {isFetching ? 'Fetching...' : 'Fetch & Append'}
+                  </Text>
+                </Pressable>
               </View>
-            </Animated.View>
-
-            {/* ── Footer ────────────────────────────────── */}
-            <View className="flex-row gap-2">
-              <Pressable
-                className="flex-1 rounded-2xl bg-secondary px-4 py-3"
-                onPress={handleSave}
-              >
-                <Text className="text-center font-semibold text-white">Save</Text>
-              </Pressable>
-              <Pressable
-                className="flex-1 rounded-2xl border border-border bg-background px-4 py-3"
-                onPress={onSkip}
-              >
-                <Text className="text-center font-semibold text-heading">Skip</Text>
-              </Pressable>
             </View>
           </ScrollView>
+
+          <View className="flex-row gap-2 border-t border-border/70 px-5 pb-5 pt-3">
+            <Pressable className="flex-1 rounded-2xl bg-secondary px-4 py-3" onPress={handleSave}>
+              <Text className="text-center font-semibold text-white">Save</Text>
+            </Pressable>
+            <Pressable
+              className="flex-1 rounded-2xl border border-border bg-background px-4 py-3"
+              onPress={onSkip}
+            >
+              <Text className="text-center font-semibold text-heading">Skip</Text>
+            </Pressable>
+          </View>
         </View>
       </View>
     </Modal>

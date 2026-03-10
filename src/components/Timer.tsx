@@ -1,5 +1,5 @@
 import { Picker } from '@react-native-picker/picker';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, Text, TextInput, useColorScheme, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeInDown, FadeOutUp, LinearTransition } from 'react-native-reanimated';
 import {
@@ -34,6 +34,7 @@ import {
   REQUIRED_PROFILE_FIELD_LABELS,
   type RequiredProfileField,
 } from '@/services/profile-completion';
+import { prettifyBranchName } from '@/services/github';
 import { showActionErrorAlert, showBlockedAlert, showValidationAlert } from '@/services/system-alert';
 
 const LAST_SELECTIONS_KEY = 'time2pay.timer.last-selection';
@@ -70,8 +71,16 @@ type TimerGateState = {
   missingFields: RequiredProfileField[];
 };
 
+export type TimerSelectionHandoff = {
+  handoffId: string;
+  clientId: string;
+  projectId: string;
+  taskId: string;
+};
+
 type TimerProps = {
   gate?: TimerGateState;
+  selectionHandoff?: TimerSelectionHandoff | null;
 };
 
 type StatusNotice = {
@@ -410,7 +419,7 @@ function saveLastSelection(selection: LastSelection): void {
   localStorage.setItem(LAST_SELECTIONS_KEY, JSON.stringify(selection));
 }
 
-export function Timer({ gate }: TimerProps) {
+export function Timer({ gate, selectionHandoff }: TimerProps) {
   const { width: viewportWidth } = useWindowDimensions();
   const defaults = loadLastSelection();
   const [clients, setClients] = useState<Client[]>([]);
@@ -433,6 +442,7 @@ export function Timer({ gate }: TimerProps) {
   const [newProjectGithubRepo, setNewProjectGithubRepo] = useState('');
   const [newTaskName, setNewTaskName] = useState('');
   const [newTaskGithubBranch, setNewTaskGithubBranch] = useState('');
+  const [isTaskNameAutoFilled, setIsTaskNameAutoFilled] = useState(false);
   const [isCreatingManualSession, setIsCreatingManualSession] = useState(false);
   const [manualStartDate, setManualStartDate] = useState(() =>
     toLocalDateTimeParts(new Date(Date.now() - 60 * 60 * 1000)).datePart,
@@ -457,6 +467,7 @@ export function Timer({ gate }: TimerProps) {
   const [showCompleteModal, setShowCompleteModal] = useState(false);
   const [completedSessionId, setCompletedSessionId] = useState<string | null>(null);
   const [completedSessionNotes, setCompletedSessionNotes] = useState<string | null>(null);
+  const appliedSelectionHandoffRef = useRef<string | null>(null);
 
   const isClockedIn = useMemo(() => !!activeSession, [activeSession]);
   const isInteractionLocked = gate?.locked ?? false;
@@ -514,6 +525,96 @@ export function Timer({ gate }: TimerProps) {
     () => tasks.find((task) => task.id === selectedTaskId) ?? null,
     [tasks, selectedTaskId],
   );
+
+  useEffect(() => {
+    if (!selectionHandoff) {
+      return;
+    }
+
+    if (appliedSelectionHandoffRef.current === selectionHandoff.handoffId) {
+      return;
+    }
+
+    appliedSelectionHandoffRef.current = selectionHandoff.handoffId;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const clientRows = await listClients();
+        if (cancelled) {
+          return;
+        }
+
+        setClients(clientRows);
+        const nextClientId = clientRows.some((client) => client.id === selectionHandoff.clientId)
+          ? selectionHandoff.clientId
+          : (clientRows[0]?.id ?? null);
+        setSelectedClientId(nextClientId);
+
+        if (!nextClientId) {
+          setProjects([]);
+          setTasks([]);
+          setSelectedProjectId(null);
+          setSelectedTaskId(null);
+          saveLastSelection({
+            clientId: null,
+            projectId: null,
+            taskId: null,
+          });
+          return;
+        }
+
+        const projectRows = await listProjectsByClient(nextClientId);
+        if (cancelled) {
+          return;
+        }
+
+        setProjects(projectRows);
+        const nextProjectId = projectRows.some((project) => project.id === selectionHandoff.projectId)
+          ? selectionHandoff.projectId
+          : (projectRows[0]?.id ?? null);
+        setSelectedProjectId(nextProjectId);
+
+        if (!nextProjectId) {
+          setTasks([]);
+          setSelectedTaskId(null);
+          saveLastSelection({
+            clientId: nextClientId,
+            projectId: null,
+            taskId: null,
+          });
+          return;
+        }
+
+        const taskRows = await listTasksByProject(nextProjectId);
+        if (cancelled) {
+          return;
+        }
+
+        setTasks(taskRows);
+        const nextTaskId = taskRows.some((task) => task.id === selectionHandoff.taskId)
+          ? selectionHandoff.taskId
+          : (taskRows[0]?.id ?? null);
+        setSelectedTaskId(nextTaskId);
+        saveLastSelection({
+          clientId: nextClientId,
+          projectId: nextProjectId,
+          taskId: nextTaskId,
+        });
+      } catch (error: unknown) {
+        if (cancelled) {
+          return;
+        }
+        showInlineErrorMessage(
+          error instanceof Error ? error.message : 'Failed to apply GitHub selection.',
+        );
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectionHandoff]);
 
   async function refreshClients(): Promise<void> {
     const clientRows = await listClients();
@@ -644,6 +745,7 @@ export function Timer({ gate }: TimerProps) {
     setIsCreatingProject(false);
     setIsCreatingTask(false);
     setIsCreatingManualSession(false);
+    setIsTaskNameAutoFilled(false);
   }, [isClockedIn, isInteractionLocked]);
 
   async function handleCreateClient(): Promise<void> {
@@ -758,6 +860,7 @@ export function Timer({ gate }: TimerProps) {
       setIsCreatingTask(false);
       setNewTaskName('');
       setNewTaskGithubBranch('');
+      setIsTaskNameAutoFilled(false);
       showSuccessMessage('Task created successfully.');
     } catch (error: unknown) {
       showActionErrorMessage(error instanceof Error ? error.message : 'Failed to create task.');
@@ -1153,6 +1256,7 @@ export function Timer({ gate }: TimerProps) {
           setIsCreatingTask(true);
           setIsCreatingClient(false);
           setIsCreatingProject(false);
+          setIsTaskNameAutoFilled(false);
         }}
       />
 
@@ -1165,13 +1269,28 @@ export function Timer({ gate }: TimerProps) {
         >
           <TextInput
             value={newTaskName}
-            onChangeText={setNewTaskName}
+            onChangeText={(value) => {
+              setNewTaskName(value);
+              setIsTaskNameAutoFilled(false);
+            }}
             placeholder="Task name"
             className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
           />
+          {isTaskNameAutoFilled ? (
+            <Text className="text-xs text-muted">Auto-filled from branch name.</Text>
+          ) : null}
           <TextInput
             value={newTaskGithubBranch}
-            onChangeText={setNewTaskGithubBranch}
+            onChangeText={(value) => {
+              setNewTaskGithubBranch(value);
+              if (!newTaskName.trim()) {
+                const prettyName = prettifyBranchName(value);
+                if (prettyName) {
+                  setNewTaskName(prettyName);
+                  setIsTaskNameAutoFilled(true);
+                }
+              }
+            }}
             placeholder="GitHub branch (optional)"
             autoCapitalize="none"
             autoCorrect={false}
@@ -1183,7 +1302,10 @@ export function Timer({ gate }: TimerProps) {
             </Pressable>
             <Pressable
               className="rounded-md border border-border px-3 py-2"
-              onPress={() => setIsCreatingTask(false)}
+              onPress={() => {
+                setIsCreatingTask(false);
+                setIsTaskNameAutoFilled(false);
+              }}
             >
               <Text className="font-semibold text-heading">Cancel</Text>
             </Pressable>

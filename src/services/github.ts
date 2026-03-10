@@ -1,4 +1,10 @@
 const GITHUB_API_BASE = 'https://api.github.com';
+const GITHUB_HOSTS = new Set(['github.com', 'www.github.com']);
+const SHORT_SHA_LENGTH = 7;
+const SHA_RE = /^[0-9a-f]{7,40}$/i;
+
+const COMMON_BRANCH_PREFIX_RE =
+  /^(refs\/heads\/)?(feature|feat|fix|bugfix|hotfix|chore|task|issue|refactor|docs|release|test|tests|ci|build|style)[/_-]+/i;
 
 type GitHubCommitResponse = {
   sha: string;
@@ -12,6 +18,14 @@ type GitHubCommitResponse = {
   html_url: string;
 };
 
+type GitHubBranchWhereHeadResponse = {
+  name: string;
+};
+
+type GitHubRepoResponse = {
+  default_branch?: string | null;
+};
+
 export type CommitInfo = {
   sha: string;
   message: string;
@@ -19,6 +33,145 @@ export type CommitInfo = {
   date: string | null;
   htmlUrl: string;
 };
+
+export type ParsedGitHubUrl =
+  | {
+      kind: 'repo';
+      owner: string;
+      repo: string;
+      branch: string | null;
+    }
+  | {
+      kind: 'commit';
+      owner: string;
+      repo: string;
+      sha: string;
+    };
+
+export type BranchInferenceResult = {
+  branch: string | null;
+  source: 'commit-head' | 'default-branch' | 'none';
+  confidence: 'high' | 'medium' | 'none';
+  requiresConfirmation: boolean;
+  reason: string | null;
+};
+
+function buildGitHubHeaders(token?: string): Record<string, string> {
+  return {
+    Accept: 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28',
+    ...(token?.trim() ? { Authorization: `token ${token.trim()}` } : {}),
+  };
+}
+
+function toTitleCaseWords(input: string): string {
+  return input
+    .split(' ')
+    .map((word) => {
+      if (!word) {
+        return '';
+      }
+      return `${word[0].toUpperCase()}${word.slice(1).toLowerCase()}`;
+    })
+    .join(' ');
+}
+
+export function shortCommitSha(sha: string | null | undefined): string {
+  const trimmed = sha?.trim() ?? '';
+  if (!trimmed) {
+    return '';
+  }
+
+  return trimmed.slice(0, SHORT_SHA_LENGTH);
+}
+
+export function formatCommitBadgeLabel(sha: string | null | undefined): string {
+  const shortSha = shortCommitSha(sha);
+  return shortSha ? `via commit ${shortSha}` : '';
+}
+
+export function prettifyBranchName(branch: string): string {
+  const trimmed = branch.trim();
+  if (!trimmed) {
+    return '';
+  }
+
+  const withoutPrefix = trimmed.replace(COMMON_BRANCH_PREFIX_RE, '');
+  const cleaned = withoutPrefix
+    .replace(/[/_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!cleaned) {
+    return '';
+  }
+
+  return toTitleCaseWords(cleaned);
+}
+
+export function parseGitHubUrl(input: string): ParsedGitHubUrl | null {
+  const trimmed = input.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(trimmed);
+  } catch {
+    return null;
+  }
+
+  if (!GITHUB_HOSTS.has(parsedUrl.hostname.toLowerCase())) {
+    return null;
+  }
+
+  const segments = parsedUrl.pathname
+    .split('/')
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+
+  if (segments.length < 2) {
+    return null;
+  }
+
+  const owner = segments[0];
+  const repo = segments[1].replace(/\.git$/i, '');
+  if (!owner || !repo) {
+    return null;
+  }
+
+  if (segments[2]?.toLowerCase() === 'commit') {
+    const sha = segments[3] ?? '';
+    if (!SHA_RE.test(sha)) {
+      return null;
+    }
+
+    return {
+      kind: 'commit',
+      owner,
+      repo,
+      sha,
+    };
+  }
+
+  if (segments[2]?.toLowerCase() === 'tree') {
+    const branchPath = segments.slice(3).join('/');
+    return {
+      kind: 'repo',
+      owner,
+      repo,
+      branch: branchPath ? decodeURIComponent(branchPath) : null,
+    };
+  }
+
+  return {
+    kind: 'repo',
+    owner,
+    repo,
+    branch: null,
+  };
+}
 
 /**
  * Fetch commit metadata from the GitHub public API (unauthenticated).
@@ -30,6 +183,7 @@ export async function fetchCommitInfo(
   owner: string,
   repo: string,
   sha: string,
+  token?: string,
 ): Promise<CommitInfo | null> {
   if (!owner || !repo || !sha) {
     return null;
@@ -39,9 +193,7 @@ export async function fetchCommitInfo(
     const url = `${GITHUB_API_BASE}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/commits/${encodeURIComponent(sha)}`;
     const response = await fetch(url, {
       method: 'GET',
-      headers: {
-        Accept: 'application/vnd.github+json',
-      },
+      headers: buildGitHubHeaders(token),
     });
 
     if (!response.ok) {
@@ -59,6 +211,85 @@ export async function fetchCommitInfo(
     };
   } catch {
     return null;
+  }
+}
+
+export async function inferBranchFromCommit(
+  owner: string,
+  repo: string,
+  sha: string,
+  token?: string,
+): Promise<BranchInferenceResult> {
+  if (!owner || !repo || !sha) {
+    return {
+      branch: null,
+      source: 'none',
+      confidence: 'none',
+      requiresConfirmation: true,
+      reason: 'Owner, repository, and SHA are required.',
+    };
+  }
+
+  try {
+    const headBranchResponse = await fetch(
+      `${GITHUB_API_BASE}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/commits/${encodeURIComponent(sha)}/branches-where-head`,
+      {
+        method: 'GET',
+        headers: buildGitHubHeaders(token),
+      },
+    );
+
+    if (headBranchResponse.ok) {
+      const headBranches = (await headBranchResponse.json()) as GitHubBranchWhereHeadResponse[];
+      const matchingBranch = headBranches.find((branch) => branch?.name?.trim())?.name?.trim() ?? null;
+      if (matchingBranch) {
+        return {
+          branch: matchingBranch,
+          source: 'commit-head',
+          confidence: 'high',
+          requiresConfirmation: true,
+          reason: 'Branch inferred from commit HEAD mapping.',
+        };
+      }
+    }
+
+    const repoResponse = await fetch(
+      `${GITHUB_API_BASE}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`,
+      {
+        method: 'GET',
+        headers: buildGitHubHeaders(token),
+      },
+    );
+
+    if (repoResponse.ok) {
+      const repoInfo = (await repoResponse.json()) as GitHubRepoResponse;
+      const defaultBranch = repoInfo.default_branch?.trim() ?? null;
+      if (defaultBranch) {
+        return {
+          branch: defaultBranch,
+          source: 'default-branch',
+          confidence: 'medium',
+          requiresConfirmation: true,
+          reason: 'Branch fallback uses repository default branch.',
+        };
+      }
+    }
+
+    return {
+      branch: null,
+      source: 'none',
+      confidence: 'none',
+      requiresConfirmation: true,
+      reason: 'No branch could be inferred from the commit.',
+    };
+  } catch {
+    return {
+      branch: null,
+      source: 'none',
+      confidence: 'none',
+      requiresConfirmation: true,
+      reason: 'GitHub API request failed.',
+    };
   }
 }
 

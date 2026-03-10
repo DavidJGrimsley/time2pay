@@ -8,7 +8,8 @@ import {
   type RequiredProfileField,
 } from '@/services/profile-completion';
 import { InlineNotice } from '@/components/inline-notice';
-import { Timer } from './Timer';
+import { GitHubStartModal, type GitHubStartSelection } from './GitHubStartModal';
+import { Timer, type TimerSelectionHandoff } from './Timer';
 
 type DashboardGateStatus = 'loading' | 'locked' | 'unlocked';
 
@@ -17,6 +18,10 @@ export function DashboardOverview() {
   const [gateStatus, setGateStatus] = useState<DashboardGateStatus>('loading');
   const [missingFields, setMissingFields] = useState<RequiredProfileField[]>([]);
   const [gateStatusMessage, setGateStatusMessage] = useState<string | null>(null);
+  const [isGitHubStartModalVisible, setIsGitHubStartModalVisible] = useState(false);
+  const [timerSelectionHandoff, setTimerSelectionHandoff] = useState<TimerSelectionHandoff | null>(
+    null,
+  );
 
   const refreshGate = useCallback(async (): Promise<void> => {
     setGateStatus('loading');
@@ -56,6 +61,16 @@ export function DashboardOverview() {
     return missingFields.map((field) => REQUIRED_PROFILE_FIELD_LABELS[field]).join(', ');
   }, [missingFields]);
 
+  function handleGitHubStartComplete(selection: GitHubStartSelection): void {
+    setTimerSelectionHandoff({
+      handoffId: `github_start_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      clientId: selection.clientId,
+      projectId: selection.projectId,
+      taskId: selection.taskId,
+    });
+    setIsGitHubStartModalVisible(false);
+  }
+
   return (
     <View className="gap-3">
       <Text className="text-3xl font-extrabold text-heading">Dashboard</Text>
@@ -83,7 +98,30 @@ export function DashboardOverview() {
         </View>
       ) : null}
 
-      <Timer gate={{ locked, missingFields }} />
+      <View className="gap-2">
+        <Pressable
+          className={`rounded-md border border-border bg-background px-4 py-3 ${locked ? 'opacity-60' : ''}`}
+          disabled={locked}
+          onPress={() => setIsGitHubStartModalVisible(true)}
+        >
+          <View className="flex-row items-center justify-center gap-2">
+            <View className="rounded-full border border-border px-2 py-0.5">
+              <Text className="text-xs font-bold text-heading">GH</Text>
+            </View>
+            <Text className="font-semibold text-heading">Start from GitHub</Text>
+          </View>
+        </Pressable>
+        <Text className="text-xs text-muted">
+          Paste a GitHub link to auto-create or reuse a client, project, and task.
+        </Text>
+      </View>
+
+      <Timer gate={{ locked, missingFields }} selectionHandoff={timerSelectionHandoff} />
+      <GitHubStartModal
+        visible={isGitHubStartModalVisible}
+        onClose={() => setIsGitHubStartModalVisible(false)}
+        onComplete={handleGitHubStartComplete}
+      />
     </View>
   );
 }

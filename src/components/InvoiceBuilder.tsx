@@ -17,6 +17,7 @@ import {
   groupInvoiceLineItemsByProject,
   type InvoiceComputation,
 } from '@/services/invoice';
+import { GitHubCommitBadge } from '@/components/github-commit-badge';
 import { testMercuryConnection } from '@/services/mercury';
 import { InlineNotice, type NoticeTone } from '@/components/inline-notice';
 import { showActionErrorAlert, showValidationAlert } from '@/services/system-alert';
@@ -521,7 +522,13 @@ export function InvoiceBuilder({ onInvoiceCreated }: InvoiceBuilderProps) {
                             </Text>
                           </View>
                         ))}
-                        {session.notes ? <Text className="pt-0.5 text-xs text-foreground/70">Note: {session.notes}</Text> : null}
+                        <GitHubCommitBadge
+                          commitSha={session.commit_sha}
+                          commitUrl={session.commit_url ?? null}
+                          containerClassName="pt-0.5"
+                          textClassName="text-xs text-secondary"
+                        />
+                        {session.notes ? <Text className="pt-0.5 text-xs text-foreground/70">{session.notes}</Text> : null}
                       </View>
                     ))}
                   </View>
