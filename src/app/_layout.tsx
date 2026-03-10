@@ -26,9 +26,10 @@ export default function RootLayout() {
   const pathname = usePathname();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
-  const [isGateReady, setIsGateReady] = useState(false);
-  const [profileComplete, setProfileComplete] = useState(false);
   const isLandingEntry = pathname === '/';
+  const shouldBypassGate = Platform.OS === 'web' && isLandingEntry;
+  const [isGateReady, setIsGateReady] = useState(shouldBypassGate);
+  const [profileComplete, setProfileComplete] = useState(false);
 
   // Native: sync Uniwind with OS appearance.
   useEffect(() => {
@@ -36,6 +37,10 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
+    if (shouldBypassGate) {
+      return;
+    }
+
     let isActive = true;
 
     const bootstrapApp = async () => {
@@ -78,7 +83,7 @@ export default function RootLayout() {
     return () => {
       isActive = false;
     };
-  }, []);
+  }, [shouldBypassGate]);
 
   if (!isGateReady) {
     return (
