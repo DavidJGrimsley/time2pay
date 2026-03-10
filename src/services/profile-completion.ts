@@ -1,4 +1,4 @@
-import type { UserProfile } from '@/database/db';
+import { getUserProfile, initializeDatabase, type UserProfile } from '@/database/db';
 
 export type RequiredProfileField = 'full_name' | 'email' | 'phone';
 
@@ -38,4 +38,15 @@ export function evaluateProfileCompletion(
     isComplete: missingFields.length === 0,
     missingFields,
   };
+}
+
+export async function getProfileCompletion(): Promise<ProfileCompletionResult> {
+  await initializeDatabase();
+  const profile = await getUserProfile();
+  return evaluateProfileCompletion(profile);
+}
+
+export async function isProfileComplete(): Promise<boolean> {
+  const completion = await getProfileCompletion();
+  return completion.isComplete;
 }
