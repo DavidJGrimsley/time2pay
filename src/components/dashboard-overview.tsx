@@ -1,9 +1,8 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { getUserProfile, initializeDatabase } from '@/database/db';
 import {
-  evaluateProfileCompletion,
+  getProfileCompletion,
   REQUIRED_PROFILE_FIELD_LABELS,
   type RequiredProfileField,
 } from '@/services/profile-completion';
@@ -28,9 +27,7 @@ export function DashboardOverview() {
     setGateStatusMessage(null);
 
     try {
-      await initializeDatabase();
-      const profile = await getUserProfile();
-      const completion = evaluateProfileCompletion(profile);
+      const completion = await getProfileCompletion();
       setMissingFields(completion.missingFields);
       setGateStatus(completion.isComplete ? 'unlocked' : 'locked');
     } catch (error: unknown) {
