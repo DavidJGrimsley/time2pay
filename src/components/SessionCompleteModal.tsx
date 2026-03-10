@@ -289,8 +289,8 @@ export function SessionCompleteModal({
                 <Pressable
                   className={`rounded-md border px-3 py-2 ${
                     branchConfirmed
-                      ? 'border-success/60 bg-success/20'
-                      : 'border-warning/60 bg-warning/20'
+                      ? 'border-primary bg-success/20'
+                      : 'border-primary bg-warning/20'
                   }`}
                   onPress={() => {
                     setBranchConfirmed((value) => !value);

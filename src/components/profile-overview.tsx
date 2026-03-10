@@ -1,6 +1,6 @@
 import { Picker } from '@react-native-picker/picker';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, Text, TextInput, useColorScheme, useWindowDimensions, View } from 'react-native';
+import { Linking, Modal, Platform, Pressable, ScrollView, Text, TextInput, useColorScheme, useWindowDimensions, View } from 'react-native';
 import {
   getUserProfile,
   initializeDatabase,
@@ -25,6 +25,9 @@ import { showActionErrorAlert, showSystemConfirm, showValidationAlert } from '@/
 
 const EMPTY_PICKER_VALUE = '';
 const FILE_PICKER_CANCELED_MESSAGE = 'Backup import canceled.';
+const GITHUB_PAT_CREATE_URL = 'https://github.com/settings/personal-access-tokens/new';
+const GITHUB_PAT_DOCS_URL =
+  'https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens';
 
 type StatusNotice = {
   message: string;
@@ -152,6 +155,7 @@ export function ProfileOverview() {
   const [businessEmail, setBusinessEmail] = useState('');
   const [githubPat, setGithubPat] = useState('');
   const [showIntegrations, setShowIntegrations] = useState(false);
+  const [showPatInfoModal, setShowPatInfoModal] = useState(false);
 
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
@@ -308,6 +312,15 @@ export function ProfileOverview() {
     } finally {
       setIsSavingIntegrations(false);
     }
+  }
+
+  function openExternalUrl(url: string): void {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.open(url, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
+    Linking.openURL(url).catch(() => undefined);
   }
 
   async function handleExportData(): Promise<void> {
@@ -541,9 +554,23 @@ export function ProfileOverview() {
 
         {showIntegrations ? (
           <View className="gap-2">
-            <Text className="text-sm text-muted">
-              Optional. Increases GitHub API rate limit from 60 to 5,000 requests/hour.
-            </Text>
+            <View className="flex-row items-center justify-between gap-2">
+              <Text className="flex-1 text-sm text-muted">
+                Optional. Increases GitHub API rate limit from 60 to 5,000 requests/hour.
+              </Text>
+              <Pressable
+                className="h-7 w-7 items-center justify-center rounded-full border border-border bg-background"
+                onPress={() => setShowPatInfoModal(true)}
+              >
+                <Text className="text-sm font-bold text-heading">i</Text>
+              </Pressable>
+            </View>
+            <Pressable
+              className="rounded-md border border-secondary/50 bg-secondary/10 px-3 py-2"
+              onPress={() => openExternalUrl(GITHUB_PAT_CREATE_URL)}
+            >
+              <Text className="text-center font-semibold text-secondary">Create GitHub PAT</Text>
+            </Pressable>
             <TextInput
               value={githubPat}
               onChangeText={setGithubPat}
@@ -619,6 +646,65 @@ export function ProfileOverview() {
       {status ? <InlineNotice tone={status.tone} message={status.message} /> : null}
         </View>
       </View>
+
+      <Modal
+        visible={showPatInfoModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowPatInfoModal(false)}
+      >
+        <View className="flex-1 items-center justify-center bg-black/55 px-4">
+          <View className="w-full max-w-lg rounded-xl bg-card p-4">
+            <Text className="text-lg font-bold text-heading">GitHub PAT Help</Text>
+            <ScrollView
+              className="mt-3 max-h-[420px]"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 8 }}
+            >
+              <Text className="text-sm leading-6 text-muted">
+                A Personal Access Token (PAT) is a secret key from your GitHub account. This app
+                uses it only to authenticate GitHub API calls so commit/branch lookups are more
+                reliable and less likely to hit public rate limits.
+              </Text>
+              <Text className="mt-3 text-sm font-semibold text-heading">What it does here</Text>
+              <Text className="mt-1 text-sm leading-6 text-muted">
+                Increases GitHub API rate limit from 60 to 5,000 requests/hour and improves
+                commit/branch fetch success.
+              </Text>
+              <Text className="mt-3 text-sm font-semibold text-heading">Where to create it</Text>
+              <Text className="mt-1 text-sm leading-6 text-muted">
+                GitHub Settings / Developer settings / Personal access tokens. Use the button
+                below to open the creation page.
+              </Text>
+              <Text className="mt-3 text-sm font-semibold text-heading">Recommended scope</Text>
+              <Text className="mt-1 text-sm leading-6 text-muted">
+                For private-repo commit lookups, set repository Contents to Read-only (Metadata
+                Read-only stays enabled by default). Do not grant more permissions than needed.
+              </Text>
+            </ScrollView>
+            <View className="mt-3 gap-2">
+              <Pressable
+                className="rounded-md bg-secondary px-3 py-2"
+                onPress={() => openExternalUrl(GITHUB_PAT_CREATE_URL)}
+              >
+                <Text className="text-center font-semibold text-white">Open PAT Creation Page</Text>
+              </Pressable>
+              <Pressable
+                className="rounded-md border border-border px-3 py-2"
+                onPress={() => openExternalUrl(GITHUB_PAT_DOCS_URL)}
+              >
+                <Text className="text-center font-semibold text-heading">Open PAT Docs</Text>
+              </Pressable>
+              <Pressable
+                className="rounded-md border border-border px-3 py-2"
+                onPress={() => setShowPatInfoModal(false)}
+              >
+                <Text className="text-center font-semibold text-heading">Close</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }

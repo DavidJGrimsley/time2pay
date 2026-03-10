@@ -57,11 +57,48 @@ export type BranchInferenceResult = {
 };
 
 function buildGitHubHeaders(token?: string): Record<string, string> {
+  return buildGitHubHeadersWithScheme(token, 'bearer');
+}
+
+function buildGitHubHeadersWithScheme(
+  token: string | undefined,
+  scheme: 'bearer' | 'token',
+): Record<string, string> {
+  const trimmedToken = token?.trim();
+  const authorizationValue =
+    trimmedToken && scheme === 'bearer'
+      ? `Bearer ${trimmedToken}`
+      : trimmedToken
+        ? `token ${trimmedToken}`
+        : null;
+
   return {
     Accept: 'application/vnd.github+json',
     'X-GitHub-Api-Version': '2022-11-28',
-    ...(token?.trim() ? { Authorization: `token ${token.trim()}` } : {}),
+    ...(authorizationValue ? { Authorization: authorizationValue } : {}),
   };
+}
+
+async function githubFetch(url: string, token?: string): Promise<Response> {
+  if (!token?.trim()) {
+    return fetch(url, {
+      method: 'GET',
+      headers: buildGitHubHeaders(),
+    });
+  }
+
+  const bearerResponse = await fetch(url, {
+    method: 'GET',
+    headers: buildGitHubHeadersWithScheme(token, 'bearer'),
+  });
+  if (bearerResponse.status !== 401) {
+    return bearerResponse;
+  }
+
+  return fetch(url, {
+    method: 'GET',
+    headers: buildGitHubHeadersWithScheme(token, 'token'),
+  });
 }
 
 function toTitleCaseWords(input: string): string {
@@ -191,10 +228,7 @@ export async function fetchCommitInfo(
 
   try {
     const url = `${GITHUB_API_BASE}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/commits/${encodeURIComponent(sha)}`;
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: buildGitHubHeaders(token),
-    });
+    const response = await githubFetch(url, token);
 
     if (!response.ok) {
       return null;
@@ -231,12 +265,8 @@ export async function inferBranchFromCommit(
   }
 
   try {
-    const headBranchResponse = await fetch(
+    const headBranchResponse = await githubFetch(
       `${GITHUB_API_BASE}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/commits/${encodeURIComponent(sha)}/branches-where-head`,
-      {
-        method: 'GET',
-        headers: buildGitHubHeaders(token),
-      },
     );
 
     if (headBranchResponse.ok) {
@@ -253,12 +283,8 @@ export async function inferBranchFromCommit(
       }
     }
 
-    const repoResponse = await fetch(
+    const repoResponse = await githubFetch(
       `${GITHUB_API_BASE}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`,
-      {
-        method: 'GET',
-        headers: buildGitHubHeaders(token),
-      },
     );
 
     if (repoResponse.ok) {
