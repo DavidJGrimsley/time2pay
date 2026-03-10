@@ -98,25 +98,11 @@ export function DashboardOverview() {
         </View>
       ) : null}
 
-      <View className="gap-2">
-        <Pressable
-          className={`rounded-md border border-border bg-background px-4 py-3 ${locked ? 'opacity-60' : ''}`}
-          disabled={locked}
-          onPress={() => setIsGitHubStartModalVisible(true)}
-        >
-          <View className="flex-row items-center justify-center gap-2">
-            <View className="rounded-full border border-border px-2 py-0.5">
-              <Text className="text-xs font-bold text-heading">GH</Text>
-            </View>
-            <Text className="font-semibold text-heading">Start from GitHub</Text>
-          </View>
-        </Pressable>
-        <Text className="text-xs text-muted">
-          Paste a GitHub link to auto-create or reuse a client, project, and task.
-        </Text>
-      </View>
-
-      <Timer gate={{ locked, missingFields }} selectionHandoff={timerSelectionHandoff} />
+      <Timer
+        gate={{ locked, missingFields }}
+        selectionHandoff={timerSelectionHandoff}
+        onOpenGitHubStart={() => setIsGitHubStartModalVisible(true)}
+      />
       <GitHubStartModal
         visible={isGitHubStartModalVisible}
         onClose={() => setIsGitHubStartModalVisible(false)}

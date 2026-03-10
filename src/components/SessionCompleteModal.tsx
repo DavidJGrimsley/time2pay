@@ -1,8 +1,25 @@
+import { Picker } from '@react-native-picker/picker';
 import { useEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import {
+  Modal,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  useColorScheme,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { getUserProfile } from '@/database/db';
-import { fetchCommitInfo, inferBranchFromCommit } from '@/services/github';
+import {
+  fetchCommitInfo,
+  inferBranchFromCommit,
+  listRecentCommits,
+  type GitHubCommitSummary,
+} from '@/services/github';
 import { InlineNotice } from '@/components/inline-notice';
+
+const EMPTY_PICKER_VALUE = '';
 
 export type SessionCompleteResult = {
   notes: string | null;
@@ -64,8 +81,12 @@ export function SessionCompleteModal({
   onSave,
   onSkip,
 }: SessionCompleteModalProps) {
+  const scheme = useColorScheme();
   const { height: viewportHeight, width: viewportWidth } = useWindowDimensions();
   const isLargeScreen = viewportWidth >= 1200;
+  const pickerTextColor = scheme === 'dark' ? '#f8f7f3' : '#1a1f16';
+  const pickerPlaceholderColor = scheme === 'dark' ? '#b8b7b2' : '#6f7868';
+  const pickerSurfaceColor = scheme === 'dark' ? '#1a1f16' : '#f8f7f3';
   const [notes, setNotes] = useState(initialNotes ?? '');
   const [commitUrl, setCommitUrl] = useState('');
   const [commitSha, setCommitSha] = useState('');
@@ -76,6 +97,9 @@ export function SessionCompleteModal({
   const [branchConfirmed, setBranchConfirmed] = useState(false);
   const [fetchStatus, setFetchStatus] = useState<string | null>(null);
   const [githubToken, setGithubToken] = useState<string | null>(null);
+  const [recentCommits, setRecentCommits] = useState<GitHubCommitSummary[]>([]);
+  const [selectedRecentCommitSha, setSelectedRecentCommitSha] = useState('');
+  const [isLoadingRecentCommits, setIsLoadingRecentCommits] = useState(false);
 
   useEffect(() => {
     if (!visible) {
@@ -91,6 +115,9 @@ export function SessionCompleteModal({
     setRequiresBranchConfirmation(false);
     setBranchConfirmed(false);
     setFetchStatus(null);
+    setRecentCommits([]);
+    setSelectedRecentCommitSha('');
+    setIsLoadingRecentCommits(false);
   }, [visible, initialNotes]);
 
   useEffect(() => {
@@ -122,6 +149,37 @@ export function SessionCompleteModal({
     const branch = githubBranch?.trim() || '(branch not set)';
     return `${owner}/${repo} • ${branch}`;
   }, [githubOrg, githubRepo, githubBranch]);
+
+  async function handleLoadRecentCommits(): Promise<void> {
+    const owner = githubOrg?.trim() ?? '';
+    const repo = githubRepo?.trim() ?? '';
+    if (!owner || !repo) {
+      setFetchError('Client/project must have GitHub org and repo before loading commits.');
+      return;
+    }
+
+    setIsLoadingRecentCommits(true);
+    setFetchError(null);
+    setFetchStatus(null);
+    try {
+      const commits = await listRecentCommits(owner, repo, {
+        token: githubToken ?? undefined,
+        branch: githubBranch?.trim() || undefined,
+        perPage: 30,
+      });
+      setRecentCommits(commits);
+      if (commits.length === 0) {
+        setFetchStatus('No recent commits found for this target.');
+      } else {
+        setFetchStatus(`Loaded ${commits.length} recent commits.`);
+      }
+    } catch {
+      setFetchError('Could not load recent commits.');
+      setRecentCommits([]);
+    } finally {
+      setIsLoadingRecentCommits(false);
+    }
+  }
 
   async function handleFetchAndApply(mode: 'overwrite' | 'append'): Promise<void> {
     const parsed = parseCommitUrl(commitUrl);
@@ -258,6 +316,68 @@ export function SessionCompleteModal({
             <View className="mb-4 gap-3 rounded-md border border-border bg-background p-3">
               <Text className="text-xs uppercase tracking-wide text-muted">GitHub Commit</Text>
               <Text className="text-xs text-muted">Clocked-in target: {expectedTargetSummary}</Text>
+              {githubToken?.trim() && githubOrg?.trim() && githubRepo?.trim() ? (
+                <View className="gap-2">
+                  <Pressable
+                    className={`items-center rounded-md border border-primary px-3 py-2 ${isLoadingRecentCommits ? 'opacity-70' : ''}`}
+                    onPress={() => {
+                      handleLoadRecentCommits().catch(() => undefined);
+                    }}
+                    disabled={isLoadingRecentCommits}
+                  >
+                    <Text className="font-semibold text-primary">
+                      {isLoadingRecentCommits ? 'Loading commits...' : 'Load Recent Commits'}
+                    </Text>
+                  </Pressable>
+                  {recentCommits.length > 0 ? (
+                    <View className="rounded-md border border-border bg-card">
+                      <Picker
+                        selectedValue={selectedRecentCommitSha || EMPTY_PICKER_VALUE}
+                        onValueChange={(value) => {
+                          const nextSha = String(value ?? EMPTY_PICKER_VALUE);
+                          setSelectedRecentCommitSha(nextSha);
+                          if (!nextSha) {
+                            return;
+                          }
+
+                          const selectedCommit =
+                            recentCommits.find((commit) => commit.sha === nextSha) ?? null;
+                          if (!selectedCommit) {
+                            return;
+                          }
+
+                          setCommitUrl(selectedCommit.htmlUrl);
+                          setFetchError(null);
+                          setBranchWarning(null);
+                          setRequiresBranchConfirmation(false);
+                          setBranchConfirmed(false);
+                          setFetchStatus(
+                            `Selected ${selectedCommit.shortSha}. Choose Fetch & Overwrite or Fetch & Append.`,
+                          );
+                        }}
+                        dropdownIconColor={pickerTextColor}
+                        style={{ color: pickerTextColor, backgroundColor: pickerSurfaceColor }}
+                      >
+                        <Picker.Item
+                          label="Select recent commit"
+                          value={EMPTY_PICKER_VALUE}
+                          color={pickerPlaceholderColor}
+                          style={{ color: pickerPlaceholderColor, backgroundColor: pickerSurfaceColor }}
+                        />
+                        {recentCommits.map((commit) => (
+                          <Picker.Item
+                            key={commit.sha}
+                            label={`${commit.shortSha} - ${commit.message}`}
+                            value={commit.sha}
+                            color={pickerTextColor}
+                            style={{ color: pickerTextColor, backgroundColor: pickerSurfaceColor }}
+                          />
+                        ))}
+                      </Picker>
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
               <TextInput
                 value={commitUrl}
                 onChangeText={(value) => {

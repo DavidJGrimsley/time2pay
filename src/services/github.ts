@@ -23,7 +23,17 @@ type GitHubBranchWhereHeadResponse = {
 };
 
 type GitHubRepoResponse = {
+  name?: string | null;
+  full_name?: string | null;
+  private?: boolean | null;
+  owner?: {
+    login?: string | null;
+  } | null;
   default_branch?: string | null;
+};
+
+type GitHubBranchListResponse = {
+  name?: string | null;
 };
 
 export type CommitInfo = {
@@ -31,6 +41,21 @@ export type CommitInfo = {
   message: string;
   authorName: string | null;
   date: string | null;
+  htmlUrl: string;
+};
+
+export type GitHubRepoSummary = {
+  owner: string;
+  repo: string;
+  fullName: string;
+  defaultBranch: string | null;
+  isPrivate: boolean;
+};
+
+export type GitHubCommitSummary = {
+  sha: string;
+  shortSha: string;
+  message: string;
   htmlUrl: string;
 };
 
@@ -267,6 +292,7 @@ export async function inferBranchFromCommit(
   try {
     const headBranchResponse = await githubFetch(
       `${GITHUB_API_BASE}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/commits/${encodeURIComponent(sha)}/branches-where-head`,
+      token,
     );
 
     if (headBranchResponse.ok) {
@@ -285,6 +311,7 @@ export async function inferBranchFromCommit(
 
     const repoResponse = await githubFetch(
       `${GITHUB_API_BASE}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`,
+      token,
     );
 
     if (repoResponse.ok) {
@@ -316,6 +343,123 @@ export async function inferBranchFromCommit(
       requiresConfirmation: true,
       reason: 'GitHub API request failed.',
     };
+  }
+}
+
+export async function listAuthenticatedRepos(token?: string): Promise<GitHubRepoSummary[]> {
+  if (!token?.trim()) {
+    return [];
+  }
+
+  try {
+    const response = await githubFetch(
+      `${GITHUB_API_BASE}/user/repos?per_page=100&sort=updated&affiliation=owner,collaborator,organization_member`,
+      token,
+    );
+    if (!response.ok) {
+      return [];
+    }
+
+    const data = (await response.json()) as GitHubRepoResponse[];
+    return data
+      .map((repo) => {
+        const owner = repo.owner?.login?.trim() ?? '';
+        const repoName = repo.name?.trim() ?? '';
+        if (!owner || !repoName) {
+          return null;
+        }
+
+        return {
+          owner,
+          repo: repoName,
+          fullName: repo.full_name?.trim() || `${owner}/${repoName}`,
+          defaultBranch: repo.default_branch?.trim() ?? null,
+          isPrivate: Boolean(repo.private),
+        } satisfies GitHubRepoSummary;
+      })
+      .filter((repo): repo is GitHubRepoSummary => repo !== null)
+      .sort((a, b) => a.fullName.localeCompare(b.fullName));
+  } catch {
+    return [];
+  }
+}
+
+export async function listRepoBranches(
+  owner: string,
+  repo: string,
+  token?: string,
+): Promise<string[]> {
+  if (!owner || !repo) {
+    return [];
+  }
+
+  try {
+    const response = await githubFetch(
+      `${GITHUB_API_BASE}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/branches?per_page=100`,
+      token,
+    );
+    if (!response.ok) {
+      return [];
+    }
+
+    const data = (await response.json()) as GitHubBranchListResponse[];
+    return data
+      .map((branch) => branch.name?.trim() ?? '')
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b));
+  } catch {
+    return [];
+  }
+}
+
+export async function listRecentCommits(
+  owner: string,
+  repo: string,
+  input: {
+    token?: string;
+    branch?: string | null;
+    perPage?: number;
+  } = {},
+): Promise<GitHubCommitSummary[]> {
+  if (!owner || !repo) {
+    return [];
+  }
+
+  const perPage = Math.max(1, Math.min(input.perPage ?? 20, 100));
+  const searchParams = new URLSearchParams();
+  searchParams.set('per_page', String(perPage));
+  if (input.branch?.trim()) {
+    searchParams.set('sha', input.branch.trim());
+  }
+
+  try {
+    const response = await githubFetch(
+      `${GITHUB_API_BASE}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/commits?${searchParams.toString()}`,
+      input.token,
+    );
+    if (!response.ok) {
+      return [];
+    }
+
+    const data = (await response.json()) as GitHubCommitResponse[];
+    return data
+      .map((commit) => {
+        const sha = commit.sha?.trim() ?? '';
+        const message = commit.commit?.message?.trim() ?? '';
+        if (!sha || !message) {
+          return null;
+        }
+
+        return {
+          sha,
+          shortSha: shortCommitSha(sha),
+          message: message.split('\n')[0],
+          htmlUrl: commit.html_url,
+        } satisfies GitHubCommitSummary;
+      })
+      .filter((commit): commit is GitHubCommitSummary => commit !== null);
+  } catch {
+    return [];
   }
 }
 

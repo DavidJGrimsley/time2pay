@@ -1,3 +1,4 @@
+import { Octicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, Text, TextInput, useColorScheme, useWindowDimensions, View } from 'react-native';
@@ -81,6 +82,7 @@ export type TimerSelectionHandoff = {
 type TimerProps = {
   gate?: TimerGateState;
   selectionHandoff?: TimerSelectionHandoff | null;
+  onOpenGitHubStart?: (() => void) | null;
 };
 
 type StatusNotice = {
@@ -419,7 +421,7 @@ function saveLastSelection(selection: LastSelection): void {
   localStorage.setItem(LAST_SELECTIONS_KEY, JSON.stringify(selection));
 }
 
-export function Timer({ gate, selectionHandoff }: TimerProps) {
+export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps) {
   const { width: viewportWidth } = useWindowDimensions();
   const defaults = loadLastSelection();
   const [clients, setClients] = useState<Client[]>([]);
@@ -1069,8 +1071,9 @@ export function Timer({ gate, selectionHandoff }: TimerProps) {
     : 'text-center font-semibold';
   const actionIconSize = isLargeScreen ? 28 : 16;
   const timerContainerClassName = isLargeScreen ? 'gap-4 rounded-xl bg-card p-6' : 'gap-3 rounded-xl bg-card p-4';
-  const timerTitleClassName = isLargeScreen ? 'text-3xl font-bold text-heading' : 'text-xl font-bold text-heading';
-  const timerStatusClassName = isLargeScreen ? 'text-lg text-muted' : 'text-muted';
+  const timerHeaderTitleClassName = isLargeScreen
+    ? 'text-3xl font-bold text-heading'
+    : 'text-xl font-bold text-heading';
   const notesInputClassName = isLargeScreen
     ? `rounded-md border border-border bg-background px-4 py-4 text-xl text-foreground ${isInteractionLocked ? 'opacity-60' : ''}`
     : `rounded-md border border-border bg-background px-3 py-2 text-foreground ${isInteractionLocked ? 'opacity-60' : ''}`;
@@ -1084,10 +1087,46 @@ export function Timer({ gate, selectionHandoff }: TimerProps) {
   return (
     <Animated.View className="items-center" layout={smoothLayout}>
       <Animated.View className={timerContainerClassName} style={containerWidthStyle} layout={smoothLayout}>
-      <Text className={timerTitleClassName}>Timer</Text>
-      <Text className={timerStatusClassName}>
-        {isClockedIn ? (isPaused ? 'Currently paused' : 'Currently clocked in') : 'Currently clocked out'}
-      </Text>
+      <View
+        className={
+          isLargeScreen
+            ? 'mb-1 flex-row items-center'
+            : 'mb-1 flex-row items-center justify-between'
+        }
+        style={isLargeScreen ? { gap: 16, minHeight: 64 } : undefined}
+      >
+        <View style={isLargeScreen ? { flex: 1 } : undefined}>
+          <Text className={timerHeaderTitleClassName}>
+            {isClockedIn ? (isPaused ? 'Currently paused' : 'Currently clocked in') : 'Currently clocked out'}
+          </Text>
+        </View>
+        {onOpenGitHubStart ? (
+          <View
+            className={isLargeScreen ? 'items-center' : 'items-end'}
+            style={isLargeScreen ? { flex: 1 } : undefined}
+          >
+            <Pressable
+              className={`rounded-full border px-6 py-3 ${isInteractionLocked ? 'opacity-60' : ''}`}
+              style={{ borderColor: '#ffffff', backgroundColor: '#24292f' }}
+              onPress={() => {
+                if (isInteractionLocked) {
+                  showBlockedMessage(lockReason);
+                  return;
+                }
+                onOpenGitHubStart();
+              }}
+              disabled={isInteractionLocked}
+            >
+              <View className="flex-row items-center gap-2.5">
+                <Octicons name="mark-github" size={20} color="#ffffff" />
+                <Text className="text-base font-semibold" style={{ color: '#ffffff' }}>
+                  Start from GitHub
+                </Text>
+              </View>
+            </Pressable>
+          </View>
+        ) : null}
+      </View>
       <Animated.View
         className="gap-3"
         layout={smoothLayout}
@@ -1331,7 +1370,7 @@ export function Timer({ gate, selectionHandoff }: TimerProps) {
         </Animated.View>
 
         <Animated.View
-          className={`gap-4 ${isLargeScreen ? 'rounded-xl border border-border bg-background p-4' : ''}`}
+          className={`gap-2 ${isLargeScreen ? 'rounded-xl border border-border bg-background p-4' : ''}`}
           layout={smoothLayout}
           style={isLargeScreen ? { flex: 1, justifyContent: 'space-between' } : undefined}
         >

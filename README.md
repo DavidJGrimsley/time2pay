@@ -48,9 +48,13 @@ Set these in `.env`:
 
 - `MERCURY_API_KEY` (required to use your bank account): your Mercury API key
 - `MERCURY_BASE_URL` (optional): defaults to `https://api.mercury.com/api/v1`
+- `GITHUB_CLIENT_ID` (optional): server-side GitHub OAuth app client id
+- `GITHUB_CLIENT_SECRET` (optional): server-side GitHub OAuth app client secret
+- `EXPO_PUBLIC_GITHUB_CLIENT_ID` (optional): client-visible GitHub OAuth id used to show the Sign in with GitHub button
 - `PORT` (optional): defaults to `3000`
 
 If `MERCURY_API_KEY` is missing, `/api/mercury` returns `400`.
+If GitHub OAuth env vars are missing, `/api/github` returns `501` and the Sign in with GitHub button is hidden.
 
 ## Run Modes
 
@@ -88,6 +92,29 @@ Update flow:
 2. `npm ci`
 3. `npm run build:web`
 4. Restart server
+
+## GitHub OAuth Setup (Optional)
+
+The app works fully without OAuth. You can still paste a PAT manually in **Profile -> Integrations**.
+
+To enable **Sign in with GitHub**:
+
+1. Create a GitHub OAuth App at `https://github.com/settings/developers`.
+2. Set Authorization callback URL to your profile route, for example:
+   - Local: `http://localhost:3000/profile`
+   - Hosted: `https://yourdomain.com/profile`
+3. Add env vars:
+   - `GITHUB_CLIENT_ID`
+   - `GITHUB_CLIENT_SECRET`
+   - `EXPO_PUBLIC_GITHUB_CLIENT_ID` (same value as `GITHUB_CLIENT_ID`)
+4. Rebuild and restart:
+   - `npm run build:web`
+   - `npm run serve:prod:env`
+
+Notes:
+
+- OAuth exchange is handled server-side by `POST /api/github`.
+- If OAuth env vars are not configured, the Sign in with GitHub button is not shown.
 
 ### Node <20 fallback (no `--env-file`)
 
