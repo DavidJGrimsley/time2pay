@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { getUserProfile } from '@/database/db';
 import { fetchCommitInfo, inferBranchFromCommit } from '@/services/github';
 import { InlineNotice } from '@/components/inline-notice';
 
@@ -74,6 +75,7 @@ export function SessionCompleteModal({
   const [requiresBranchConfirmation, setRequiresBranchConfirmation] = useState(false);
   const [branchConfirmed, setBranchConfirmed] = useState(false);
   const [fetchStatus, setFetchStatus] = useState<string | null>(null);
+  const [githubToken, setGithubToken] = useState<string | null>(null);
 
   useEffect(() => {
     if (!visible) {
@@ -90,6 +92,29 @@ export function SessionCompleteModal({
     setBranchConfirmed(false);
     setFetchStatus(null);
   }, [visible, initialNotes]);
+
+  useEffect(() => {
+    if (!visible) {
+      return;
+    }
+
+    let cancelled = false;
+    getUserProfile()
+      .then((profile) => {
+        if (!cancelled) {
+          setGithubToken(profile.github_pat ?? null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setGithubToken(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [visible]);
 
   const expectedTargetSummary = useMemo(() => {
     const owner = githubOrg?.trim() || '(owner not set)';
@@ -142,7 +167,12 @@ export function SessionCompleteModal({
       }
 
       if (githubBranch?.trim()) {
-        const inferred = await inferBranchFromCommit(parsed.owner, parsed.repo, parsed.sha);
+        const inferred = await inferBranchFromCommit(
+          parsed.owner,
+          parsed.repo,
+          parsed.sha,
+          githubToken ?? undefined,
+        );
         const inferredBranch = inferred.branch?.trim() ?? null;
 
         let nextBranchWarning: string | null = null;
@@ -162,7 +192,12 @@ export function SessionCompleteModal({
         }
       }
 
-      const info = await fetchCommitInfo(parsed.owner, parsed.repo, parsed.sha);
+      const info = await fetchCommitInfo(
+        parsed.owner,
+        parsed.repo,
+        parsed.sha,
+        githubToken ?? undefined,
+      );
       if (!info) {
         setFetchError('Could not fetch commit. Check URL/SHA and repository access.');
         return;

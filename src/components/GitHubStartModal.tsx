@@ -4,6 +4,7 @@ import {
   createClient,
   createProject,
   createTask,
+  getUserProfile,
   initializeDatabase,
   listClients,
   listProjectsByClient,
@@ -62,6 +63,7 @@ export function GitHubStartModal({ visible, onClose, onComplete }: GitHubStartMo
   const [status, setStatus] = useState<StatusNotice | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isInferringBranch, setIsInferringBranch] = useState(false);
+  const [githubToken, setGithubToken] = useState<string | null>(null);
 
   const [githubUrl, setGithubUrl] = useState('');
   const [clients, setClients] = useState<Client[]>([]);
@@ -137,10 +139,14 @@ export function GitHubStartModal({ visible, onClose, onComplete }: GitHubStartMo
     setTaskGithubBranch('');
     setBranchConfirmed(false);
     setBranchHint(null);
+    setGithubToken(null);
 
     initializeDatabase()
-      .then(() => listClients())
-      .then((rows) => setClients(rows))
+      .then(() => Promise.all([listClients(), getUserProfile()]))
+      .then(([rows, profile]) => {
+        setClients(rows);
+        setGithubToken(profile.github_pat ?? null);
+      })
       .catch((error: unknown) => {
         const message = error instanceof Error ? error.message : 'Failed to load existing records.';
         setStatus({ tone: 'error', message });
@@ -202,7 +208,12 @@ export function GitHubStartModal({ visible, onClose, onComplete }: GitHubStartMo
     setIsInferringBranch(true);
     setBranchHint('Inferring branch from commit...');
 
-    inferBranchFromCommit(parsedGitHub.owner, parsedGitHub.repo, parsedGitHub.sha)
+    inferBranchFromCommit(
+      parsedGitHub.owner,
+      parsedGitHub.repo,
+      parsedGitHub.sha,
+      githubToken ?? undefined,
+    )
       .then((result) => {
         if (cancelled) {
           return;
@@ -234,7 +245,7 @@ export function GitHubStartModal({ visible, onClose, onComplete }: GitHubStartMo
     return () => {
       cancelled = true;
     };
-  }, [visible, parsedGitHub]);
+  }, [visible, parsedGitHub, githubToken]);
 
   function validateStep(currentStep: 1 | 2 | 3): boolean {
     if (currentStep === 1) {

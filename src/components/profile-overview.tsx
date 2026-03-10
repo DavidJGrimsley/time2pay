@@ -135,6 +135,7 @@ export function ProfileOverview() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingBusiness, setIsSavingBusiness] = useState(false);
+  const [isSavingIntegrations, setIsSavingIntegrations] = useState(false);
   const [isSavingClient, setIsSavingClient] = useState(false);
   const [isExportingData, setIsExportingData] = useState(false);
   const [isImportingData, setIsImportingData] = useState(false);
@@ -149,6 +150,8 @@ export function ProfileOverview() {
   const [fullName, setFullName] = useState('');
   const [businessPhone, setBusinessPhone] = useState('');
   const [businessEmail, setBusinessEmail] = useState('');
+  const [githubPat, setGithubPat] = useState('');
+  const [showIntegrations, setShowIntegrations] = useState(false);
 
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
@@ -183,6 +186,7 @@ export function ProfileOverview() {
     setFullName(profile.full_name ?? '');
     setBusinessPhone(profile.phone ?? '');
     setBusinessEmail(profile.email ?? '');
+    setGithubPat(profile.github_pat ?? '');
   }, []);
 
   useEffect(() => {
@@ -287,6 +291,25 @@ export function ProfileOverview() {
     }
   }
 
+  async function handleSaveIntegrations(): Promise<void> {
+    setStatus(null);
+    setIsSavingIntegrations(true);
+
+    try {
+      await upsertUserProfile({
+        github_pat: toNullableTrimmed(githubPat),
+      });
+      await loadProfileData();
+      setStatus({ message: 'Integrations saved.', tone: 'success' });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to save integrations.';
+      showActionErrorAlert(message);
+      setStatus({ message, tone: 'error' });
+    } finally {
+      setIsSavingIntegrations(false);
+    }
+  }
+
   async function handleExportData(): Promise<void> {
     setStatus(null);
     setIsExportingData(true);
@@ -364,7 +387,13 @@ export function ProfileOverview() {
     }
   }
 
-  const backupBusy = isLoading || isSavingBusiness || isSavingClient || isExportingData || isImportingData;
+  const backupBusy =
+    isLoading ||
+    isSavingBusiness ||
+    isSavingIntegrations ||
+    isSavingClient ||
+    isExportingData ||
+    isImportingData;
 
   return (
     <View className="gap-3">
@@ -497,6 +526,46 @@ export function ProfileOverview() {
             </Pressable>
           </>
         )}
+      </View>
+
+      <View className="gap-3 rounded-xl bg-card p-4">
+        <Pressable
+          className="flex-row items-center justify-between"
+          onPress={() => setShowIntegrations((current) => !current)}
+        >
+          <Text className="text-xl font-bold text-heading">Integrations</Text>
+          <Text className="text-sm font-semibold text-secondary">
+            {showIntegrations ? 'Hide' : 'Show'}
+          </Text>
+        </Pressable>
+
+        {showIntegrations ? (
+          <View className="gap-2">
+            <Text className="text-sm text-muted">
+              Optional. Increases GitHub API rate limit from 60 to 5,000 requests/hour.
+            </Text>
+            <TextInput
+              value={githubPat}
+              onChangeText={setGithubPat}
+              placeholder="GitHub Personal Access Token (optional)"
+              autoCapitalize="none"
+              autoCorrect={false}
+              secureTextEntry
+              className="rounded-md border border-border bg-background px-3 py-2 text-foreground"
+            />
+            <Pressable
+              className="rounded-md bg-secondary px-4 py-2"
+              onPress={() => {
+                handleSaveIntegrations().catch(() => undefined);
+              }}
+              disabled={isSavingIntegrations || isLoading}
+            >
+              <Text className="text-center font-semibold text-white">
+                {isSavingIntegrations ? 'Saving...' : 'Save Integrations'}
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
       </View>
 
       <View className="gap-3 rounded-xl bg-card p-4">
