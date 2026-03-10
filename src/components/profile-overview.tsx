@@ -437,7 +437,7 @@ export function ProfileOverview() {
             <View className="rounded-md border border-border bg-background">
               <Picker
                 selectedValue={selectedClientId ?? EMPTY_PICKER_VALUE}
-                onValueChange={(value) => {
+                onValueChange={(value: string | number) => {
                   const next = String(value ?? EMPTY_PICKER_VALUE);
                   setSelectedClientId(next || null);
                 }}

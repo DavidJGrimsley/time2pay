@@ -1,21 +1,5 @@
-import { ScrollView } from 'react-native';
-import Animated, { FadeInDown, LinearTransition } from 'react-native-reanimated';
-import { DashboardOverview } from '../components/dashboard-overview';
-import { RouteNav } from '../components/route-nav';
+import { LandingPage } from '../components/landing/landing-page';
 
-export default function DashboardRoute() {
-  const smoothLayout = LinearTransition.springify().damping(20).stiffness(170);
-
-  return (
-    <ScrollView className="flex-1 bg-background" contentInsetAdjustmentBehavior="automatic">
-      <Animated.View className="gap-4 p-6" layout={smoothLayout}>
-        <Animated.View layout={smoothLayout}>
-          <RouteNav />
-        </Animated.View>
-        <Animated.View entering={FadeInDown.delay(40).duration(220)} layout={smoothLayout}>
-          <DashboardOverview />
-        </Animated.View>
-      </Animated.View>
-    </ScrollView>
-  );
+export default function IndexRoute() {
+  return <LandingPage />;
 }
