@@ -2,6 +2,9 @@
   "name": "time2pay",
   "version": "1.0.0",
   "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start --web",
@@ -10,13 +13,24 @@
     "web": "expo start --web",
     "icons:sync": "node scripts/copy-icons.mjs",
     "build:web": "npm run icons:sync && expo export -p web && node scripts/generate-sw.mjs",
+    "build:mercury": "npm run build --workspace @mrdj/mercury",
+    "build:mercury-ui": "npm run build --workspace @mrdj/mercury-ui",
     "serve:prod": "node server.js",
     "serve:prod:env": "node --env-file=.env server.js",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "typecheck:mercury": "npm run typecheck --workspace @mrdj/mercury",
+    "typecheck:mercury-ui": "npm run typecheck --workspace @mrdj/mercury-ui",
+    "test": "npm run test --workspace @mrdj/mercury && npm run test --workspace @mrdj/mercury-ui",
+    "test:mercury": "npm run test --workspace @mrdj/mercury",
+    "test:mercury-ui": "npm run test --workspace @mrdj/mercury-ui",
+    "test:mercury:contract": "npm run test:contract --workspace @mrdj/mercury",
+    "changeset": "changeset",
     "doctor": "npx expo-doctor"
   },
   "dependencies": {
+    "@mrdj/mercury": "file:packages/mercury",
+    "@mrdj/mercury-ui": "file:packages/mercury-ui",
     "@react-native-picker/picker": "2.11.4",
     "compression": "^1.8.1",
     "expo": "~55.0.5",
@@ -43,10 +57,16 @@
     "uniwind": "^1.2.9"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.29.7",
+    "@types/node": "^24.6.1",
     "@types/react": "~19.2.10",
+    "@types/react-test-renderer": "^19.1.0",
     "eslint": "^9.39.3",
     "eslint-config-expo": "~55.0.0",
+    "react-test-renderer": "19.2.0",
+    "tsup": "^8.5.0",
     "typescript": "~5.9.2",
+    "vitest": "^3.2.4",
     "workbox-build": "^7.4.0"
   }
 }

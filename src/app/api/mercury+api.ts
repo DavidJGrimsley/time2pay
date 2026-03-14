@@ -1,69 +1,46 @@
-const DEFAULT_MERCURY_BASE_URL = 'https://api.mercury.com/api/v1';
-const ALLOWED_METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']);
-const ALLOWED_ENDPOINT_RULES = [
-  { prefix: '/accounts', methods: new Set(['GET']) },
-  { prefix: '/ar/invoices', methods: new Set(['GET', 'POST']) },
-  { prefix: '/ar/customers', methods: new Set(['GET', 'POST']) },
-];
+import {
+  buildMercuryLineItems,
+  createMercuryClient,
+  findBestCheckingAccount,
+  toDayString,
+  type MercuryClient,
+  type MercuryEnvironment,
+  type MercuryInvoicePayload,
+  type MercuryRecipient,
+  type MercurySendMoneyInput,
+  type MercuryTransaction,
+} from '@mrdj/mercury';
 
-type MercuryProxyPayload = {
-  path: string;
-  method?: string;
-  body?: unknown;
-};
+type MercuryActionRequest =
+  | { action: 'testConnection' }
+  | { action: 'testInvoiceAccess' }
+  | { action: 'listAccounts' }
+  | { action: 'createInvoice'; payload: MercuryInvoicePayload }
+  | { action: 'listRecipients' }
+  | { action: 'sendMoney'; payload: { accountId: string; input: MercurySendMoneyInput } };
 
-function getMercuryApiConfig(): { apiKey: string; baseUrl: string } {
+function getMercuryClient(): MercuryClient {
   const apiKey = process.env.MERCURY_API_KEY?.trim();
-  const baseUrl = process.env.MERCURY_BASE_URL ?? DEFAULT_MERCURY_BASE_URL;
+  const environment = (process.env.MERCURY_ENVIRONMENT?.trim() ||
+    'production') as MercuryEnvironment;
+  const baseUrl = process.env.MERCURY_BASE_URL?.trim();
 
   if (!apiKey) {
     throw new Error('Missing MERCURY_API_KEY environment variable.');
   }
 
-  return {
+  return createMercuryClient({
     apiKey,
-    baseUrl: baseUrl.replace(/\/$/, ''),
-  };
+    environment,
+    baseUrl: baseUrl || undefined,
+  });
 }
 
-function normalizeMethod(method?: string): string {
-  const resolved = (method ?? 'GET').toUpperCase();
-  if (!ALLOWED_METHODS.has(resolved)) {
-    throw new Error(`Unsupported method: ${resolved}`);
-  }
-
-  return resolved;
-}
-
-function normalizePath(path: string): string {
-  if (typeof path !== 'string' || !path.startsWith('/')) {
-    throw new Error("Invalid path: expected a path starting with '/'.");
-  }
-
-  if (path.startsWith('//') || path.includes('://')) {
-    throw new Error('Invalid path: absolute URLs are not allowed.');
-  }
-
-  return path;
-}
-
-function assertAllowedEndpoint(path: string, method: string): void {
-  const matchedRule = ALLOWED_ENDPOINT_RULES.find((rule) => path === rule.prefix || path.startsWith(`${rule.prefix}/`) || path.startsWith(`${rule.prefix}?`));
-
-  if (!matchedRule) {
-    throw new Error('Path is not allowed by proxy policy.');
-  }
-
-  if (!matchedRule.methods.has(method)) {
-    throw new Error(`Method ${method} is not allowed for path ${matchedRule.prefix}.`);
-  }
-}
-
-async function parseRequestPayload(request: Request): Promise<MercuryProxyPayload> {
+async function parseRequestPayload(request: Request): Promise<MercuryActionRequest> {
   try {
-    const payload = (await request.json()) as MercuryProxyPayload;
-    if (!payload || typeof payload.path !== 'string') {
-      throw new Error('Missing required "path" field.');
+    const payload = (await request.json()) as MercuryActionRequest;
+    if (!payload || typeof payload.action !== 'string') {
+      throw new Error('Missing required "action" field.');
     }
     return payload;
   } catch (error) {
@@ -73,19 +50,120 @@ async function parseRequestPayload(request: Request): Promise<MercuryProxyPayloa
   }
 }
 
+async function resolveDestinationAccountId(
+  client: MercuryClient,
+  explicitAccountId?: string,
+): Promise<string> {
+  if (explicitAccountId?.trim()) {
+    return explicitAccountId.trim();
+  }
+
+  const result = await client.accounts.list({ limit: 200 });
+  const bestAccount = findBestCheckingAccount(result.items);
+
+  if (!bestAccount?.id) {
+    throw new Error('No Mercury destination account found. Connect an account and try again.');
+  }
+
+  return bestAccount.id;
+}
+
+function assertInvoicePayload(payload: MercuryInvoicePayload | undefined): MercuryInvoicePayload {
+  if (!payload) {
+    throw new Error('Missing invoice payload.');
+  }
+
+  if (!payload.customerName?.trim()) {
+    throw new Error('Customer name is required for Mercury invoice creation.');
+  }
+
+  if (!payload.customerEmail?.trim()) {
+    throw new Error('Customer email is required to create a Mercury invoice.');
+  }
+
+  return payload;
+}
+
+async function createInvoice(
+  client: MercuryClient,
+  payload: MercuryInvoicePayload,
+): Promise<Response> {
+  const resolvedPayload = assertInvoicePayload(payload);
+  const destinationAccountId = await resolveDestinationAccountId(
+    client,
+    resolvedPayload.destinationAccountId,
+  );
+  const customerId = await client.ar.customers.ensureCustomer({
+    name: resolvedPayload.customerName,
+    email: resolvedPayload.customerEmail ?? '',
+  });
+
+  const invoiceDate = toDayString(resolvedPayload.invoiceDateIso ?? new Date().toISOString());
+  const dueDate = toDayString(
+    resolvedPayload.dueDateIso ??
+      new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+  );
+  const lineItems = buildMercuryLineItems(resolvedPayload);
+
+  const invoice = await client.ar.invoices.create({
+    dueDate,
+    invoiceDate,
+    customerId,
+    ccEmails: resolvedPayload.ccEmails ?? [],
+    destinationAccountId,
+    creditCardEnabled: resolvedPayload.creditCardEnabled ?? false,
+    achDebitEnabled: resolvedPayload.achDebitEnabled ?? true,
+    useRealAccountNumber: resolvedPayload.useRealAccountNumber ?? false,
+    lineItems,
+    sendEmailOption: resolvedPayload.sendEmailOption ?? 'SendNow',
+    internalNote: resolvedPayload.description,
+    payerMemo: resolvedPayload.description,
+  });
+
+  return Response.json({ invoice });
+}
+
+async function listAccounts(client: MercuryClient): Promise<Response> {
+  const result = await client.accounts.list({ limit: 200 });
+  return Response.json({ accounts: result.items });
+}
+
+async function listRecipients(client: MercuryClient): Promise<Response> {
+  const result = await client.recipients.list({ limit: 200 });
+  return Response.json({ recipients: result.items as MercuryRecipient[] });
+}
+
+async function sendMoney(
+  client: MercuryClient,
+  payload: { accountId: string; input: MercurySendMoneyInput },
+): Promise<Response> {
+  if (!payload.accountId?.trim()) {
+    throw new Error('Account ID is required to send money.');
+  }
+
+  const transaction = await client.sendMoney.send(payload.accountId.trim(), payload.input);
+  return Response.json({ transaction: transaction as MercuryTransaction });
+}
+
+async function testConnection(client: MercuryClient): Promise<Response> {
+  await client.accounts.list({ limit: 1 });
+  const environment = process.env.MERCURY_ENVIRONMENT?.trim() || 'production';
+  return Response.json({ ok: true, environment });
+}
+
+async function testInvoiceAccess(client: MercuryClient): Promise<Response> {
+  await client.ar.invoices.list({ limit: 1 });
+  const environment = process.env.MERCURY_ENVIRONMENT?.trim() || 'production';
+  return Response.json({ ok: true, environment });
+}
+
 export async function POST(request: Request): Promise<Response> {
-  let payload: MercuryProxyPayload;
-  let method: string;
-  let path: string;
-  let baseUrl: string;
-  let apiKey: string;
+  let payload: MercuryActionRequest;
+  let client: MercuryClient;
 
   try {
     payload = await parseRequestPayload(request);
-    method = normalizeMethod(payload.method);
-    path = normalizePath(payload.path);
-    assertAllowedEndpoint(path, method);
-    ({ apiKey, baseUrl } = getMercuryApiConfig());
+    client = getMercuryClient();
   } catch (error) {
     return Response.json(
       { error: error instanceof Error ? error.message : 'Invalid request.' },
@@ -94,23 +172,25 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
-    const upstream = await fetch(`${baseUrl}${path}`, {
-      method,
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: method === 'GET' ? undefined : payload.body ? JSON.stringify(payload.body) : undefined,
-    });
-
-    const contentType = upstream.headers.get('content-type') ?? '';
-    const data = contentType.includes('application/json')
-      ? await upstream.json()
-      : { message: await upstream.text() };
-
-    return Response.json(data, { status: upstream.status });
+    switch (payload.action) {
+      case 'testConnection':
+        return await testConnection(client);
+      case 'testInvoiceAccess':
+        return await testInvoiceAccess(client);
+      case 'listAccounts':
+        return await listAccounts(client);
+      case 'createInvoice':
+        return await createInvoice(client, payload.payload);
+      case 'listRecipients':
+        return await listRecipients(client);
+      case 'sendMoney':
+        return await sendMoney(client, payload.payload);
+      default:
+        return Response.json({ error: 'Unsupported Mercury action.' }, { status: 400 });
+    }
   } catch (error) {
-    console.error('Mercury proxy request failed:', error);
-    return Response.json({ error: 'Failed to reach Mercury API.' }, { status: 502 });
+    const message = error instanceof Error ? error.message : 'Mercury request failed.';
+    console.error('Mercury action failed:', error);
+    return Response.json({ error: message }, { status: 502 });
   }
 }

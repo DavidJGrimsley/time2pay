@@ -15,3 +15,6 @@ expo-env.d.ts
 
 temp/
 time2pay_icons/
+packages/*/dist/
+packages/*/coverage/
+*.tsbuildinfo

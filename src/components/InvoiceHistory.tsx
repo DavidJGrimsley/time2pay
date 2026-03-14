@@ -126,14 +126,47 @@ export function InvoiceHistory({ refreshKey }: InvoiceHistoryProps) {
 
   async function handleDownloadPdf(invoice: InvoiceWithClient): Promise<void> {
     setActiveInvoiceId(invoice.id);
-    setStatus({ message: `Generating PDF for ${invoice.id}...`, tone: 'neutral' });
+    setStatus({ message: `Generating Time2Pay PDF for ${invoice.id}...`, tone: 'neutral' });
     try {
       const { exportable } = await buildExportableInvoice(invoice);
       const bytes = await exportInvoicePdf(exportable);
       await triggerPdfDownload(`invoice-${invoice.id}.pdf`, bytes);
-      setStatus({ message: `Downloaded PDF for ${invoice.id}.`, tone: 'success' });
+      setStatus({ message: `Downloaded Time2Pay PDF for ${invoice.id}.`, tone: 'success' });
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to generate invoice PDF.';
+      const message =
+        error instanceof Error ? error.message : 'Failed to generate the Time2Pay invoice PDF.';
+      showActionErrorAlert(message);
+      setStatus({ message, tone: 'error' });
+    } finally {
+      setActiveInvoiceId(null);
+    }
+  }
+
+  async function handleOpenPaymentLink(invoice: InvoiceWithClient): Promise<void> {
+    const paymentLink = invoice.payment_link?.trim();
+    if (!paymentLink) {
+      return;
+    }
+
+    setActiveInvoiceId(invoice.id);
+    setStatus({
+      message: invoice.mercury_invoice_id
+        ? `Opening hosted Mercury invoice ${invoice.id}...`
+        : `Opening payment link for ${invoice.id}...`,
+      tone: 'neutral',
+    });
+
+    try {
+      await Linking.openURL(paymentLink);
+      setStatus({
+        message: invoice.mercury_invoice_id
+          ? `Opened hosted Mercury invoice ${invoice.id}.`
+          : `Opened payment link for ${invoice.id}.`,
+        tone: 'success',
+      });
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to open the invoice payment link.';
       showActionErrorAlert(message);
       setStatus({ message, tone: 'error' });
     } finally {
@@ -205,6 +238,11 @@ export function InvoiceHistory({ refreshKey }: InvoiceHistoryProps) {
             <Text className="text-sm text-muted">Invoice ID: {invoice.id}</Text>
             <Text className="text-sm text-muted">Created: {formatDateTime(invoice.created_at)}</Text>
             <Text className="text-sm text-muted">Status: {invoice.status}</Text>
+            {invoice.mercury_invoice_id ? (
+              <Text className="text-sm text-muted">
+                Mercury invoice ID: {invoice.mercury_invoice_id}
+              </Text>
+            ) : null}
             {invoice.payment_link ? (
               <Text className="text-sm text-muted">Payment link: {invoice.payment_link}</Text>
             ) : null}
@@ -216,9 +254,24 @@ export function InvoiceHistory({ refreshKey }: InvoiceHistoryProps) {
                 disabled={isBusy}
               >
                 <Text className="font-semibold text-white">
-                  {isBusy ? 'Working...' : 'Download PDF'}
+                  {isBusy ? 'Working...' : 'Download Time2Pay PDF'}
                 </Text>
               </Pressable>
+              {invoice.payment_link ? (
+                <Pressable
+                  className="rounded-md border border-border px-3 py-2"
+                  onPress={() => handleOpenPaymentLink(invoice)}
+                  disabled={isBusy}
+                >
+                  <Text className="font-semibold text-heading">
+                    {isBusy
+                      ? 'Working...'
+                      : invoice.mercury_invoice_id
+                        ? 'Open Mercury Invoice'
+                        : 'Open Payment Link'}
+                  </Text>
+                </Pressable>
+              ) : null}
               <Pressable
                 className="rounded-md border border-border px-3 py-2"
                 onPress={() => handleComposeEmail(invoice)}

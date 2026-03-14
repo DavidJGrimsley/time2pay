@@ -1,13 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, Text, useWindowDimensions, View } from 'react-native';
+import { Text, useWindowDimensions, View } from 'react-native';
+import { findBestCheckingAccount, type MercuryAccount } from '@mrdj/mercury';
+import {
+  MercuryLogo,
+  MercuryStatusNotice,
+  type MercuryStatusTone,
+} from '@mrdj/mercury-ui';
 import { listMercuryAccounts } from '@/services/mercury';
-import { InlineNotice, type NoticeTone } from '@/components/inline-notice';
-import { showActionErrorAlert } from '@/services/system-alert';
 
 type RecordValue = Record<string, unknown>;
 type StatusNotice = {
   message: string;
-  tone: NoticeTone;
+  tone: MercuryStatusTone;
 };
 
 function asRecord(input: unknown): RecordValue | null {
@@ -15,21 +19,6 @@ function asRecord(input: unknown): RecordValue | null {
     return null;
   }
   return input as RecordValue;
-}
-
-function findCheckingAccount(accounts: unknown[]): RecordValue | null {
-  const records = accounts.map(asRecord).filter((value): value is RecordValue => value !== null);
-  if (records.length === 0) {
-    return null;
-  }
-
-  const checking = records.find((account) => {
-    const type = `${account.accountType ?? account.kind ?? ''}`.toLowerCase();
-    const nickname = `${account.nickname ?? account.name ?? ''}`.toLowerCase();
-    return type.includes('checking') || nickname.includes('checking');
-  });
-
-  return checking ?? records[0] ?? null;
 }
 
 function formatMoney(value: unknown): string {
@@ -56,16 +45,16 @@ export function BankOverview() {
     : isTablet
       ? { width: '75%' as const }
       : { width: '90%' as const };
-  const [accounts, setAccounts] = useState<unknown[]>([]);
+  const [accounts, setAccounts] = useState<MercuryAccount[]>([]);
   const [status, setStatus] = useState<StatusNotice>({
     message: 'Loading Mercury accounts...',
     tone: 'neutral',
   });
   const [loading, setLoading] = useState(false);
 
-  const checkingAccount = useMemo(() => findCheckingAccount(accounts), [accounts]);
+  const checkingAccount = useMemo(() => findBestCheckingAccount(accounts), [accounts]);
 
-  async function refreshAccounts(source: 'initial' | 'user' = 'user'): Promise<void> {
+  async function refreshAccounts(): Promise<void> {
     setLoading(true);
     setStatus({ message: 'Loading Mercury accounts...', tone: 'neutral' });
     try {
@@ -77,9 +66,6 @@ export function BankOverview() {
       });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Failed to load Mercury accounts.';
-      if (source === 'user') {
-        showActionErrorAlert(message);
-      }
       setStatus({ message, tone: 'error' });
     } finally {
       setLoading(false);
@@ -87,7 +73,7 @@ export function BankOverview() {
   }
 
   useEffect(() => {
-    refreshAccounts('initial').catch(() => undefined);
+    refreshAccounts().catch(() => undefined);
   }, []);
 
   const balances = asRecord(checkingAccount?.balances ?? null);
@@ -103,34 +89,44 @@ export function BankOverview() {
 
       <View className="items-center">
         <View className="w-full" style={contentWidthStyle}>
-          <View className="gap-2 rounded-xl bg-card p-4">
+          <View
+            className="gap-4 rounded-2xl border p-5"
+            style={{ borderColor: '#314233', backgroundColor: '#0f1711' }}
+          >
             <View className="flex-row items-center justify-between">
-              <Text className="text-xl font-bold text-heading">Checking Account</Text>
-              <Pressable
-                className="rounded-md border border-border px-3 py-1.5"
-                onPress={() => refreshAccounts('user')}
-                disabled={loading}
-              >
-                <Text className="font-semibold text-heading">{loading ? 'Refreshing...' : 'Refresh'}</Text>
-              </Pressable>
+              <View className="gap-1">
+                <MercuryLogo variant="horizontal" size={280} />
+                <Text style={{ color: '#d4e0d0', fontSize: 14 }}>
+                  Mercury account context for invoice routing.
+                </Text>
+              </View>
             </View>
 
-            <InlineNotice tone={status.tone} message={status.message} />
+            <View className="flex-row items-center justify-between">
+              <Text style={{ color: '#d4e0d0', fontSize: 14, fontWeight: '600' }}>
+                Checking account overview
+              </Text>
+              <Text style={{ color: '#d4e0d0', fontSize: 13 }}>
+                {loading ? 'Loading...' : 'Synced'}
+              </Text>
+            </View>
+
+            <MercuryStatusNotice tone={status.tone} message={status.message} />
 
             {!checkingAccount ? (
-              <Text className="text-sm text-muted">No account data available.</Text>
+              <Text style={{ color: '#d4e0d0', fontSize: 14 }}>No account data available.</Text>
             ) : (
-              <View className="gap-1">
-                <Text className="font-semibold text-heading">
+              <View className="gap-2 rounded-xl border p-4" style={{ borderColor: '#2f4333' }}>
+                <Text style={{ color: '#f4fff4', fontSize: 17, fontWeight: '700' }}>
                   {`${checkingAccount.nickname ?? checkingAccount.name ?? 'Primary account'}`}
                 </Text>
-                <Text className="text-sm text-muted">
+                <Text style={{ color: '#d4e0d0', fontSize: 14 }}>
                   Account ID: {`${checkingAccount.id ?? 'n/a'}`}
                 </Text>
-                <Text className="text-sm text-muted">
+                <Text style={{ color: '#d4e0d0', fontSize: 14 }}>
                   Available: {formatMoney(available)}
                 </Text>
-                <Text className="text-sm text-muted">
+                <Text style={{ color: '#d4e0d0', fontSize: 14 }}>
                   Current: {formatMoney(current)}
                 </Text>
               </View>
