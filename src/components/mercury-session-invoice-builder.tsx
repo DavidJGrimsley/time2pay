@@ -12,6 +12,7 @@ import {
 } from '@/database/db';
 import {
   buildMercuryInvoiceDescriptionFromSessions,
+  buildMercuryServicePeriodFromSessions,
   buildMercurySessionLineItems,
   computeInvoiceTotals,
   createInvoiceFromSessions,
@@ -111,6 +112,13 @@ export function MercurySessionInvoiceBuilder({
         : 'Invoice generated from Time2Pay sessions.',
     [preview],
   );
+  const mercuryServicePeriod = useMemo(
+    () =>
+      preview
+        ? buildMercuryServicePeriodFromSessions(preview.sessions)
+        : { startDate: undefined, endDate: undefined },
+    [preview],
+  );
 
   const mercuryDefaults = useMemo<Partial<MercuryInvoicePayload>>(
     () => ({
@@ -121,6 +129,8 @@ export function MercurySessionInvoiceBuilder({
       currency: 'USD',
       invoiceDateIso: toDayInputValue(new Date()),
       dueDateIso: toDayInputValue(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
+      servicePeriodStartDate: mercuryServicePeriod.startDate,
+      servicePeriodEndDate: mercuryServicePeriod.endDate,
       lineItems: mercuryLineItems,
       sendEmailOption: 'SendNow',
       achDebitEnabled: true,
@@ -130,6 +140,8 @@ export function MercurySessionInvoiceBuilder({
     [
       mercuryDescription,
       mercuryLineItems,
+      mercuryServicePeriod.endDate,
+      mercuryServicePeriod.startDate,
       preview?.totalAmount,
       selectedClient?.email,
       selectedClient?.name,
@@ -281,6 +293,8 @@ export function MercurySessionInvoiceBuilder({
           destinationAccountId: payload.destinationAccountId,
           amount: payload.amount,
           currency: payload.currency,
+          servicePeriodStartDate: payload.servicePeriodStartDate,
+          servicePeriodEndDate: payload.servicePeriodEndDate,
           lineItems: payload.lineItems,
           sendEmailOption: payload.sendEmailOption,
           achDebitEnabled: payload.achDebitEnabled,

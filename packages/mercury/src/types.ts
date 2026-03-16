@@ -136,6 +136,8 @@ export type MercuryInvoicePayload = {
   description?: string;
   dueDateIso?: string;
   invoiceDateIso?: string;
+  servicePeriodStartDate?: string;
+  servicePeriodEndDate?: string;
   destinationAccountId?: string;
   lineItems?: MercuryLineItemPayload[];
   sendEmailOption?: MercurySendEmailOption;

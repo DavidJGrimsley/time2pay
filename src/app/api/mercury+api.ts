@@ -108,6 +108,8 @@ async function createInvoice(
   const invoice = await client.ar.invoices.create({
     dueDate,
     invoiceDate,
+    servicePeriodStartDate: resolvedPayload.servicePeriodStartDate,
+    servicePeriodEndDate: resolvedPayload.servicePeriodEndDate,
     customerId,
     ccEmails: resolvedPayload.ccEmails ?? [],
     destinationAccountId,

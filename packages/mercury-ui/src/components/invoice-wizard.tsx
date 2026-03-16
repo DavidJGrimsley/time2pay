@@ -82,6 +82,8 @@ function buildDefaultsSignature(defaults: Partial<MercuryInvoicePayload> | undef
     destinationAccountId: defaults?.destinationAccountId ?? '',
     dueDateIso: defaults?.dueDateIso ?? '',
     invoiceDateIso: defaults?.invoiceDateIso ?? '',
+    servicePeriodStartDate: defaults?.servicePeriodStartDate ?? '',
+    servicePeriodEndDate: defaults?.servicePeriodEndDate ?? '',
     sendEmailOption: defaults?.sendEmailOption ?? '',
     achDebitEnabled: defaults?.achDebitEnabled ?? '',
     creditCardEnabled: defaults?.creditCardEnabled ?? '',
@@ -126,6 +128,12 @@ export function InvoiceWizard({
     defaults?.dueDateIso ??
       toDayInputValue(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
   );
+  const [servicePeriodStartDate, setServicePeriodStartDate] = useState(
+    defaults?.servicePeriodStartDate ?? '',
+  );
+  const [servicePeriodEndDate, setServicePeriodEndDate] = useState(
+    defaults?.servicePeriodEndDate ?? '',
+  );
   const [sendEmailOption, setSendEmailOption] = useState<MercurySendEmailOption>(
     defaults?.sendEmailOption ?? 'SendNow',
   );
@@ -155,6 +163,8 @@ export function InvoiceWizard({
       defaults?.dueDateIso ??
         toDayInputValue(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
     );
+    setServicePeriodStartDate(defaults?.servicePeriodStartDate ?? '');
+    setServicePeriodEndDate(defaults?.servicePeriodEndDate ?? '');
     setSendEmailOption(defaults?.sendEmailOption ?? 'SendNow');
     setAchDebitEnabled(defaults?.achDebitEnabled ?? true);
     setCreditCardEnabled(defaults?.creditCardEnabled ?? false);
@@ -241,6 +251,8 @@ export function InvoiceWizard({
       currency: currency.trim().toUpperCase() || undefined,
       dueDateIso: dueDateIso.trim() || undefined,
       invoiceDateIso: invoiceDateIso.trim() || undefined,
+      servicePeriodStartDate: servicePeriodStartDate.trim() || undefined,
+      servicePeriodEndDate: servicePeriodEndDate.trim() || undefined,
       destinationAccountId: selectedAccountId ?? undefined,
       lineItems: lineItems.length > 0 ? lineItems : undefined,
       sendEmailOption,
@@ -259,6 +271,8 @@ export function InvoiceWizard({
       description,
       dueDateIso,
       invoiceDateIso,
+      servicePeriodEndDate,
+      servicePeriodStartDate,
       lineItems,
       resolvedAmount,
       selectedAccountId,
@@ -338,6 +352,31 @@ export function InvoiceWizard({
             onChangeText={setDueDateIso}
             style={inputStyle}
             autoCapitalize="none"
+          />
+        </View>
+      </View>
+
+      <View style={{ flexDirection: useCompactLayout ? 'column' : 'row', gap: 8 }}>
+        <View style={{ flex: 1, gap: 8 }}>
+          <Text style={labelStyle}>Service period start (YYYY-MM-DD)</Text>
+          <TextInput
+            value={servicePeriodStartDate}
+            onChangeText={setServicePeriodStartDate}
+            style={inputStyle}
+            autoCapitalize="none"
+            placeholder="Optional"
+            placeholderTextColor={mercuryUiTheme.colors.mutedText}
+          />
+        </View>
+        <View style={{ flex: 1, gap: 8 }}>
+          <Text style={labelStyle}>Service period end (YYYY-MM-DD)</Text>
+          <TextInput
+            value={servicePeriodEndDate}
+            onChangeText={setServicePeriodEndDate}
+            style={inputStyle}
+            autoCapitalize="none"
+            placeholder="Optional"
+            placeholderTextColor={mercuryUiTheme.colors.mutedText}
           />
         </View>
       </View>

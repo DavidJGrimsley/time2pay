@@ -57,6 +57,8 @@ export type CreateInvoiceFromSessionsInput = {
     currency?: string;
     dueDateIso?: string;
     invoiceDateIso?: string;
+    servicePeriodStartDate?: string;
+    servicePeriodEndDate?: string;
     destinationAccountId?: string;
     lineItems?: MercuryLineItemPayload[];
     sendEmailOption?: MercurySendEmailOption;
@@ -291,7 +293,7 @@ export function buildMercuryInvoiceDescriptionFromSessions(
   sessions: SessionWithComputed[],
 ): string {
   if (sessions.length === 0) {
-    return 'Invoice generated from Time2Pay sessions.';
+    return 'Invoice generated with Time2Pay.';
   }
 
   const sortedSessions = [...sessions].sort((left, right) =>
@@ -323,9 +325,30 @@ export function buildMercuryInvoiceDescriptionFromSessions(
   const taskPrefix = taskLabels.length === 1 ? 'task including' : 'tasks including';
 
   return truncateText(
-    `${rangeLabel}. ${projectPrefix}: ${summarizeLabels(projectLabels, 3, 'General work')}; ${taskPrefix} ${summarizeLabels(taskLabels, 6, 'session work')}.`,
+    `Service period: ${rangeLabel}. ${projectPrefix}: ${summarizeLabels(projectLabels, 3, 'General work')}; ${taskPrefix} ${summarizeLabels(taskLabels, 6, 'session work')}. Invoice generated with Time2Pay.`,
     280,
   );
+}
+
+export function buildMercuryServicePeriodFromSessions(sessions: SessionWithComputed[]): {
+  startDate: string | undefined;
+  endDate: string | undefined;
+} {
+  if (sessions.length === 0) {
+    return {
+      startDate: undefined,
+      endDate: undefined,
+    };
+  }
+
+  const sortedSessions = [...sessions].sort((left, right) =>
+    left.start_time < right.start_time ? -1 : 1,
+  );
+
+  return {
+    startDate: sortedSessions[0]?.start_time.slice(0, 10),
+    endDate: sortedSessions[sortedSessions.length - 1]?.start_time.slice(0, 10),
+  };
 }
 
 export function buildMercurySessionLineItems(
@@ -634,6 +657,8 @@ export async function createInvoiceFromSessions(
           input.mercury.description ?? buildMercuryInvoiceDescriptionFromSessions(totals.sessions),
         dueDateIso: input.mercury.dueDateIso,
         invoiceDateIso: input.mercury.invoiceDateIso,
+        servicePeriodStartDate: input.mercury.servicePeriodStartDate,
+        servicePeriodEndDate: input.mercury.servicePeriodEndDate,
         destinationAccountId: input.mercury.destinationAccountId,
         lineItems: mercuryLineItems,
         sendEmailOption: input.mercury.sendEmailOption,
