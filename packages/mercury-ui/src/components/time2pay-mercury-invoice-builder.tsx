@@ -12,6 +12,7 @@ type Time2PayMercuryInvoiceBuilderProps = {
   busy?: boolean;
   status?: InvoiceWizardStatus;
   sourceChildren?: ReactNode;
+  footer?: ReactNode;
 };
 
 export function Time2PayMercuryInvoiceBuilder({
@@ -22,6 +23,7 @@ export function Time2PayMercuryInvoiceBuilder({
   busy = false,
   status,
   sourceChildren,
+  footer,
 }: Time2PayMercuryInvoiceBuilderProps) {
   return (
     <View
@@ -54,6 +56,7 @@ export function Time2PayMercuryInvoiceBuilder({
         title="Mercury invoice settings"
         subtitle="Session-derived defaults are fully editable before the Mercury invoice is created."
         submitLabel="Create Mercury Invoice"
+        footer={footer}
       />
     </View>
   );

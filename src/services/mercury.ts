@@ -3,6 +3,7 @@ import type {
   MercuryInvoicePayload,
   MercuryInvoiceResponse,
   MercuryRecipient,
+  MercuryRecord,
   MercurySendMoneyInput,
   MercuryTransaction,
 } from '@mrdj/mercury';
@@ -14,26 +15,35 @@ export type MercuryConfig = {
 type MercuryActionName =
   | 'testConnection'
   | 'testInvoiceAccess'
+  | 'ensureCustomer'
   | 'listAccounts'
   | 'createInvoice'
   | 'listRecipients'
+  | 'createRecipient'
+  | 'updateRecipient'
   | 'sendMoney';
 
 type MercuryActionPayloadMap = {
   testConnection: undefined;
   testInvoiceAccess: undefined;
+  ensureCustomer: { name: string; email: string };
   listAccounts: undefined;
   createInvoice: MercuryInvoicePayload;
   listRecipients: undefined;
+  createRecipient: MercuryRecord;
+  updateRecipient: { recipientId: string; input: MercuryRecord };
   sendMoney: { accountId: string; input: MercurySendMoneyInput };
 };
 
 type MercuryActionResponseMap = {
   testConnection: { ok: true; environment: string };
   testInvoiceAccess: { ok: true; environment: string };
+  ensureCustomer: { customerId: string };
   listAccounts: { accounts: MercuryAccount[] };
   createInvoice: { invoice: MercuryInvoiceResponse };
   listRecipients: { recipients: MercuryRecipient[] };
+  createRecipient: { recipient: MercuryRecipient };
+  updateRecipient: { recipient: MercuryRecipient };
   sendMoney: { transaction: MercuryTransaction };
 };
 
@@ -76,6 +86,14 @@ export async function testMercuryInvoiceAccess(): Promise<{ ok: true; environmen
   return mercuryAction('testInvoiceAccess');
 }
 
+export async function ensureMercuryCustomer(input: {
+  name: string;
+  email: string;
+}): Promise<string> {
+  const result = await mercuryAction('ensureCustomer', input);
+  return result.customerId;
+}
+
 export async function listMercuryAccounts(): Promise<MercuryAccount[]> {
   const result = await mercuryAction('listAccounts');
   return result.accounts;
@@ -91,6 +109,21 @@ export async function createMercuryInvoice(
 export async function listMercuryRecipients(): Promise<MercuryRecipient[]> {
   const result = await mercuryAction('listRecipients');
   return result.recipients;
+}
+
+export async function createMercuryRecipient(
+  input: MercuryRecord,
+): Promise<MercuryRecipient> {
+  const result = await mercuryAction('createRecipient', input);
+  return result.recipient;
+}
+
+export async function updateMercuryRecipient(
+  recipientId: string,
+  input: MercuryRecord,
+): Promise<MercuryRecipient> {
+  const result = await mercuryAction('updateRecipient', { recipientId, input });
+  return result.recipient;
 }
 
 export async function sendMercuryMoney(

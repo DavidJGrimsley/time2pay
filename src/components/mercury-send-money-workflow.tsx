@@ -15,6 +15,7 @@ import {
   SendMoneyForm,
   type MercuryStatusTone,
 } from '@mrdj/mercury-ui';
+import { MercuryRecipientManager } from '@/components/mercury-recipient-manager';
 import { showActionErrorAlert } from '@/services/system-alert';
 
 type WorkflowStatus = {
@@ -104,6 +105,11 @@ export function MercurySendMoneyWorkflow() {
         onSubmit={handleSendMoney}
         busy={isSubmitting}
         status={status}
+      />
+      <MercuryRecipientManager
+        recipients={recipients}
+        busy={isLoading || isSubmitting}
+        onRecipientsChanged={refreshResources}
       />
     </View>
   );

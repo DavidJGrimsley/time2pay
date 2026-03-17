@@ -101,6 +101,9 @@ export type MercuryRecipient = {
   id?: string;
   name?: string;
   email?: string;
+  defaultPaymentMethod?: string | null;
+  paymentMethod?: string | null;
+  paymentMethods?: (string | MercuryRecord)[] | null;
   [key: string]: unknown;
 };
 
@@ -158,6 +161,7 @@ export type MercuryInvoiceResponse = {
 
 export type MercurySendMoneyInput = MercuryRecord & {
   idempotencyKey: string;
+  paymentMethod?: string;
 };
 
 export type MercuryTransferInput = MercuryRecord & {

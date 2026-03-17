@@ -2,7 +2,6 @@ import { Picker } from '@react-native-picker/picker';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, TextInput, useColorScheme, useWindowDimensions, View } from 'react-native';
 import {
-  createClient,
   createProject,
   createTask,
   initializeDatabase,
@@ -14,6 +13,7 @@ import {
   type Session,
   type Task,
 } from '@/database/db';
+import { createTime2PayClient } from '@/services/client-sync';
 import { CalendarDateField } from '@/components/calendar-date-field';
 import { GitHubCommitBadge } from '@/components/github-commit-badge';
 import { InlineNotice, type NoticeTone } from '@/components/inline-notice';
@@ -491,7 +491,15 @@ export function SessionList() {
     setEditError(null);
     const name = newEditClientName.trim();
     if (!name) {
-      const message = 'Client name is required.';
+      const message = 'Customer name is required.';
+      showValidationAlert(message);
+      setEditError(message);
+      return;
+    }
+
+    const email = newEditClientEmail.trim();
+    if (!email) {
+      const message = 'Customer email is required.';
       showValidationAlert(message);
       setEditError(message);
       return;
@@ -506,10 +514,10 @@ export function SessionList() {
     }
 
     const newId = createId('client');
-    await createClient({
+    await createTime2PayClient({
       id: newId,
       name,
-      email: newEditClientEmail.trim() ? newEditClientEmail.trim() : null,
+      email,
       hourly_rate: parsedRate,
       github_org: newEditClientGithubOrg.trim() ? newEditClientGithubOrg.trim() : null,
     });
@@ -527,7 +535,7 @@ export function SessionList() {
   async function handleCreateEditProject(): Promise<void> {
     setEditError(null);
     if (!editClientId) {
-      const message = 'Select a client before creating a project.';
+      const message = 'Select a customer before creating a project.';
       showValidationAlert(message);
       setEditError(message);
       return;
@@ -599,7 +607,7 @@ export function SessionList() {
     setEditError(null);
 
     if (!editClientId || !editProjectId || !editTaskId) {
-      const message = 'Client, project, and task are required.';
+      const message = 'Customer, project, and task are required.';
       showValidationAlert(message);
       setEditError(message);
       return;
@@ -654,7 +662,7 @@ export function SessionList() {
               hideLabel
               value={selectedClientFilterId}
               options={clients.map((client) => ({ id: client.id, label: client.name }))}
-              placeholder="All clients"
+              placeholder="All customers"
               onSelect={(value) => setSelectedClientFilterId(value)}
             />
           </View>
@@ -673,7 +681,7 @@ export function SessionList() {
           {!isLoading && groupedWeeks.length === 0 ? (
             <Text className="text-muted">
               {selectedClientFilterId
-                ? 'No sessions found for this client.'
+                ? 'No sessions found for this customer.'
                 : 'No sessions yet. Use Clock In on Dashboard.'}
             </Text>
           ) : null}
@@ -753,10 +761,10 @@ export function SessionList() {
             <ScrollView contentInsetAdjustmentBehavior="automatic">
               <View className="gap-3 pb-4">
                 <SelectField
-                  label="Client"
+                  label="Customer"
                   value={editClientId}
                   options={clients.map((client) => ({ id: client.id, label: client.name }))}
-                  placeholder="Select client"
+                  placeholder="Select customer"
                   createValue={CREATE_CLIENT_PICKER_VALUE}
                   onSelect={(value) => {
                     setEditClientId(value);
@@ -773,13 +781,13 @@ export function SessionList() {
                     <TextInput
                       value={newEditClientName}
                       onChangeText={setNewEditClientName}
-                      placeholder="Client name"
+                      placeholder="Customer name"
                       className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
                     />
                     <TextInput
                       value={newEditClientEmail}
                       onChangeText={setNewEditClientEmail}
-                      placeholder="Accounting email (optional)"
+                      placeholder="Customer email"
                       keyboardType="email-address"
                       className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
                     />
@@ -804,13 +812,13 @@ export function SessionList() {
                         onPress={() => {
                           handleCreateEditClient().catch((error: unknown) => {
                             const message =
-                              error instanceof Error ? error.message : 'Failed to create client.';
+                              error instanceof Error ? error.message : 'Failed to create customer.';
                             showActionErrorAlert(message);
                             setEditError(message);
                           });
                         }}
                       >
-                        <Text className="font-semibold text-white">Save Client</Text>
+                        <Text className="font-semibold text-white">Save Customer</Text>
                       </Pressable>
                       <Pressable
                         className="rounded-md border border-border px-3 py-2"

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { Pressable, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import {
   createMercuryIdempotencyKey,
   type MercuryAccount,
@@ -11,6 +11,56 @@ import { MercuryCard } from './mercury-card';
 import { MercuryStatusNotice, type MercuryStatusTone } from './mercury-status-notice';
 import { RecipientPicker } from './recipient-picker';
 import { mercuryUiTheme } from '../theme';
+
+function extractRecipientPaymentMethod(recipient: MercuryRecipient | null): string | null {
+  if (!recipient) {
+    return null;
+  }
+
+  const directCandidates = [recipient.paymentMethod, recipient.defaultPaymentMethod];
+  for (const candidate of directCandidates) {
+    if (typeof candidate === 'string' && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+
+  if (!Array.isArray(recipient.paymentMethods)) {
+    return null;
+  }
+
+  for (const method of recipient.paymentMethods) {
+    if (typeof method === 'string' && method.trim()) {
+      return method.trim();
+    }
+
+    if (!method || typeof method !== 'object' || Array.isArray(method)) {
+      continue;
+    }
+
+    const record = method as Record<string, unknown>;
+    const nestedCandidates = [record.paymentMethod, record.method, record.type];
+    for (const candidate of nestedCandidates) {
+      if (typeof candidate === 'string' && candidate.trim()) {
+        return candidate.trim();
+      }
+    }
+  }
+
+  return null;
+}
+
+function formatPaymentMethodLabel(value: string | null): string {
+  if (!value) {
+    return 'Unavailable';
+  }
+
+  return value
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
 
 type SendMoneyFormProps = {
   accounts: MercuryAccount[];
@@ -27,6 +77,8 @@ export function SendMoneyForm({
   busy = false,
   status,
 }: SendMoneyFormProps) {
+  const { width } = useWindowDimensions();
+  const compact = width < 980;
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(accounts[0]?.id ?? null);
   const [selectedRecipientId, setSelectedRecipientId] = useState<string | null>(recipients[0]?.id ?? null);
   const [amount, setAmount] = useState('0');
@@ -41,24 +93,38 @@ export function SendMoneyForm({
   }, [accounts, selectedAccountId]);
 
   useEffect(() => {
-    if (!selectedRecipientId && recipients[0]?.id) {
+    if (
+      (!selectedRecipientId || !recipients.some((recipient) => recipient.id === selectedRecipientId)) &&
+      recipients[0]?.id
+    ) {
       setSelectedRecipientId(recipients[0].id);
     }
   }, [recipients, selectedRecipientId]);
+
+  const selectedRecipient = useMemo(
+    () => recipients.find((recipient) => recipient.id === selectedRecipientId) ?? null,
+    [recipients, selectedRecipientId],
+  );
+  const paymentMethod = useMemo(
+    () => extractRecipientPaymentMethod(selectedRecipient),
+    [selectedRecipient],
+  );
 
   const payload = useMemo<MercurySendMoneyInput>(
     () => ({
       idempotencyKey,
       recipientId: selectedRecipientId ?? undefined,
+      paymentMethod: paymentMethod ?? undefined,
       amount: Number(amount) || 0,
       memo,
     }),
-    [amount, idempotencyKey, memo, selectedRecipientId],
+    [amount, idempotencyKey, memo, paymentMethod, selectedRecipientId],
   );
   const parsedAmount = Number(amount);
   const canSubmit = Boolean(
     selectedAccountId &&
       selectedRecipientId &&
+      paymentMethod &&
       Number.isFinite(parsedAmount) &&
       parsedAmount > 0 &&
       idempotencyKey.trim(),
@@ -81,12 +147,42 @@ export function SendMoneyForm({
         onSelect={setSelectedRecipientId}
       />
       <View style={{ gap: 8 }}>
+        <Text style={{ color: mercuryUiTheme.colors.text, fontWeight: '700' }}>Payment method</Text>
+        <View
+          style={{
+            borderWidth: 1,
+            borderColor: paymentMethod ? mercuryUiTheme.colors.border : '#f5c2c7',
+            borderRadius: 14,
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+            backgroundColor: paymentMethod ? mercuryUiTheme.colors.surface : '#fff5f5',
+          }}
+        >
+          <Text
+            style={{
+              color: paymentMethod ? mercuryUiTheme.colors.text : '#b42318',
+              fontWeight: '600',
+            }}
+          >
+            {paymentMethod
+              ? formatPaymentMethodLabel(paymentMethod)
+              : 'This recipient does not expose a usable Mercury payment method yet.'}
+          </Text>
+        </View>
+      </View>
+      <View style={{ gap: 8 }}>
         <Text style={{ color: mercuryUiTheme.colors.text, fontWeight: '700' }}>Amount</Text>
         <TextInput value={amount} onChangeText={setAmount} style={inputStyle} keyboardType="decimal-pad" />
       </View>
       <View style={{ gap: 8 }}>
         <Text style={{ color: mercuryUiTheme.colors.text, fontWeight: '700' }}>Memo</Text>
-        <TextInput value={memo} onChangeText={setMemo} style={inputStyle} />
+        <TextInput
+          value={memo}
+          onChangeText={setMemo}
+          style={memoInputStyle}
+          multiline
+          textAlignVertical="top"
+        />
       </View>
       <View style={{ gap: 8 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -131,9 +227,17 @@ export function SendMoneyForm({
         <TextInput value={idempotencyKey} onChangeText={setIdempotencyKey} style={inputStyle} autoCapitalize="none" />
         <Pressable
           onPress={() => setIdempotencyKey(createMercuryIdempotencyKey('send_money'))}
-          style={{ alignSelf: 'flex-start' }}
+          style={{ alignSelf: compact ? 'stretch' : 'flex-start' }}
         >
-          <Text style={{ color: mercuryUiTheme.colors.accent, fontWeight: '700' }}>Generate new key</Text>
+          <Text
+            style={{
+              color: mercuryUiTheme.colors.accent,
+              fontWeight: '700',
+              textAlign: compact ? 'center' : 'left',
+            }}
+          >
+            Generate new key
+          </Text>
         </Pressable>
       </View>
       {status ? <MercuryStatusNotice message={status.message} tone={status.tone} /> : null}
@@ -164,4 +268,9 @@ const inputStyle = {
   paddingVertical: 10,
   color: mercuryUiTheme.colors.text,
   backgroundColor: mercuryUiTheme.colors.surface,
+};
+
+const memoInputStyle = {
+  ...inputStyle,
+  minHeight: 88,
 };

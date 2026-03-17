@@ -88,6 +88,7 @@
 - [x] Use the presence of a mercury key ('check connection') to conditionally render a generic invoice builder (basically the one we've been using that lets you download a pdf) or the 'Time2PayMercuryInvoiceBuilder'
 - [x] Leave the Mercury invoice builder in the mercury package for other developers, it should now have 3 mercury invoice builders, a simple one with just a few options, the super complex one that we can see now, and the Time2PayMercuryInvoiceBuilder, which is a blend of the super complex one(leave all those features and brandin in!) and the generic one(built from session data)
 - [x] Add inline mapping from session/task groups to editable Mercury line items before submit
+- [x] Best-effort sync Time2Pay client creation to Mercury AR customer creation when email + invoicing access are available
 - [ ] Add recipient creation/edit flow from inside app (instead of Mercury dashboard-only)
 - [ ] Add explicit AR beta warnings and guardrails in UI for risky actions
 - [ ] Add mobile-first polish pass for all Mercury forms (spacing, keyboard, overflow, focus states)
@@ -114,8 +115,8 @@ Client = GH Organization
 Project = GH Repo
 Task = GH Branch
 Notes = GH Commit message)
-- [ ] Multi-user support
-- [ ] Cloud-hosted option
+- [ ] Multi-user support - supabase db has been created so we can refine our schemas, generate and migrate(drizzle)
+- [ ] Cloud-hosted option (immediately after supabase setup) - host on my vps for other users to use - time2pay.app is the url
 - [ ] Accounting integrations
 - [ ] Automated invoice reminders
 - [ ] Financial dashboards

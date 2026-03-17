@@ -37,4 +37,25 @@ describe('createMercuryClient', () => {
 
     expect(() => client.sendMoney.send('acc_1', { idempotencyKey: '' })).toThrow(MercuryValidationError);
   });
+
+  it('updates recipients via POST', async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ recipient: { id: 'recipient_1' } }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    const client = createMercuryClient({
+      apiKey: 'token',
+      fetch: fetchMock,
+    });
+
+    await client.recipients.update('recipient_1', { nickname: 'Updated Nickname' });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/recipient/recipient_1'),
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
 });

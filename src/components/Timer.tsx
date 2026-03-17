@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, Text, TextInput, useColorScheme, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeInDown, FadeOutUp, LinearTransition } from 'react-native-reanimated';
 import {
-  createClient,
   createProject,
   createTask,
   initializeDatabase,
@@ -17,6 +16,7 @@ import {
   type Session,
   type Task,
 } from '@/database/db';
+import { createTime2PayClient } from '@/services/client-sync';
 import {
   createRuntimeManualSession,
   getRuntimeSessionState,
@@ -759,7 +759,13 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
 
     const name = newClientName.trim();
     if (!name) {
-      showValidationMessage('Client name is required.');
+      showValidationMessage('Customer name is required.');
+      return;
+    }
+
+    const email = newClientEmail.trim();
+    if (!email) {
+      showValidationMessage('Customer email is required.');
       return;
     }
 
@@ -771,10 +777,10 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
 
     try {
       const newId = createId('client');
-      await createClient({
+      const result = await createTime2PayClient({
         id: newId,
         name,
-        email: newClientEmail.trim() ? newClientEmail.trim() : null,
+        email,
         hourly_rate: parsedRate,
         github_org: newClientGithubOrg.trim() ? newClientGithubOrg.trim() : null,
       });
@@ -786,9 +792,15 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
       setNewClientEmail('');
       setNewClientRate('');
       setNewClientGithubOrg('');
-      showSuccessMessage('Client created successfully.');
+      showSuccessMessage(
+        result.mercurySyncStatus === 'synced'
+          ? 'Customer created and synced to Mercury successfully.'
+          : result.mercurySyncStatus === 'deferred'
+            ? `Customer created locally. Mercury customer sync is deferred for now.${result.mercuryMessage ? ` ${result.mercuryMessage}` : ''}`
+            : 'Customer created successfully.',
+      );
     } catch (error: unknown) {
-      showActionErrorMessage(error instanceof Error ? error.message : 'Failed to create client.');
+      showActionErrorMessage(error instanceof Error ? error.message : 'Failed to create customer.');
     }
   }
 
@@ -800,7 +812,7 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
     }
 
     if (!selectedClientId) {
-      showValidationMessage('Select a client before creating a project.');
+      showValidationMessage('Select a customer before creating a project.');
       return;
     }
 
@@ -877,7 +889,7 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
     }
 
     if (!selectedClient || !selectedProject || !selectedTask) {
-      showValidationMessage('Select a client, project, and task before clocking in.');
+      showValidationMessage('Select a customer, project, and task before clocking in.');
       return;
     }
 
@@ -960,7 +972,7 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
     }
 
     if (!selectedClient || !selectedProject || !selectedTask) {
-      showValidationMessage('Select a client, project, and task before creating a manual session.');
+      showValidationMessage('Select a customer, project, and task before creating a manual session.');
       return;
     }
 
@@ -1134,10 +1146,10 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
       >
         <Animated.View className="gap-3" layout={smoothLayout} style={isLargeScreen ? { flex: 1 } : undefined}>
           <PickerField
-            label="Client"
+            label="Customer"
             value={selectedClientId}
             options={clients.map((client) => ({ id: client.id, label: client.name }))}
-            placeholder="Select client"
+            placeholder="Select customer"
             createValue={CREATE_CLIENT_PICKER_VALUE}
             large={isLargeScreen}
             disabled={isClockedIn || isLoading || isInteractionLocked}
@@ -1170,13 +1182,13 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
           <TextInput
             value={newClientName}
             onChangeText={setNewClientName}
-            placeholder="Client name"
+            placeholder="Customer name"
             className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
           />
           <TextInput
             value={newClientEmail}
             onChangeText={setNewClientEmail}
-            placeholder="Accounting email (optional)"
+            placeholder="Customer email"
             keyboardType="email-address"
             className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
           />
@@ -1197,7 +1209,7 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
           />
           <View className="flex-row gap-2">
             <Pressable className="rounded-md bg-secondary px-3 py-2" onPress={() => handleCreateClient()}>
-              <Text className="font-semibold text-white">Save Client</Text>
+              <Text className="font-semibold text-white">Save Customer</Text>
             </Pressable>
             <Pressable
               className="rounded-md border border-border px-3 py-2"
@@ -1445,10 +1457,10 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
           layout={smoothLayout}
         >
           <PickerField
-            label="Client"
+            label="Customer"
             value={selectedClientId}
             options={clients.map((client) => ({ id: client.id, label: client.name }))}
-            placeholder="Select client"
+            placeholder="Select customer"
             createValue={CREATE_CLIENT_PICKER_VALUE}
             large={isLargeScreen}
             disabled={isInteractionLocked}

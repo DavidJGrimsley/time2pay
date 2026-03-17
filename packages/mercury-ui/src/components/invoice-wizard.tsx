@@ -308,7 +308,13 @@ export function InvoiceWizard({
 
       <View style={{ gap: 8 }}>
         <Text style={labelStyle}>Description</Text>
-        <TextInput value={description} onChangeText={setDescription} style={inputStyle} />
+        <TextInput
+          value={description}
+          onChangeText={setDescription}
+          style={descriptionInputStyle}
+          multiline
+          textAlignVertical="top"
+        />
       </View>
 
       <View style={{ flexDirection: useCompactLayout ? 'column' : 'row', gap: 8 }}>
@@ -389,7 +395,7 @@ export function InvoiceWizard({
 
       <View style={{ gap: 8 }}>
         <Text style={labelStyle}>Send email option</Text>
-        <View style={{ flexDirection: 'row', gap: 8 }}>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
           {(['SendNow', 'DontSend'] as const).map((option) => {
             const active = sendEmailOption === option;
             const optionLabel = option === 'SendNow' ? 'Send now' : 'Do not send';
@@ -634,4 +640,9 @@ const inputStyle = {
   paddingVertical: 10,
   color: mercuryUiTheme.colors.text,
   backgroundColor: mercuryUiTheme.colors.surface,
+};
+
+const descriptionInputStyle = {
+  ...inputStyle,
+  minHeight: 88,
 };

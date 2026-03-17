@@ -14,9 +14,12 @@ import {
 type MercuryActionRequest =
   | { action: 'testConnection' }
   | { action: 'testInvoiceAccess' }
+  | { action: 'ensureCustomer'; payload: { name: string; email: string } }
   | { action: 'listAccounts' }
   | { action: 'createInvoice'; payload: MercuryInvoicePayload }
   | { action: 'listRecipients' }
+  | { action: 'createRecipient'; payload: Record<string, unknown> }
+  | { action: 'updateRecipient'; payload: { recipientId: string; input: Record<string, unknown> } }
   | { action: 'sendMoney'; payload: { accountId: string; input: MercurySendMoneyInput } };
 
 function getMercuryClient(): MercuryClient {
@@ -135,6 +138,60 @@ async function listRecipients(client: MercuryClient): Promise<Response> {
   return Response.json({ recipients: result.items as MercuryRecipient[] });
 }
 
+async function createRecipient(
+  client: MercuryClient,
+  payload: Record<string, unknown>,
+): Promise<Response> {
+  const recipient = await client.recipients.create(payload);
+  return Response.json({ recipient: recipient as MercuryRecipient });
+}
+
+async function updateRecipient(
+  client: MercuryClient,
+  payload: { recipientId: string; input: Record<string, unknown> },
+): Promise<Response> {
+  if (!payload.recipientId?.trim()) {
+    throw new Error('Recipient ID is required.');
+  }
+
+  const recipient = await client.recipients.update(payload.recipientId.trim(), payload.input);
+  return Response.json({ recipient: recipient as MercuryRecipient });
+}
+
+function extractRecipientPaymentMethod(recipient: MercuryRecipient | Record<string, unknown>): string | null {
+  const directCandidates = [recipient.paymentMethod, recipient.defaultPaymentMethod];
+  for (const candidate of directCandidates) {
+    if (typeof candidate === 'string' && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+
+  const paymentMethods = recipient.paymentMethods;
+  if (!Array.isArray(paymentMethods)) {
+    return null;
+  }
+
+  for (const method of paymentMethods) {
+    if (typeof method === 'string' && method.trim()) {
+      return method.trim();
+    }
+
+    if (!method || typeof method !== 'object' || Array.isArray(method)) {
+      continue;
+    }
+
+    const record = method as Record<string, unknown>;
+    const nestedCandidates = [record.paymentMethod, record.method, record.type];
+    for (const candidate of nestedCandidates) {
+      if (typeof candidate === 'string' && candidate.trim()) {
+        return candidate.trim();
+      }
+    }
+  }
+
+  return null;
+}
+
 async function sendMoney(
   client: MercuryClient,
   payload: { accountId: string; input: MercurySendMoneyInput },
@@ -143,7 +200,37 @@ async function sendMoney(
     throw new Error('Account ID is required to send money.');
   }
 
-  const transaction = await client.sendMoney.send(payload.accountId.trim(), payload.input);
+  const input = { ...payload.input };
+  const existingPaymentMethod =
+    typeof input.paymentMethod === 'string' && input.paymentMethod.trim()
+      ? input.paymentMethod.trim()
+      : null;
+
+  if (!existingPaymentMethod) {
+    const recipientId =
+      typeof input.recipientId === 'string' && input.recipientId.trim()
+        ? input.recipientId.trim()
+        : null;
+
+    if (!recipientId) {
+      throw new Error('Recipient and payment method are required to send money.');
+    }
+
+    const recipient = await client.recipients.get(recipientId);
+    const resolvedPaymentMethod = extractRecipientPaymentMethod(
+      recipient as MercuryRecipient | Record<string, unknown>,
+    );
+
+    if (!resolvedPaymentMethod) {
+      throw new Error(
+        'Mercury did not provide a usable payment method for this recipient. Pick or update a recipient with a supported payment method first.',
+      );
+    }
+
+    input.paymentMethod = resolvedPaymentMethod;
+  }
+
+  const transaction = await client.sendMoney.send(payload.accountId.trim(), input);
   return Response.json({ transaction: transaction as MercuryTransaction });
 }
 
@@ -157,6 +244,26 @@ async function testInvoiceAccess(client: MercuryClient): Promise<Response> {
   await client.ar.invoices.list({ limit: 1 });
   const environment = process.env.MERCURY_ENVIRONMENT?.trim() || 'production';
   return Response.json({ ok: true, environment });
+}
+
+async function ensureCustomer(
+  client: MercuryClient,
+  payload: { name: string; email: string },
+): Promise<Response> {
+  if (!payload.name?.trim()) {
+    throw new Error('Customer name is required.');
+  }
+
+  if (!payload.email?.trim()) {
+    throw new Error('Customer email is required.');
+  }
+
+  const customerId = await client.ar.customers.ensureCustomer({
+    name: payload.name.trim(),
+    email: payload.email.trim(),
+  });
+
+  return Response.json({ customerId });
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -179,12 +286,18 @@ export async function POST(request: Request): Promise<Response> {
         return await testConnection(client);
       case 'testInvoiceAccess':
         return await testInvoiceAccess(client);
+      case 'ensureCustomer':
+        return await ensureCustomer(client, payload.payload);
       case 'listAccounts':
         return await listAccounts(client);
       case 'createInvoice':
         return await createInvoice(client, payload.payload);
       case 'listRecipients':
         return await listRecipients(client);
+      case 'createRecipient':
+        return await createRecipient(client, payload.payload);
+      case 'updateRecipient':
+        return await updateRecipient(client, payload.payload);
       case 'sendMoney':
         return await sendMoney(client, payload.payload);
       default:

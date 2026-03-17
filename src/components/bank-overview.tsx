@@ -6,6 +6,7 @@ import {
   MercuryStatusNotice,
   type MercuryStatusTone,
 } from '@mrdj/mercury-ui';
+import { MercuryCustomerContactPanel } from '@/components/mercury-customer-contact-panel';
 import { listMercuryAccounts } from '@/services/mercury';
 
 type RecordValue = Record<string, unknown>;
@@ -79,6 +80,7 @@ export function BankOverview() {
   const balances = asRecord(checkingAccount?.balances ?? null);
   const available = balances?.available ?? balances?.availableBalance ?? checkingAccount?.availableBalance;
   const current = balances?.current ?? balances?.currentBalance ?? checkingAccount?.currentBalance;
+  const showCustomerContact = loading || accounts.length > 0 || status.tone !== 'error';
 
   return (
     <View className="gap-3">
@@ -132,6 +134,8 @@ export function BankOverview() {
               </View>
             )}
           </View>
+
+          <MercuryCustomerContactPanel visible={showCustomerContact} />
         </View>
       </View>
     </View>

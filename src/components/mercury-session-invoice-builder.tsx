@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Pressable, Text, View } from 'react-native';
 import type { InvoiceWizardStatus } from '@mrdj/mercury-ui';
 import { Time2PayMercuryInvoiceBuilder } from '@mrdj/mercury-ui';
 import {
@@ -57,6 +58,7 @@ export function MercurySessionInvoiceBuilder({
   >({});
   const [accounts, setAccounts] = useState<MercuryAccount[]>([]);
   const [isCreatingInvoice, setIsCreatingInvoice] = useState(false);
+  const [hasAcknowledgedBeta, setHasAcknowledgedBeta] = useState(false);
   const [builderStatus, setBuilderStatus] = useState<InvoiceWizardStatus>({
     message: 'Loading Mercury accounts and session data...',
     tone: 'neutral',
@@ -249,6 +251,14 @@ export function MercurySessionInvoiceBuilder({
   }, [selectedSessionIds]);
 
   async function handleCreateInvoice(payload: MercuryInvoicePayload): Promise<void> {
+    if (!hasAcknowledgedBeta) {
+      const message =
+        'Review the Mercury AR beta warning and confirm before creating a Mercury invoice.';
+      showValidationAlert(message);
+      setBuilderStatus({ message, tone: 'error' });
+      return;
+    }
+
     if (!selectedClient || selectedWeeks.length === 0 || !preview) {
       const message = 'Select a client and at least one week with uninvoiced sessions.';
       showValidationAlert(message);
@@ -333,6 +343,56 @@ export function MercurySessionInvoiceBuilder({
       onSubmit={handleCreateInvoice}
       busy={isCreatingInvoice}
       status={builderStatus}
+      footer={
+        <View
+          style={{
+            gap: 10,
+            borderWidth: 1,
+            borderColor: '#d4b568',
+            borderRadius: 14,
+            backgroundColor: '#fff8e6',
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+          }}
+        >
+          <Text style={{ color: '#6b4e00', fontWeight: '700' }}>
+            Mercury AR beta guardrails
+          </Text>
+          <Text style={{ color: '#6b4e00', fontSize: 12, lineHeight: 18 }}>
+            Mercury invoicing is still beta. Review destination account, service period, line items,
+            and send-email option before submitting. A local Time2Pay invoice may still be created
+            even if Mercury sync fails.
+          </Text>
+          <Pressable
+            onPress={() => setHasAcknowledgedBeta((value) => !value)}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <View
+              style={{
+                width: 18,
+                height: 18,
+                borderRadius: 4,
+                borderWidth: 1,
+                borderColor: '#6b4e00',
+                backgroundColor: hasAcknowledgedBeta ? '#6b4e00' : '#ffffff',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {hasAcknowledgedBeta ? (
+                <Text style={{ color: '#ffffff', fontSize: 11, fontWeight: '800' }}>✓</Text>
+              ) : null}
+            </View>
+            <Text style={{ color: '#6b4e00', fontSize: 12, fontWeight: '700' }}>
+              I understand the Mercury invoice flow is beta and requires careful review.
+            </Text>
+          </Pressable>
+        </View>
+      }
       sourceChildren={
         <SessionInvoiceSourcePanel
           clients={clients}

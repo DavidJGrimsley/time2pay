@@ -22,7 +22,7 @@ export function createRecipientsResource(transport: MercuryTransport) {
     },
     update(recipientId: string, input: MercuryRecord) {
       return transport.requestJson<MercuryRecipient>(`/recipient/${encodeURIComponent(recipientId)}`, {
-        method: 'PATCH',
+        method: 'POST',
         body: input,
       });
     },

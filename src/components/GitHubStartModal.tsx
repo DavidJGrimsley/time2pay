@@ -2,7 +2,6 @@ import { Picker } from '@react-native-picker/picker';
 import { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, TextInput, useColorScheme, View } from 'react-native';
 import {
-  createClient,
   createProject,
   createTask,
   getUserProfile,
@@ -14,6 +13,7 @@ import {
   type Project,
   type Task,
 } from '@/database/db';
+import { createTime2PayClient } from '@/services/client-sync';
 import { InlineNotice, type NoticeTone } from '@/components/inline-notice';
 import {
   inferBranchFromCommit,
@@ -92,6 +92,7 @@ export function GitHubStartModal({ visible, onClose, onComplete }: GitHubStartMo
   const [candidateTasks, setCandidateTasks] = useState<Task[]>([]);
 
   const [clientName, setClientName] = useState('');
+  const [clientEmail, setClientEmail] = useState('');
   const [clientRate, setClientRate] = useState('');
   const [clientGithubOrg, setClientGithubOrg] = useState('');
 
@@ -171,6 +172,7 @@ export function GitHubStartModal({ visible, onClose, onComplete }: GitHubStartMo
     setIsLoadingRepos(false);
     setIsLoadingBranches(false);
     setClientName('');
+    setClientEmail('');
     setClientRate('');
     setClientGithubOrg('');
     setProjectName('');
@@ -383,7 +385,14 @@ export function GitHubStartModal({ visible, onClose, onComplete }: GitHubStartMo
 
       if (!matchedClient) {
         if (!clientName.trim()) {
-          const message = 'Client name is required when creating a new client.';
+          const message = 'Customer name is required when creating a new customer.';
+          showValidationAlert(message);
+          setStatus({ tone: 'error', message });
+          return false;
+        }
+
+        if (!clientEmail.trim()) {
+          const message = 'Customer email is required when creating a new customer.';
           showValidationAlert(message);
           setStatus({ tone: 'error', message });
           return false;
@@ -391,7 +400,7 @@ export function GitHubStartModal({ visible, onClose, onComplete }: GitHubStartMo
 
         const parsedRate = Number(clientRate.trim());
         if (!Number.isFinite(parsedRate) || parsedRate < 0) {
-          const message = 'Client hourly rate must be a non-negative number.';
+          const message = 'Customer hourly rate must be a non-negative number.';
           showValidationAlert(message);
           setStatus({ tone: 'error', message });
           return false;
@@ -456,9 +465,10 @@ export function GitHubStartModal({ visible, onClose, onComplete }: GitHubStartMo
       let resolvedClientId = matchedClient?.id ?? null;
       if (!resolvedClientId) {
         resolvedClientId = createId('client');
-        await createClient({
+        await createTime2PayClient({
           id: resolvedClientId,
           name: clientName.trim(),
+          email: clientEmail.trim(),
           hourly_rate: Number(clientRate.trim()),
           github_org: clientGithubOrg.trim() || null,
         });
@@ -519,11 +529,11 @@ export function GitHubStartModal({ visible, onClose, onComplete }: GitHubStartMo
   function renderStep1() {
     return (
       <View className="gap-2">
-        <Text className="text-xs uppercase tracking-wide text-muted">Step 1 - Client</Text>
+        <Text className="text-xs uppercase tracking-wide text-muted">Step 1 - Customer</Text>
         {matchedClient ? (
           <InlineNotice
             tone="success"
-            message={`Using existing client "${matchedClient.name}" for org "${clientGithubOrg}".`}
+            message={`Using existing customer "${matchedClient.name}" for org "${clientGithubOrg}".`}
           />
         ) : null}
         <TextInput
@@ -537,7 +547,14 @@ export function GitHubStartModal({ visible, onClose, onComplete }: GitHubStartMo
         <TextInput
           value={clientName}
           onChangeText={setClientName}
-          placeholder="Client name"
+          placeholder="Customer name"
+          className="rounded-md border border-border bg-background px-3 py-2 text-foreground"
+        />
+        <TextInput
+          value={clientEmail}
+          onChangeText={setClientEmail}
+          placeholder="Customer email"
+          keyboardType="email-address"
           className="rounded-md border border-border bg-background px-3 py-2 text-foreground"
         />
         <TextInput
@@ -684,7 +701,7 @@ export function GitHubStartModal({ visible, onClose, onComplete }: GitHubStartMo
             <ScrollView showsVerticalScrollIndicator={false}>
             <Text className="text-xl font-bold text-heading">Start from GitHub</Text>
             <Text className="mt-1 text-sm text-muted">
-              Paste a GitHub link to auto-create a client, project, and task from your repo.
+              Paste a GitHub link to auto-create a customer, project, and task from your repo.
             </Text>
 
             <View className="mt-4 gap-2 rounded-md border border-border bg-background p-3">
