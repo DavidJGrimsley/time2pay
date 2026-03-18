@@ -629,7 +629,8 @@ export function ProfileOverview() {
       <View className="gap-3 rounded-xl bg-card p-4">
         <Text className="text-xl font-bold text-heading">Data Backup</Text>
         <Text className="text-sm text-muted">
-          Export your local data to a JSON file and import it later if you move to a new port or browser origin.
+          Export your local data to JSON and import it later. In hosted mode, import restores this
+          snapshot into your signed-in account.
         </Text>
 
         <View className="flex-row items-center justify-between rounded-md border border-border bg-background px-3 py-2">

@@ -58,7 +58,8 @@ Notes = GH Commit message)
   - [x] Add milestone CRUD (create/edit/delete/reorder), completion modes (toggle/checklist), and completion invoice flow
   - [x] Add milestone invoice draft pipeline (optional session attachments + optional Mercury mirror creation)
   - [x] Persist project/client selection and include project-pricing/milestone metadata in history/PDF/backup paths
-```Initial Invoice: 50% of total project fee due upon signing this Agreement.
+```
+Initial Invoice: 50% of total project fee due upon signing this Agreement.
 Milestone Payments:
 10% due upon approval of Landing and homepage design.
 10% due upon Core Prototype completed.
