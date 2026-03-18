@@ -379,7 +379,7 @@ export function buildMercurySessionLineItems(
 
       return {
         name: truncateText(nameParts.join(' | '), 240),
-        quantity: toMoney(session.hours),
+        quantity: session.hours,
         unitPrice: toMoney(hourlyRate),
       };
     });
