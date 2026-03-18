@@ -40,73 +40,10 @@
 - [x] Export & import user data including all profile, clients, time tracked, etc.
 - [x] Refine github integration - when adding the commit message to the notes, there is no indication that this comes from github or is associated with a commit or anything. I want the whoever looks at the invoice to be able to click a link for each project that takes them to the github commit for that session. the task being the branch name means this could be autofilled for the user. the user should be able to start create a client, project, and task, all from one github link. this should be a separate button on the dashboard maybe so the user can see a modal open that explains the flow. let's also explore sign in with github options but idk if that can be done self-hosted.
 - [x] Make a landing page that explains how the app works and that it's best if you have mercury banking with at least their 'Plus' plan to take advantage of the invoicing but that there is still some mercury functionality either way. Formatting: if the page were split into thirds, it should have our logo really big centered on the left third, and a big display font title of our app and caption, then the user will scroll to see the rest of how the app works, then they will see the let's get started button at the bottom. It shouldn't be very long, like 3 pages (of full width content, please use responsive styling so it would be of course longer on smaller screens.)
-
 ## Mercury Integration
-- [x] Incubate Mercury work inside this `time2pay` branch using npm workspaces
-- [x] Create `@mrdj/mercury` package scaffold in `packages/mercury`
-- [x] Create `@mrdj/mercury-ui` package scaffold in `packages/mercury-ui`
-- [x] Add workspace scripts for Mercury build/typecheck/test at repo root
-
-### Mercury SDK (`@mrdj/mercury`) - Completed
-- [x] Implement `createMercuryClient(config)` with environment/baseUrl/fetch/retry/logger options
-- [x] Implement resource groups: `accounts`, `transactions`, `recipients`, `sendMoney`, `transfers`, `ar.customers`, `ar.invoices`, `webhooks`
-- [x] Add typed errors and request safety wrappers
-- [x] Add idempotency key helpers and enforce keys for money movement methods
-- [x] Add utilities from app logic: date validation, line-item building, best checking account selection
-- [x] Add unit tests for client, pagination, utils, and webhook parsing/signature
-- [x] Add sandbox contract-test suite scaffold with opt-in env flags
-
-### Mercury UI (`@mrdj/mercury-ui`) - Completed
-- [x] Add primitives/components: logo, badge, card, status notice, account select, recipient picker
-- [x] Add workflow components: `InvoiceWizard` and `SendMoneyForm`
-- [x] Add idempotency help tooltip (`i` hover/tap) in Send Money form
-- [x] Add empty-state messaging when no recipients are available
-- [x] Expand invoice wizard to maximal controls:
-- [x] customer + routing fields
-- [x] amount/currency
-- [x] invoice and due dates
-- [x] send-email option
-- [x] ACH/card/real-account toggles
-- [x] CC emails
-- [x] structured line items with add/remove and validation
-- [x] Fix responsive overflow issues in wizard layouts for smaller widths
-
-### App Integration - Completed
-- [x] Wire Mercury proxy actions in `src/app/api/mercury+api.ts`
-- [x] Replace app-side Mercury calls to use workspace packages
-- [x] Add `Payments` route and tab
-- [x] Add `MercurySendMoneyWorkflow` screen integration
-- [x] Add `MercuryInvoiceWorkflow` on invoices page
-- [x] Keep legacy `InvoiceBuilder` active during incubation
-- [x] Update bank page to Mercury-styled card and remove manual refresh button
-
-
-### App Integration - Next
-- [x] Handle legacy `InvoiceBuilder` and Mercury advanced wizard into a single unified invoice creation flow (specification in the next few todo items)
-- [x] Create 'Time2PayMercuryInvoiceBuilder' which is branded with Mercury like the mercury invoice builder but has the functionality of our invoice builder (made from sessions - like our generic invoice builder)
-- [x] Strip mercury integration from our generic invoice builder.
-- [x] Use the presence of a mercury key ('check connection') to conditionally render a generic invoice builder (basically the one we've been using that lets you download a pdf) or the 'Time2PayMercuryInvoiceBuilder'
-- [x] Leave the Mercury invoice builder in the mercury package for other developers, it should now have 3 mercury invoice builders, a simple one with just a few options, the super complex one that we can see now, and the Time2PayMercuryInvoiceBuilder, which is a blend of the super complex one(leave all those features and brandin in!) and the generic one(built from session data)
-- [x] Add inline mapping from session/task groups to editable Mercury line items before submit
-- [x] Best-effort sync Time2Pay client creation to Mercury AR customer creation when email + invoicing access are available
-- [ ] Add recipient creation/edit flow from inside app (instead of Mercury dashboard-only)
-- [ ] Add explicit AR beta warnings and guardrails in UI for risky actions
-- [ ] Add mobile-first polish pass for all Mercury forms (spacing, keyboard, overflow, focus states)
-
-### Testing and Reliability - Next
-- [ ] Run live Mercury sandbox contract tests with real sandbox credentials and fixtures
-- [ ] Add CI job for workspace typecheck/lint/tests + optional contract-test gate
-- [ ] Add integration tests for `/api/mercury` action handlers
-- [ ] Add smoke tests for Payments and Invoices routes on web
-
-### Extraction Readiness - Next
-- [ ] Add Changesets entries and versioning policy for `@mrdj/mercury` and `@mrdj/mercury-ui`
-- [ ] Freeze public APIs and document migration guarantees
-- [ ] Extract `packages/mercury` and `packages/mercury-ui` to standalone repo when app integration is stable
-- [ ] Swap app from workspace `file:` deps to published npm deps without redesign
-
-### Future Exploration
-- [ ] Evaluate Sign in with Mercury (OAuth/partnership requirements and feasibility)
+- [x] Incubate Mercury SDK/UI package work in this branch and publish it on npm
+- [x] Switch the app from local Mercury workspaces to published `@mr.dj2u/*` packages
+- [x] Move the package roadmap and release/versioning backlog to `f:\ReactNativeApps\mercury-bank-sdk\project\todo.md`
 
 
 ## Longer-Term
@@ -115,6 +52,14 @@ Client = GH Organization
 Project = GH Repo
 Task = GH Branch
 Notes = GH Commit message)
+- [ ] Add support for project-based pricing where a project is created, and we can clock in and track our time, but also the project has milestones that we create such as what's below. This should let us send these invoices at certain milestones. Maybe the milestone is a checklist or something and we mark it as complete and then it creates an invoice for us to review... something like that.
+```Initial Invoice: 50% of total project fee due upon signing this Agreement.
+Milestone Payments:
+10% due upon approval of Landing and homepage design.
+10% due upon Core Prototype completed.
+10% due upon LTI Integration completed
+20% due upon launch of the website/app.```
+
 - [ ] Multi-user support - supabase db has been created so we can refine our schemas, generate and migrate(drizzle)
 - [ ] Cloud-hosted option (immediately after supabase setup) - host on my vps for other users to use - time2pay.app is the url
 - [ ] Accounting integrations

@@ -1,8 +1,0 @@
-{
-  "id": "evt_contract_invoice_created_001",
-  "type": "invoice.created",
-  "data": {
-    "invoiceId": "inv_contract_001",
-    "status": "issued"
-  }
-}

@@ -9,7 +9,7 @@ import {
   type MercuryRecipient,
   type MercurySendMoneyInput,
   type MercuryTransaction,
-} from '@mrdj/mercury';
+} from '@mr.dj2u/mercury';
 
 type MercuryActionRequest =
   | { action: 'testConnection' }
@@ -309,3 +309,4 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ error: message }, { status: 502 });
   }
 }
+

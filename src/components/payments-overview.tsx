@@ -1,5 +1,7 @@
 import { Text, useWindowDimensions, View } from 'react-native';
-import { MercurySendMoneyWorkflow } from './mercury-send-money-workflow';
+import { MercurySendMoneyWorkflow } from '@mr.dj2u/mercury-ui';
+import { mercuryUiAdapter } from '@/services/mercury-ui-adapters';
+import { showActionErrorAlert } from '@/services/system-alert';
 
 export function PaymentsOverview() {
   const { width } = useWindowDimensions();
@@ -19,7 +21,7 @@ export function PaymentsOverview() {
       </Text>
       <View className="items-center">
         <View className="w-full gap-3" style={contentWidthStyle}>
-          <MercurySendMoneyWorkflow />
+          <MercurySendMoneyWorkflow adapter={mercuryUiAdapter} onError={showActionErrorAlert} />
         </View>
       </View>
     </View>

@@ -6,7 +6,7 @@ import type {
   MercuryRecord,
   MercurySendMoneyInput,
   MercuryTransaction,
-} from '@mrdj/mercury';
+} from '@mr.dj2u/mercury';
 
 export type MercuryConfig = {
   proxyPath: string;
@@ -143,4 +143,5 @@ export type {
   MercurySendMoneyInput,
   MercurySendEmailOption,
   MercuryTransaction,
-} from '@mrdj/mercury';
+} from '@mr.dj2u/mercury';
+

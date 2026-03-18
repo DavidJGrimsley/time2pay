@@ -13,7 +13,7 @@ const buildMercuryLineItemsMock = vi.fn((payload) => payload.lineItems ?? []);
 const findBestCheckingAccountMock = vi.fn(() => ({ id: 'account_best' }));
 const toDayStringMock = vi.fn((input: string) => input.slice(0, 10));
 
-vi.mock('@mrdj/mercury', () => ({
+vi.mock('@mr.dj2u/mercury', () => ({
   buildMercuryLineItems: buildMercuryLineItemsMock,
   createMercuryClient: vi.fn(() => ({
     accounts: { list: accountsListMock },

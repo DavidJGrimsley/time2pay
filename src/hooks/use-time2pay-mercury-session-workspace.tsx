@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
-import type { InvoiceWizardStatus } from '@mrdj/mercury-ui';
-import { Time2PayMercuryInvoiceBuilder } from '@mrdj/mercury-ui';
+import type {
+  InvoiceWizardStatus,
+  MercurySessionInvoiceAdapter,
+} from '@mr.dj2u/mercury-ui';
 import {
   initializeDatabase,
   listClients,
@@ -21,19 +23,15 @@ import {
   type InvoiceComputation,
 } from '@/services/invoice';
 import {
-  listMercuryAccounts,
-  type MercuryAccount,
-  type MercuryInvoicePayload,
-} from '@/services/mercury';
-import {
   SessionInvoiceSourcePanel,
   buildGroupedLineItems,
   buildWeekOptionsForClient,
   type WeekOption,
 } from '@/components/session-invoice-source-panel';
+import type { MercuryInvoicePayload } from '@/services/mercury';
 import { showActionErrorAlert, showValidationAlert } from '@/services/system-alert';
 
-type MercurySessionInvoiceBuilderProps = {
+type UseTime2PayMercurySessionWorkspaceOptions = {
   onInvoiceCreated?: () => void;
 };
 
@@ -46,9 +44,9 @@ function toDayInputValue(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
-export function MercurySessionInvoiceBuilder({
+export function useTime2PayMercurySessionWorkspace({
   onInvoiceCreated,
-}: MercurySessionInvoiceBuilderProps) {
+}: UseTime2PayMercurySessionWorkspaceOptions): MercurySessionInvoiceAdapter {
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [weekOptions, setWeekOptions] = useState<WeekOption[]>([]);
@@ -56,11 +54,10 @@ export function MercurySessionInvoiceBuilder({
   const [previewBreaksBySessionId, setPreviewBreaksBySessionId] = useState<
     Record<string, SessionBreak[]>
   >({});
-  const [accounts, setAccounts] = useState<MercuryAccount[]>([]);
   const [isCreatingInvoice, setIsCreatingInvoice] = useState(false);
   const [hasAcknowledgedBeta, setHasAcknowledgedBeta] = useState(false);
   const [builderStatus, setBuilderStatus] = useState<InvoiceWizardStatus>({
-    message: 'Loading Mercury accounts and session data...',
+    message: 'Loading Time2Pay session data...',
     tone: 'neutral',
   });
 
@@ -201,20 +198,9 @@ export function MercurySessionInvoiceBuilder({
     });
   }
 
-  async function refreshAccounts(): Promise<void> {
-    const rows = await listMercuryAccounts();
-    setAccounts(rows);
-    setBuilderStatus({
-      message:
-        rows.length > 0
-          ? `Mercury connected. Loaded ${rows.length} account(s) for invoice routing.`
-          : 'Mercury connected, but no destination accounts were returned.',
-      tone: rows.length > 0 ? 'success' : 'error',
-    });
-  }
-
   useEffect(() => {
-    Promise.all([initializeDatabase().then(() => refreshClients()), refreshAccounts()])
+    initializeDatabase()
+      .then(() => refreshClients())
       .catch((error: unknown) => {
         setBuilderStatus({
           message: error instanceof Error ? error.message : 'Failed to initialize Mercury invoice builder.',
@@ -335,84 +321,85 @@ export function MercurySessionInvoiceBuilder({
     }
   }
 
-  return (
-    <Time2PayMercuryInvoiceBuilder
-      accounts={accounts}
-      defaults={mercuryDefaults}
-      resetKey={mercuryResetKey}
-      onSubmit={handleCreateInvoice}
-      busy={isCreatingInvoice}
-      status={builderStatus}
-      footer={
-        <View
+  return {
+    defaults: mercuryDefaults,
+    resetKey: mercuryResetKey,
+    busy: isCreatingInvoice,
+    status: builderStatus,
+    footer: (
+      <View
+        style={{
+          gap: 10,
+          borderWidth: 1,
+          borderColor: '#d4b568',
+          borderRadius: 14,
+          backgroundColor: '#fff8e6',
+          paddingHorizontal: 12,
+          paddingVertical: 10,
+        }}
+      >
+        <Text style={{ color: '#6b4e00', fontWeight: '700' }}>Mercury AR beta guardrails</Text>
+        <Text style={{ color: '#6b4e00', fontSize: 12, lineHeight: 18 }}>
+          Mercury invoicing is still beta. Review destination account, service period, line items, and send-email option before submitting. A local Time2Pay invoice may still be created even if Mercury sync fails.
+        </Text>
+        <Pressable
+          onPress={() => setHasAcknowledgedBeta((value) => !value)}
           style={{
-            gap: 10,
-            borderWidth: 1,
-            borderColor: '#d4b568',
-            borderRadius: 14,
-            backgroundColor: '#fff8e6',
-            paddingHorizontal: 12,
-            paddingVertical: 10,
+            flexDirection: 'row',
+            alignItems: 'flex-start',
+            gap: 8,
           }}
         >
-          <Text style={{ color: '#6b4e00', fontWeight: '700' }}>
-            Mercury AR beta guardrails
-          </Text>
-          <Text style={{ color: '#6b4e00', fontSize: 12, lineHeight: 18 }}>
-            Mercury invoicing is still beta. Review destination account, service period, line items,
-            and send-email option before submitting. A local Time2Pay invoice may still be created
-            even if Mercury sync fails.
-          </Text>
-          <Pressable
-            onPress={() => setHasAcknowledgedBeta((value) => !value)}
+          <View
             style={{
-              flexDirection: 'row',
+              width: 18,
+              height: 18,
+              borderRadius: 4,
+              borderWidth: 1,
+              borderColor: '#6b4e00',
+              backgroundColor: hasAcknowledgedBeta ? '#6b4e00' : '#ffffff',
               alignItems: 'center',
-              gap: 8,
+              justifyContent: 'center',
             }}
           >
-            <View
-              style={{
-                width: 18,
-                height: 18,
-                borderRadius: 4,
-                borderWidth: 1,
-                borderColor: '#6b4e00',
-                backgroundColor: hasAcknowledgedBeta ? '#6b4e00' : '#ffffff',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              {hasAcknowledgedBeta ? (
-                <Text style={{ color: '#ffffff', fontSize: 11, fontWeight: '800' }}>✓</Text>
-              ) : null}
-            </View>
-            <Text style={{ color: '#6b4e00', fontSize: 12, fontWeight: '700' }}>
-              I understand the Mercury invoice flow is beta and requires careful review.
-            </Text>
-          </Pressable>
-        </View>
-      }
-      sourceChildren={
-        <SessionInvoiceSourcePanel
-          clients={clients}
-          selectedClientId={selectedClientId}
-          onSelectClient={setSelectedClientId}
-          weekOptions={weekOptions}
-          selectedWeekKeys={selectedWeekKeys}
-          onToggleWeek={(weekKey) =>
-            setSelectedWeekKeys((current) =>
-              current.includes(weekKey)
-                ? current.filter((existing) => existing !== weekKey)
-                : [...current, weekKey],
-            )
-          }
-          selectedClient={selectedClient}
-          preview={preview}
-          groupedLineItems={groupedLineItems}
-          previewBreaksBySessionId={previewBreaksBySessionId}
-        />
-      }
-    />
-  );
+            {hasAcknowledgedBeta ? (
+              <Text style={{ color: '#ffffff', fontSize: 11, fontWeight: '800' }}>v</Text>
+            ) : null}
+          </View>
+          <Text
+            style={{
+              color: '#6b4e00',
+              fontSize: 12,
+              fontWeight: '700',
+              flex: 1,
+              lineHeight: 18,
+            }}
+          >
+            I understand the Mercury invoice flow is beta and requires careful review.
+          </Text>
+        </Pressable>
+      </View>
+    ),
+    renderSourcePanel: () => (
+      <SessionInvoiceSourcePanel
+        clients={clients}
+        selectedClientId={selectedClientId}
+        onSelectClient={setSelectedClientId}
+        weekOptions={weekOptions}
+        selectedWeekKeys={selectedWeekKeys}
+        onToggleWeek={(weekKey) =>
+          setSelectedWeekKeys((current) =>
+            current.includes(weekKey)
+              ? current.filter((existing) => existing !== weekKey)
+              : [...current, weekKey],
+          )
+        }
+        selectedClient={selectedClient}
+        preview={preview}
+        groupedLineItems={groupedLineItems}
+        previewBreaksBySessionId={previewBreaksBySessionId}
+      />
+    ),
+    submitInvoice: handleCreateInvoice,
+  };
 }

@@ -7,21 +7,21 @@
       "~/*": ["src/*"],
       "@/app/*": ["src/app/*"],
       "@/components/*": ["src/components/*"],
+      "@/hooks/*": ["src/hooks/*"],
       "@/services/*": ["src/services/*"],
       "@/database/*": ["src/database/*"]
     }
   },
   "include": [
-    "**/*.ts",
-    "**/*.tsx",
+    "src/**/*.ts",
+    "src/**/*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts",
     "uniwind-types.d.ts"
   ],
   "exclude": [
     "node_modules/**",
-    "packages/**/dist/**",
-    "packages/**/coverage/**",
+    "packages/**",
     "temp/**"
   ]
 }

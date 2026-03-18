@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Text, useWindowDimensions, View } from 'react-native';
+import { MercurySessionInvoiceWorkspace } from '@mr.dj2u/mercury-ui';
 import { InvoiceBuilder } from './InvoiceBuilder';
 import { InvoiceHistory } from './InvoiceHistory';
-import { MercurySessionInvoiceBuilder } from './mercury-session-invoice-builder';
+import { useTime2PayMercurySessionWorkspace } from '@/hooks/use-time2pay-mercury-session-workspace';
 import { testMercuryConnection, testMercuryInvoiceAccess } from '@/services/mercury';
+import { mercuryUiAdapter } from '@/services/mercury-ui-adapters';
 
 type InvoiceBuilderMode = 'checking' | 'generic' | 'mercury';
 
@@ -21,6 +23,9 @@ export function InvoicesOverview() {
   const [builderModeMessage, setBuilderModeMessage] = useState(
     'Checking whether Mercury invoice mode is available in this environment...',
   );
+  const sessionAdapter = useTime2PayMercurySessionWorkspace({
+    onInvoiceCreated: () => setRefreshKey((current) => current + 1),
+  });
 
   useEffect(() => {
     let active = true;
@@ -74,8 +79,9 @@ export function InvoicesOverview() {
       <View className="items-center">
         <View className="w-full gap-3" style={contentWidthStyle}>
           {builderMode === 'mercury' ? (
-            <MercurySessionInvoiceBuilder
-              onInvoiceCreated={() => setRefreshKey((current) => current + 1)}
+            <MercurySessionInvoiceWorkspace
+              adapter={mercuryUiAdapter}
+              sessionAdapter={sessionAdapter}
             />
           ) : null}
           {builderMode === 'generic' ? (

@@ -4,11 +4,12 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   resolve: {
     alias: {
-      'react-native': path.resolve(__dirname, 'test/react-native-mock.ts'),
+      '@': path.resolve(__dirname, 'src'),
+      '~': path.resolve(__dirname, 'src'),
     },
   },
   test: {
+    environment: 'node',
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
-    setupFiles: [path.resolve(__dirname, 'test/setup.ts')],
   },
 });

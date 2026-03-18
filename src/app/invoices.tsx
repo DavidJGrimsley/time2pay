@@ -1,3 +1,4 @@
+import React from 'react';
 import { ScrollView } from 'react-native';
 import Animated, { FadeInDown, LinearTransition } from 'react-native-reanimated';
 import { RouteNav } from '../components/route-nav';
