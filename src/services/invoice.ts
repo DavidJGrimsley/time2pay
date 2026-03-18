@@ -815,6 +815,9 @@ export async function createMilestoneInvoice(
       : input.markAttachedSessionsInvoiced === false
         ? 'context'
         : 'billed';
+  if (sessionLinkMode === 'billed' && linkedSessions.some((session) => session.invoice_id !== null)) {
+    throw new Error('One or more selected sessions are already invoiced. Refresh and try again.');
+  }
 
   let mercuryInvoice: MercuryInvoiceResponse | undefined;
   let mercuryWarning: string | undefined;
@@ -875,6 +878,8 @@ export async function createMilestoneInvoice(
     source_milestone_completion_mode: input.milestoneCompletionMode,
     source_milestone_completed_at: input.milestoneCompletedAtIso ?? null,
     source_session_link_mode: sessionLinkMode,
+    source_session_hourly_rate:
+      selectedSessionIds.length > 0 ? input.hourlyRateForSessionAppendix ?? 0 : null,
   });
 
   if (selectedSessionIds.length > 0 && sessionLinkMode) {

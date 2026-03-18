@@ -123,6 +123,9 @@ export async function completeMilestoneAndCreateInvoiceDraft(
   if (!milestone) {
     throw new Error('Milestone not found.');
   }
+  if (milestone.is_completed) {
+    throw new Error('This milestone is already completed and already has a draft invoice.');
+  }
 
   if (milestone.completion_mode === 'checklist') {
     const checklistComplete = await areMilestoneChecklistItemsComplete(milestone.id);

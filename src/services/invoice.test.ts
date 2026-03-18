@@ -154,6 +154,35 @@ describe('createMilestoneInvoice', () => {
     });
     expect(assignSessionsToInvoiceMock).toHaveBeenCalledWith(['session_1'], 'invoice_2');
   });
+
+  it('rejects billed session attachment when any selected session is already invoiced', async () => {
+    listSessionsMock.mockResolvedValue([buildSession({ invoice_id: 'invoice_existing' })]);
+    createInvoiceMock.mockResolvedValue(undefined);
+    createInvoiceSessionLinksMock.mockResolvedValue(undefined);
+    assignSessionsToInvoiceMock.mockResolvedValue(undefined);
+
+    await expect(
+      createMilestoneInvoice({
+        invoiceId: 'invoice_3',
+        clientId: 'client_1',
+        projectId: 'project_1',
+        projectName: 'Website refresh',
+        projectTotalFee: 10000,
+        milestoneId: 'milestone_1',
+        milestoneTitle: 'Milestone 1',
+        milestoneAmountType: 'fixed',
+        milestoneAmountValue: 2000,
+        milestoneCompletionMode: 'toggle',
+        sessionIds: ['session_1'],
+        markAttachedSessionsInvoiced: true,
+        hourlyRateForSessionAppendix: 100,
+      }),
+    ).rejects.toThrow('already invoiced');
+
+    expect(createInvoiceMock).not.toHaveBeenCalled();
+    expect(createInvoiceSessionLinksMock).not.toHaveBeenCalled();
+    expect(assignSessionsToInvoiceMock).not.toHaveBeenCalled();
+  });
 });
 
 describe('computeMilestoneInvoiceAmount', () => {

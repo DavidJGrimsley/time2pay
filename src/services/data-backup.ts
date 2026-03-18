@@ -454,6 +454,10 @@ function parseInvoice(value: unknown, path: string): Invoice {
       `${path}.source_milestone_completed_at`,
     ),
     source_session_link_mode: sourceSessionLinkMode,
+    source_session_hourly_rate: readNullableNumber(
+      getOptionalField(record, 'source_session_hourly_rate') ?? null,
+      `${path}.source_session_hourly_rate`,
+    ),
     created_at: readIsoTimestamp(getRequiredField(record, 'created_at', path), `${path}.created_at`),
     updated_at: readIsoTimestamp(getRequiredField(record, 'updated_at', path), `${path}.updated_at`),
     deleted_at: readNullableIsoTimestamp(
@@ -957,11 +961,12 @@ async function insertBackupData(data: BackupDataTables): Promise<void> {
         source_milestone_completion_mode,
         source_milestone_completed_at,
         source_session_link_mode,
+        source_session_hourly_rate,
         created_at,
         updated_at,
         deleted_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)` ,
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       invoice.id,
       invoice.client_id,
       invoice.total,
@@ -978,6 +983,7 @@ async function insertBackupData(data: BackupDataTables): Promise<void> {
       invoice.source_milestone_completion_mode,
       invoice.source_milestone_completed_at,
       invoice.source_session_link_mode,
+      invoice.source_session_hourly_rate,
       invoice.created_at,
       invoice.updated_at,
       invoice.deleted_at,
@@ -1267,6 +1273,7 @@ export async function createBackupSnapshot(): Promise<Time2PayBackup> {
         source_milestone_completion_mode,
         source_milestone_completed_at,
         source_session_link_mode,
+        source_session_hourly_rate,
         created_at,
         updated_at,
         deleted_at

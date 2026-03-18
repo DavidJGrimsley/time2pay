@@ -83,6 +83,7 @@ export type Invoice = {
   source_milestone_completion_mode: MilestoneCompletionMode | null;
   source_milestone_completed_at: string | null;
   source_session_link_mode: InvoiceSessionLinkMode | null;
+  source_session_hourly_rate: number | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -163,7 +164,7 @@ export type CoreDbValidationReport = {
 };
 
 const DB_NAME = 'time2pay.db';
-const SCHEMA_VERSION = 9;
+const SCHEMA_VERSION = 10;
 const USER_PROFILE_ID = 'me';
 
 const MIGRATIONS: { version: number; upSql: string }[] = [
@@ -384,6 +385,12 @@ const MIGRATIONS: { version: number; upSql: string }[] = [
       CREATE INDEX IF NOT EXISTS idx_milestone_checklist_items_milestone_id ON milestone_checklist_items(milestone_id);
       CREATE INDEX IF NOT EXISTS idx_invoice_session_links_invoice_id ON invoice_session_links(invoice_id);
       CREATE INDEX IF NOT EXISTS idx_invoice_session_links_session_id ON invoice_session_links(session_id);
+    `,
+  },
+  {
+    version: 10,
+    upSql: `
+      ALTER TABLE invoices ADD COLUMN source_session_hourly_rate REAL;
     `,
   },
 ];
@@ -1072,20 +1079,37 @@ export async function setProjectMilestoneCompletion(input: {
     parseDbIsoTimestamp(completedAt, 'completed_at');
   }
 
-  const result = await db.runAsync(
-    `UPDATE project_milestones
-       SET is_completed = ?,
-           completed_at = ?,
-           updated_at = ?
-     WHERE id = ?
-       AND deleted_at IS NULL`,
-    input.isCompleted ? 1 : 0,
-    completedAt,
-    nowIso(),
-    input.milestoneId,
-  );
+  const result = input.isCompleted
+    ? await db.runAsync(
+        `UPDATE project_milestones
+           SET is_completed = ?,
+               completed_at = ?,
+               updated_at = ?
+         WHERE id = ?
+           AND deleted_at IS NULL
+           AND is_completed = 0`,
+        1,
+        completedAt,
+        nowIso(),
+        input.milestoneId,
+      )
+    : await db.runAsync(
+        `UPDATE project_milestones
+           SET is_completed = ?,
+               completed_at = ?,
+               updated_at = ?
+         WHERE id = ?
+           AND deleted_at IS NULL`,
+        0,
+        null,
+        nowIso(),
+        input.milestoneId,
+      );
 
   if (result.changes === 0) {
+    if (input.isCompleted) {
+      throw new Error('Milestone is already completed.');
+    }
     throw new Error('Milestone not found');
   }
 }
@@ -1712,6 +1736,7 @@ export async function createInvoice(input: {
   source_milestone_completion_mode?: MilestoneCompletionMode | null;
   source_milestone_completed_at?: string | null;
   source_session_link_mode?: InvoiceSessionLinkMode | null;
+  source_session_hourly_rate?: number | null;
 }): Promise<void> {
   const db = await getDb();
   const timestamp = nowIso();
@@ -1735,11 +1760,12 @@ export async function createInvoice(input: {
       source_milestone_completion_mode,
       source_milestone_completed_at,
       source_session_link_mode,
+      source_session_hourly_rate,
       created_at,
       updated_at,
       deleted_at
     )
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
     input.id,
     input.client_id,
     input.total,
@@ -1756,6 +1782,7 @@ export async function createInvoice(input: {
     input.source_milestone_completion_mode ?? null,
     input.source_milestone_completed_at ?? null,
     input.source_session_link_mode ?? null,
+    input.source_session_hourly_rate ?? null,
     timestamp,
     timestamp,
   );
@@ -1781,6 +1808,7 @@ export async function listInvoices(): Promise<InvoiceWithClient[]> {
        i.source_milestone_completion_mode,
        i.source_milestone_completed_at,
        i.source_session_link_mode,
+       i.source_session_hourly_rate,
        i.created_at,
        i.updated_at,
        i.deleted_at,

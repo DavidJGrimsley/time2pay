@@ -43,6 +43,7 @@ function createId(prefix?: string): string {
 export function InvoiceBuilder({ onInvoiceCreated }: InvoiceBuilderProps) {
   const [clients, setClients] = useState<Client[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsClientId, setProjectsClientId] = useState<string | null>(null);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [weekOptions, setWeekOptions] = useState<WeekOption[]>([]);
@@ -105,9 +106,10 @@ export function InvoiceBuilder({ onInvoiceCreated }: InvoiceBuilderProps) {
     });
   }
 
-  async function refreshWeeksForClient(clientId: string | null): Promise<void> {
+  async function refreshProjectsForClient(clientId: string | null): Promise<void> {
     if (!clientId) {
       setProjects([]);
+      setProjectsClientId(null);
       setSelectedProjectId(null);
       setWeekOptions([]);
       setSelectedWeekKeys([]);
@@ -116,6 +118,7 @@ export function InvoiceBuilder({ onInvoiceCreated }: InvoiceBuilderProps) {
 
     const projectRows = await listProjectsByClient(clientId);
     setProjects(projectRows);
+    setProjectsClientId(clientId);
     setSelectedProjectId((current) => {
       if (current && projectRows.some((project) => project.id === current)) {
         return current;
@@ -168,7 +171,7 @@ export function InvoiceBuilder({ onInvoiceCreated }: InvoiceBuilderProps) {
   }, []);
 
   useEffect(() => {
-    refreshWeeksForClient(selectedClientId).catch((error: unknown) => {
+    refreshProjectsForClient(selectedClientId).catch((error: unknown) => {
       setInvoiceStatus({
         message: error instanceof Error ? error.message : 'Failed to load projects.',
         tone: 'error',
@@ -177,6 +180,9 @@ export function InvoiceBuilder({ onInvoiceCreated }: InvoiceBuilderProps) {
   }, [selectedClientId]);
 
   useEffect(() => {
+    if (selectedClientId !== projectsClientId) {
+      return;
+    }
     refreshWeeksForSelection({
       clientId: selectedClientId,
       projectId: selectedProjectId,
@@ -186,7 +192,7 @@ export function InvoiceBuilder({ onInvoiceCreated }: InvoiceBuilderProps) {
         tone: 'error',
       });
     });
-  }, [selectedClientId, selectedProjectId]);
+  }, [projectsClientId, selectedClientId, selectedProjectId]);
 
   useEffect(() => {
     if (selectedSessionIds.length === 0) {

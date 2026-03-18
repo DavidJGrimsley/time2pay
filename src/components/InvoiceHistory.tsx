@@ -65,7 +65,10 @@ async function buildExportableInvoice(invoice: InvoiceWithClient): Promise<{
   const sessions = await listSessionsByInvoiceId(invoice.id);
   const sessionBreaks = await listSessionBreaksBySessionIds(sessions.map((session) => session.id));
   const userProfile = await getUserProfile();
-  const hourlyRate = invoice.client_hourly_rate ?? 0;
+  const hourlyRate =
+    invoice.invoice_type === 'milestone'
+      ? invoice.source_session_hourly_rate ?? invoice.client_hourly_rate ?? 0
+      : invoice.client_hourly_rate ?? 0;
   const totals = computeInvoiceTotals(sessions, hourlyRate);
   const effectiveTotals: InvoiceComputation =
     invoice.invoice_type === 'milestone'
