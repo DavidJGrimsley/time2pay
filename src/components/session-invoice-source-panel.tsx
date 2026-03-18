@@ -1,5 +1,5 @@
 import { Pressable, Text, useColorScheme, View } from 'react-native';
-import type { Client, Session, SessionBreak } from '@/database/db';
+import type { Client, Project, Session, SessionBreak } from '@/database/db';
 import {
   deriveSessionTimelineRows,
   groupInvoiceLineItemsByProject,
@@ -20,6 +20,9 @@ type SessionInvoiceSourcePanelProps = {
   clients: Client[];
   selectedClientId: string | null;
   onSelectClient: (clientId: string) => void;
+  projects?: Project[];
+  selectedProjectId?: string | null;
+  onSelectProject?: (projectId: string | null) => void;
   weekOptions: WeekOption[];
   selectedWeekKeys: string[];
   onToggleWeek: (weekKey: string) => void;
@@ -111,6 +114,9 @@ export function SessionInvoiceSourcePanel({
   clients,
   selectedClientId,
   onSelectClient,
+  projects = [],
+  selectedProjectId = null,
+  onSelectProject,
   weekOptions,
   selectedWeekKeys,
   onToggleWeek,
@@ -142,6 +148,44 @@ export function SessionInvoiceSourcePanel({
           })}
         </View>
       </View>
+
+      {onSelectProject ? (
+        <View className="gap-2">
+          <Text className="text-xs uppercase tracking-wide text-muted">Project filter (optional)</Text>
+          <View className="flex-row flex-wrap gap-2">
+            <Pressable
+              className={
+                selectedProjectId === null
+                  ? 'rounded-full bg-primary px-3 py-1.5'
+                  : 'rounded-full bg-card px-3 py-1.5'
+              }
+              onPress={() => onSelectProject(null)}
+            >
+              <Text
+                className={
+                  selectedProjectId === null ? 'font-semibold text-heading' : 'font-semibold text-muted'
+                }
+              >
+                All projects
+              </Text>
+            </Pressable>
+            {projects.map((project) => {
+              const active = project.id === selectedProjectId;
+              return (
+                <Pressable
+                  key={project.id}
+                  className={active ? 'rounded-full bg-primary px-3 py-1.5' : 'rounded-full bg-card px-3 py-1.5'}
+                  onPress={() => onSelectProject(project.id)}
+                >
+                  <Text className={active ? 'font-semibold text-heading' : 'font-semibold text-muted'}>
+                    {project.name}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      ) : null}
 
       <View className="gap-2">
         <Text className="text-xs uppercase tracking-wide text-muted">Weeks (Mon-Sun)</Text>

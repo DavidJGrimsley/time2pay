@@ -34,6 +34,12 @@ type StatusNotice = {
   tone: NoticeTone;
 };
 
+type ProfileStatusSection = 'business' | 'integrations' | 'backup' | 'general';
+
+type SectionStatusNotice = StatusNotice & {
+  section: ProfileStatusSection;
+};
+
 type PickedBackupFile = {
   fileName: string;
   text: string;
@@ -138,10 +144,7 @@ export function ProfileOverview() {
   const [isExportingData, setIsExportingData] = useState(false);
   const [isImportingData, setIsImportingData] = useState(false);
   const [createSafetyBackupBeforeImport, setCreateSafetyBackupBeforeImport] = useState(true);
-  const [status, setStatus] = useState<StatusNotice | null>({
-    message: 'Loading profile...',
-    tone: 'neutral',
-  });
+  const [sectionStatus, setSectionStatus] = useState<SectionStatusNotice | null>(null);
 
   const [companyName, setCompanyName] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
@@ -156,8 +159,15 @@ export function ProfileOverview() {
   const githubClientId = process.env.EXPO_PUBLIC_GITHUB_CLIENT_ID?.trim() ?? '';
   const isGitHubOAuthEnabled = process.env.EXPO_OS === 'web' && Boolean(githubClientId);
 
+  const showStatus = useCallback((section: ProfileStatusSection, notice: StatusNotice): void => {
+    setSectionStatus({ section, ...notice });
+  }, []);
+
+  const clearSectionStatus = useCallback((section: ProfileStatusSection): void => {
+    setSectionStatus((current) => (current?.section === section ? null : current));
+  }, []);
+
   const loadProfileData = useCallback(async (): Promise<void> => {
-    setStatus({ message: 'Loading profile...', tone: 'neutral' });
     const profile = await getUserProfile();
     setCompanyName(profile.company_name ?? '');
     setLogoUrl(profile.logo_url ?? '');
@@ -170,15 +180,14 @@ export function ProfileOverview() {
   useEffect(() => {
     initializeDatabase()
       .then(() => Promise.all([loadProfileData()]))
-      .then(() => setStatus({ message: 'Profile loaded.', tone: 'neutral' }))
       .catch((error: unknown) => {
-        setStatus({
+        showStatus('general', {
           message: error instanceof Error ? error.message : 'Failed to load profile.',
           tone: 'error',
         });
       })
       .finally(() => setIsLoading(false));
-  }, [loadProfileData]);
+  }, [loadProfileData, showStatus]);
 
   useEffect(() => {
     if (!isGitHubOAuthEnabled || typeof window === 'undefined') {
@@ -202,7 +211,7 @@ export function ProfileOverview() {
 
     if (oauthError) {
       const errorDescription = url.searchParams.get('error_description')?.trim();
-      setStatus({
+      showStatus('integrations', {
         tone: 'error',
         message: errorDescription ? `GitHub OAuth failed: ${errorDescription}` : 'GitHub OAuth failed.',
       });
@@ -213,7 +222,7 @@ export function ProfileOverview() {
     const returnedState = url.searchParams.get('state')?.trim() ?? '';
     const expectedState = window.sessionStorage.getItem(GITHUB_OAUTH_STATE_KEY) ?? '';
     if (!returnedState || !expectedState || returnedState !== expectedState) {
-      setStatus({
+      showStatus('integrations', {
         tone: 'error',
         message: 'GitHub OAuth failed: state verification did not match.',
       });
@@ -225,7 +234,7 @@ export function ProfileOverview() {
     const redirectUri = `${window.location.origin}/profile`;
     let cancelled = false;
     setIsSigningInWithGitHub(true);
-    setStatus({ tone: 'neutral', message: 'Completing GitHub sign-in...' });
+    showStatus('integrations', { tone: 'neutral', message: 'Completing GitHub sign-in...' });
 
     fetch(GITHUB_OAUTH_PROXY_PATH, {
       method: 'POST',
@@ -268,7 +277,7 @@ export function ProfileOverview() {
 
         await loadProfileData();
         const display = githubUser.name?.trim() || githubUser.login?.trim() || 'GitHub account';
-        setStatus({
+        showStatus('integrations', {
           tone: 'success',
           message: `GitHub OAuth connected. Token saved for ${display}.`,
         });
@@ -276,7 +285,7 @@ export function ProfileOverview() {
       .catch((error: unknown) => {
         if (!cancelled) {
           const message = error instanceof Error ? error.message : 'GitHub OAuth failed.';
-          setStatus({ tone: 'error', message });
+          showStatus('integrations', { tone: 'error', message });
         }
       })
       .finally(() => {
@@ -289,10 +298,10 @@ export function ProfileOverview() {
     return () => {
       cancelled = true;
     };
-  }, [isGitHubOAuthEnabled, loadProfileData]);
+  }, [isGitHubOAuthEnabled, loadProfileData, showStatus]);
 
   async function handleSaveBusiness(): Promise<void> {
-    setStatus(null);
+    clearSectionStatus('business');
     const trimmedFullName = fullName.trim();
     const trimmedBusinessPhone = businessPhone.trim();
     const trimmedBusinessEmail = businessEmail.trim();
@@ -308,7 +317,7 @@ export function ProfileOverview() {
         .join(', ');
       const message = `Missing required business profile fields: ${missing}.`;
       showValidationAlert(message);
-      setStatus({ message, tone: 'error' });
+      showStatus('business', { message, tone: 'error' });
       return;
     }
 
@@ -322,18 +331,18 @@ export function ProfileOverview() {
         email: trimmedBusinessEmail,
       });
       await loadProfileData();
-      setStatus({ message: 'Business profile saved.', tone: 'success' });
+      showStatus('business', { message: 'Business profile saved.', tone: 'success' });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Failed to save business profile.';
       showActionErrorAlert(message);
-      setStatus({ message, tone: 'error' });
+      showStatus('business', { message, tone: 'error' });
     } finally {
       setIsSavingBusiness(false);
     }
   }
 
   async function handleSaveIntegrations(): Promise<void> {
-    setStatus(null);
+    clearSectionStatus('integrations');
     setIsSavingIntegrations(true);
 
     try {
@@ -341,11 +350,11 @@ export function ProfileOverview() {
         github_pat: toNullableTrimmed(githubPat),
       });
       await loadProfileData();
-      setStatus({ message: 'Integrations saved.', tone: 'success' });
+      showStatus('integrations', { message: 'Integrations saved.', tone: 'success' });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Failed to save integrations.';
       showActionErrorAlert(message);
-      setStatus({ message, tone: 'error' });
+      showStatus('integrations', { message, tone: 'error' });
     } finally {
       setIsSavingIntegrations(false);
     }
@@ -379,27 +388,27 @@ export function ProfileOverview() {
   }
 
   async function handleExportData(): Promise<void> {
-    setStatus(null);
+    clearSectionStatus('backup');
     setIsExportingData(true);
 
     try {
       const snapshot = await createBackupSnapshot();
       const downloadResult = await downloadBackup(snapshot);
-      setStatus({
+      showStatus('backup', {
         message: `Backup exported (${downloadResult.filename}). ${formatBackupSummary(snapshot)}.`,
         tone: 'success',
       });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Failed to export backup.';
       showActionErrorAlert(message);
-      setStatus({ message, tone: 'error' });
+      showStatus('backup', { message, tone: 'error' });
     } finally {
       setIsExportingData(false);
     }
   }
 
   async function handleImportData(): Promise<void> {
-    setStatus(null);
+    clearSectionStatus('backup');
     setIsImportingData(true);
 
     try {
@@ -421,7 +430,7 @@ export function ProfileOverview() {
       });
 
       if (!confirmed) {
-        setStatus({ message: FILE_PICKER_CANCELED_MESSAGE, tone: 'neutral' });
+        showStatus('backup', { message: FILE_PICKER_CANCELED_MESSAGE, tone: 'neutral' });
         return;
       }
 
@@ -438,17 +447,17 @@ export function ProfileOverview() {
         ? ''
         : ' Timer preference restore skipped for this environment.';
 
-      setStatus({
+      showStatus('backup', {
         message: `Import complete. Restored ${formatBackupSummary(parsedBackup)}.${rollbackMessage}${preferenceMessage}`,
         tone: 'success',
       });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Failed to import backup.';
       if (message === FILE_PICKER_CANCELED_MESSAGE) {
-        setStatus({ message, tone: 'neutral' });
+        showStatus('backup', { message, tone: 'neutral' });
       } else {
         showActionErrorAlert(message);
-        setStatus({ message, tone: 'error' });
+        showStatus('backup', { message, tone: 'error' });
       }
     } finally {
       setIsImportingData(false);
@@ -468,6 +477,9 @@ export function ProfileOverview() {
       <Text className="text-muted">
         Manage invoice sender details, integrations, and local backup tools.
       </Text>
+      {sectionStatus?.section === 'general' ? (
+        <InlineNotice tone={sectionStatus.tone} message={sectionStatus.message} />
+      ) : null}
       <View className="items-center">
         <View className="w-full gap-3" style={contentWidthStyle}>
 
@@ -520,6 +532,9 @@ export function ProfileOverview() {
             {isSavingBusiness ? 'Saving...' : 'Save Business Profile'}
           </Text>
         </Pressable>
+        {sectionStatus?.section === 'business' ? (
+          <InlineNotice tone={sectionStatus.tone} message={sectionStatus.message} />
+        ) : null}
       </View>
 
       <View className="gap-3 rounded-xl bg-card p-4">
@@ -604,6 +619,9 @@ export function ProfileOverview() {
                 {isSavingIntegrations ? 'Saving...' : 'Save Integrations'}
               </Text>
             </Pressable>
+            {sectionStatus?.section === 'integrations' ? (
+              <InlineNotice tone={sectionStatus.tone} message={sectionStatus.message} />
+            ) : null}
           </View>
         ) : null}
       </View>
@@ -654,9 +672,10 @@ export function ProfileOverview() {
             </Text>
           </Pressable>
         </View>
+        {sectionStatus?.section === 'backup' ? (
+          <InlineNotice tone={sectionStatus.tone} message={sectionStatus.message} />
+        ) : null}
       </View>
-
-      {status ? <InlineNotice tone={status.tone} message={status.message} /> : null}
         </View>
       </View>
 

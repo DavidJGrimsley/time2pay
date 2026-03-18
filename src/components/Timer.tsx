@@ -1,7 +1,6 @@
 import { Octicons } from '@expo/vector-icons';
-import { Picker } from '@react-native-picker/picker';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, Text, TextInput, useColorScheme, useWindowDimensions, View } from 'react-native';
+import { Pressable, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeInDown, FadeOutUp, LinearTransition } from 'react-native-reanimated';
 import {
   createProject,
@@ -31,6 +30,7 @@ import {
 } from '@/components/SessionCompleteModal';
 import { CalendarDateField } from '@/components/calendar-date-field';
 import { InlineNotice, type NoticeTone } from '@/components/inline-notice';
+import { PickerField } from '@/components/picker-field';
 import {
   REQUIRED_PROFILE_FIELD_LABELS,
   type RequiredProfileField,
@@ -39,7 +39,6 @@ import { prettifyBranchName } from '@/services/github';
 import { showActionErrorAlert, showBlockedAlert, showValidationAlert } from '@/services/system-alert';
 
 const LAST_SELECTIONS_KEY = 'time2pay.timer.last-selection';
-const EMPTY_PICKER_VALUE = '';
 const CREATE_CLIENT_PICKER_VALUE = '__create_client__';
 const CREATE_PROJECT_PICKER_VALUE = '__create_project__';
 const CREATE_TASK_PICKER_VALUE = '__create_task__';
@@ -48,23 +47,6 @@ type LastSelection = {
   clientId: string | null;
   projectId: string | null;
   taskId: string | null;
-};
-
-type Option = {
-  id: string;
-  label: string;
-};
-
-type PickerFieldProps = {
-  label: string;
-  value: string | null;
-  options: Option[];
-  placeholder: string;
-  createValue: string;
-  large?: boolean;
-  disabled?: boolean;
-  onSelect: (value: string | null) => void;
-  onCreateNew: () => void;
 };
 
 type TimerGateState = {
@@ -130,78 +112,6 @@ function ClockIcon({ color = '#ffffff', size = 16 }: { color?: string; size?: nu
             backgroundColor: color,
           }}
         />
-      </View>
-    </View>
-  );
-}
-
-function PickerField({
-  label,
-  value,
-  options,
-  placeholder,
-  createValue,
-  large = false,
-  disabled = false,
-  onSelect,
-  onCreateNew,
-}: PickerFieldProps) {
-  const isDark = useColorScheme() === 'dark';
-  const pickerTextColor = isDark ? '#f8f7f3' : '#1a1f16';
-  const pickerPlaceholderColor = isDark ? '#b8b7b2' : '#6f7868';
-  const pickerSurfaceColor = isDark ? '#1a1f16' : '#f8f7f3';
-
-  function handleValueChange(itemValue: string | number): void {
-    const next = String(itemValue ?? EMPTY_PICKER_VALUE);
-    if (next === createValue) {
-      onCreateNew();
-      return;
-    }
-
-    onSelect(next || null);
-  }
-
-  return (
-    <View className="gap-2">
-      <Text className={large ? 'text-sm uppercase tracking-wide text-muted' : 'text-xs uppercase tracking-wide text-muted'}>
-        {label}
-      </Text>
-      <View
-        className={`rounded-md border border-border bg-background ${large ? 'px-1 py-1' : ''} ${disabled ? 'opacity-60' : ''}`}
-      >
-        <Picker
-          enabled={!disabled}
-          selectedValue={value ?? EMPTY_PICKER_VALUE}
-          onValueChange={handleValueChange}
-          dropdownIconColor={pickerTextColor}
-          style={{
-            color: pickerTextColor,
-            backgroundColor: pickerSurfaceColor,
-            fontSize: large ? 24 : 16,
-          }}
-        >
-          <Picker.Item
-            label={placeholder}
-            value={EMPTY_PICKER_VALUE}
-            color={pickerPlaceholderColor}
-            style={{ color: pickerPlaceholderColor, backgroundColor: pickerSurfaceColor }}
-          />
-          {options.map((option) => (
-            <Picker.Item
-              key={option.id}
-              label={option.label}
-              value={option.id}
-              color={pickerTextColor}
-              style={{ color: pickerTextColor, backgroundColor: pickerSurfaceColor }}
-            />
-          ))}
-          <Picker.Item
-            label="+ Create new"
-            value={createValue}
-            color={pickerTextColor}
-            style={{ color: pickerTextColor, backgroundColor: pickerSurfaceColor }}
-          />
-        </Picker>
       </View>
     </View>
   );

@@ -7,9 +7,11 @@ import type {
 import {
   initializeDatabase,
   listClients,
+  listProjectsByClient,
   listSessionBreaksBySessionIds,
   listSessions,
   type Client,
+  type Project,
   type Session,
   type SessionBreak,
 } from '@/database/db';
@@ -48,7 +50,10 @@ export function useTime2PayMercurySessionWorkspace({
   onInvoiceCreated,
 }: UseTime2PayMercurySessionWorkspaceOptions): MercurySessionInvoiceAdapter {
   const [clients, setClients] = useState<Client[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsClientId, setProjectsClientId] = useState<string | null>(null);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [weekOptions, setWeekOptions] = useState<WeekOption[]>([]);
   const [selectedWeekKeys, setSelectedWeekKeys] = useState<string[]>([]);
   const [previewBreaksBySessionId, setPreviewBreaksBySessionId] = useState<
@@ -170,8 +175,32 @@ export function useTime2PayMercurySessionWorkspace({
     });
   }
 
-  async function refreshWeeksForClient(clientId: string | null): Promise<void> {
+  async function refreshProjectsForClient(clientId: string | null): Promise<void> {
     if (!clientId) {
+      setProjects([]);
+      setProjectsClientId(null);
+      setSelectedProjectId(null);
+      setWeekOptions([]);
+      setSelectedWeekKeys([]);
+      return;
+    }
+
+    const projectRows = await listProjectsByClient(clientId);
+    setProjects(projectRows);
+    setProjectsClientId(clientId);
+    setSelectedProjectId((current) => {
+      if (current && projectRows.some((project) => project.id === current)) {
+        return current;
+      }
+      return null;
+    });
+  }
+
+  async function refreshWeeksForSelection(input: {
+    clientId: string | null;
+    projectId: string | null;
+  }): Promise<void> {
+    if (!input.clientId) {
       setWeekOptions([]);
       setSelectedWeekKeys([]);
       return;
@@ -180,7 +209,8 @@ export function useTime2PayMercurySessionWorkspace({
     const allSessions = await listSessions();
     const uninvoiced = allSessions.filter(
       (session) =>
-        session.client_id === clientId &&
+        session.client_id === input.clientId &&
+        (input.projectId === null || session.project_id === input.projectId) &&
         session.invoice_id === null &&
         session.deleted_at === null &&
         session.end_time !== null,
@@ -210,13 +240,28 @@ export function useTime2PayMercurySessionWorkspace({
   }, []);
 
   useEffect(() => {
-    refreshWeeksForClient(selectedClientId).catch((error: unknown) => {
+    refreshProjectsForClient(selectedClientId).catch((error: unknown) => {
+      setBuilderStatus({
+        message: error instanceof Error ? error.message : 'Failed to load projects.',
+        tone: 'error',
+      });
+    });
+  }, [selectedClientId]);
+
+  useEffect(() => {
+    if (selectedClientId !== projectsClientId) {
+      return;
+    }
+    refreshWeeksForSelection({
+      clientId: selectedClientId,
+      projectId: selectedProjectId,
+    }).catch((error: unknown) => {
       setBuilderStatus({
         message: error instanceof Error ? error.message : 'Failed to load invoice weeks.',
         tone: 'error',
       });
     });
-  }, [selectedClientId]);
+  }, [projectsClientId, selectedClientId, selectedProjectId]);
 
   useEffect(() => {
     if (selectedSessionIds.length === 0) {
@@ -310,7 +355,10 @@ export function useTime2PayMercurySessionWorkspace({
         tone: result.mercuryWarning ? 'error' : 'success',
       });
 
-      await refreshWeeksForClient(selectedClient.id);
+      await refreshWeeksForSelection({
+        clientId: selectedClient.id,
+        projectId: selectedProjectId,
+      });
       onInvoiceCreated?.();
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Failed to create Mercury invoice.';
@@ -385,6 +433,9 @@ export function useTime2PayMercurySessionWorkspace({
         clients={clients}
         selectedClientId={selectedClientId}
         onSelectClient={setSelectedClientId}
+        projects={projects}
+        selectedProjectId={selectedProjectId}
+        onSelectProject={setSelectedProjectId}
         weekOptions={weekOptions}
         selectedWeekKeys={selectedWeekKeys}
         onToggleWeek={(weekKey) =>

@@ -110,6 +110,7 @@ export default function RootLayout() {
         </Stack.Protected>
         <Stack.Screen name="dashboard" options={{ title: 'Dashboard' }} />
         <Stack.Screen name="sessions" options={{ title: 'Sessions' }} />
+        <Stack.Screen name="projects" options={{ title: 'Projects' }} />
         <Stack.Screen name="invoices" options={{ title: 'Invoices' }} />
         <Stack.Screen name="bank" options={{ title: 'Bank' }} />
         <Stack.Screen name="payments" options={{ title: 'Payments' }} />
