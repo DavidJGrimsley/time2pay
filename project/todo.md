@@ -52,7 +52,12 @@ Client = GH Organization
 Project = GH Repo
 Task = GH Branch
 Notes = GH Commit message)
-- [ ] Add support for project-based pricing where a project is created, and we can clock in and track our time, but also the project has milestones that we create such as what's below. This should let us send these invoices at certain milestones. Maybe the milestone is a checklist or something and we mark it as complete and then it creates an invoice for us to review... something like that.
+- [x] Add support for project-based pricing where a project is created, and we can clock in and track our time, but also the project has milestones that we create such as what's below. This should let us send these invoices at certain milestones. Maybe the milestone is a checklist or something and we mark it as complete and then it creates an invoice for us to review... something like that.
+  - [x] Add `/projects` route + navigation entry with responsive Projects workspace UI
+  - [x] Add project pricing modes (`hourly`/`milestone`) with total fee, hourly rate, and milestone template support
+  - [x] Add milestone CRUD (create/edit/delete/reorder), completion modes (toggle/checklist), and completion invoice flow
+  - [x] Add milestone invoice draft pipeline (optional session attachments + optional Mercury mirror creation)
+  - [x] Persist project/client selection and include project-pricing/milestone metadata in history/PDF/backup paths
 ```Initial Invoice: 50% of total project fee due upon signing this Agreement.
 Milestone Payments:
 10% due upon approval of Landing and homepage design.

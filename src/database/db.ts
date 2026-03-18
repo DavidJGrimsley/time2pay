@@ -1,5 +1,11 @@
 import * as SQLite from 'expo-sqlite';
 
+export type PricingMode = 'hourly' | 'milestone';
+export type MilestoneAmountType = 'percent' | 'fixed';
+export type MilestoneCompletionMode = 'toggle' | 'checklist';
+export type InvoiceType = 'hourly' | 'milestone';
+export type InvoiceSessionLinkMode = 'context' | 'billed';
+
 export type Session = {
   id: string;
   client: string;
@@ -43,6 +49,8 @@ export type Project = {
   client_id: string;
   name: string;
   github_repo: string | null;
+  pricing_mode: PricingMode;
+  total_project_fee: number | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -63,8 +71,18 @@ export type Invoice = {
   client_id: string;
   total: number;
   status: 'draft' | 'sent' | 'paid' | 'overdue';
+  invoice_type: InvoiceType;
   mercury_invoice_id: string | null;
   payment_link: string | null;
+  source_project_id: string | null;
+  source_project_name: string | null;
+  source_milestone_id: string | null;
+  source_milestone_title: string | null;
+  source_milestone_amount_type: MilestoneAmountType | null;
+  source_milestone_amount_value: number | null;
+  source_milestone_completion_mode: MilestoneCompletionMode | null;
+  source_milestone_completed_at: string | null;
+  source_session_link_mode: InvoiceSessionLinkMode | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -99,6 +117,43 @@ export type SessionBreak = {
   deleted_at: string | null;
 };
 
+export type ProjectMilestone = {
+  id: string;
+  project_id: string;
+  title: string;
+  amount_type: MilestoneAmountType;
+  amount_value: number;
+  completion_mode: MilestoneCompletionMode;
+  due_note: string | null;
+  sort_order: number;
+  is_completed: number;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+};
+
+export type MilestoneChecklistItem = {
+  id: string;
+  milestone_id: string;
+  label: string;
+  sort_order: number;
+  is_completed: number;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+};
+
+export type InvoiceSessionLink = {
+  id: string;
+  invoice_id: string;
+  session_id: string;
+  link_mode: InvoiceSessionLinkMode;
+  created_at: string;
+  updated_at: string;
+};
+
 export type CoreDbValidationReport = {
   schemaVersion: number;
   startedSessionId: string;
@@ -108,7 +163,7 @@ export type CoreDbValidationReport = {
 };
 
 const DB_NAME = 'time2pay.db';
-const SCHEMA_VERSION = 8;
+const SCHEMA_VERSION = 9;
 const USER_PROFILE_ID = 'me';
 
 const MIGRATIONS: { version: number; upSql: string }[] = [
@@ -262,6 +317,73 @@ const MIGRATIONS: { version: number; upSql: string }[] = [
     version: 8,
     upSql: `
       ALTER TABLE user_profile ADD COLUMN github_pat TEXT;
+    `,
+  },
+  {
+    version: 9,
+    upSql: `
+      ALTER TABLE projects ADD COLUMN pricing_mode TEXT NOT NULL DEFAULT 'hourly';
+      ALTER TABLE projects ADD COLUMN total_project_fee REAL;
+
+      ALTER TABLE invoices ADD COLUMN invoice_type TEXT NOT NULL DEFAULT 'hourly';
+      ALTER TABLE invoices ADD COLUMN source_project_id TEXT;
+      ALTER TABLE invoices ADD COLUMN source_project_name TEXT;
+      ALTER TABLE invoices ADD COLUMN source_milestone_id TEXT;
+      ALTER TABLE invoices ADD COLUMN source_milestone_title TEXT;
+      ALTER TABLE invoices ADD COLUMN source_milestone_amount_type TEXT;
+      ALTER TABLE invoices ADD COLUMN source_milestone_amount_value REAL;
+      ALTER TABLE invoices ADD COLUMN source_milestone_completion_mode TEXT;
+      ALTER TABLE invoices ADD COLUMN source_milestone_completed_at TEXT;
+      ALTER TABLE invoices ADD COLUMN source_session_link_mode TEXT;
+
+      CREATE TABLE IF NOT EXISTS project_milestones (
+        id TEXT PRIMARY KEY NOT NULL,
+        project_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        amount_type TEXT NOT NULL,
+        amount_value REAL NOT NULL,
+        completion_mode TEXT NOT NULL,
+        due_note TEXT,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        is_completed INTEGER NOT NULL DEFAULT 0,
+        completed_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        deleted_at TEXT,
+        FOREIGN KEY (project_id) REFERENCES projects(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS milestone_checklist_items (
+        id TEXT PRIMARY KEY NOT NULL,
+        milestone_id TEXT NOT NULL,
+        label TEXT NOT NULL,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        is_completed INTEGER NOT NULL DEFAULT 0,
+        completed_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        deleted_at TEXT,
+        FOREIGN KEY (milestone_id) REFERENCES project_milestones(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS invoice_session_links (
+        id TEXT PRIMARY KEY NOT NULL,
+        invoice_id TEXT NOT NULL,
+        session_id TEXT NOT NULL,
+        link_mode TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE (invoice_id, session_id),
+        FOREIGN KEY (invoice_id) REFERENCES invoices(id),
+        FOREIGN KEY (session_id) REFERENCES sessions(id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_projects_pricing_mode ON projects(pricing_mode);
+      CREATE INDEX IF NOT EXISTS idx_project_milestones_project_id ON project_milestones(project_id);
+      CREATE INDEX IF NOT EXISTS idx_project_milestones_sort_order ON project_milestones(sort_order);
+      CREATE INDEX IF NOT EXISTS idx_milestone_checklist_items_milestone_id ON milestone_checklist_items(milestone_id);
+      CREATE INDEX IF NOT EXISTS idx_invoice_session_links_invoice_id ON invoice_session_links(invoice_id);
+      CREATE INDEX IF NOT EXISTS idx_invoice_session_links_session_id ON invoice_session_links(session_id);
     `,
   },
 ];
@@ -584,22 +706,72 @@ export async function updateClientInvoiceContact(input: {
   }
 }
 
+export async function updateClientHourlyRate(input: {
+  id: string;
+  hourly_rate: number;
+}): Promise<void> {
+  if (!Number.isFinite(input.hourly_rate) || input.hourly_rate < 0) {
+    throw new Error('Hourly rate must be a non-negative number.');
+  }
+
+  const db = await getDb();
+  const result = await db.runAsync(
+    `UPDATE clients
+       SET hourly_rate = ?,
+           updated_at = ?
+     WHERE id = ?
+       AND deleted_at IS NULL`,
+    input.hourly_rate,
+    nowIso(),
+    input.id,
+  );
+
+  if (result.changes === 0) {
+    throw new Error('Client not found');
+  }
+}
+
 export async function createProject(input: {
   id: string;
   client_id: string;
   name: string;
   github_repo?: string | null;
+  pricing_mode?: PricingMode;
+  total_project_fee?: number | null;
 }): Promise<void> {
   const db = await getDb();
   const timestamp = nowIso();
+  const normalizedPricingMode: PricingMode = input.pricing_mode ?? 'hourly';
+
+  if (normalizedPricingMode !== 'hourly' && normalizedPricingMode !== 'milestone') {
+    throw new Error('Invalid project pricing mode.');
+  }
+
+  const normalizedProjectFee =
+    input.total_project_fee === undefined ? null : (input.total_project_fee ?? null);
+  if (normalizedProjectFee !== null && (!Number.isFinite(normalizedProjectFee) || normalizedProjectFee < 0)) {
+    throw new Error('Project fee must be a non-negative number.');
+  }
 
   await db.runAsync(
-    `INSERT INTO projects (id, client_id, name, github_repo, created_at, updated_at, deleted_at)
-     VALUES (?, ?, ?, ?, ?, ?, NULL)`,
+    `INSERT INTO projects (
+      id,
+      client_id,
+      name,
+      github_repo,
+      pricing_mode,
+      total_project_fee,
+      created_at,
+      updated_at,
+      deleted_at
+    )
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
     input.id,
     input.client_id,
     input.name,
     input.github_repo ?? null,
+    normalizedPricingMode,
+    normalizedProjectFee,
     timestamp,
     timestamp,
   );
@@ -608,12 +780,68 @@ export async function createProject(input: {
 export async function listProjectsByClient(clientId: string): Promise<Project[]> {
   const db = await getDb();
   return db.getAllAsync<Project>(
-    `SELECT id, client_id, name, github_repo, created_at, updated_at, deleted_at
+    `SELECT id, client_id, name, github_repo, pricing_mode, total_project_fee, created_at, updated_at, deleted_at
      FROM projects
      WHERE client_id = ? AND deleted_at IS NULL
      ORDER BY name COLLATE NOCASE ASC`,
     clientId,
   );
+}
+
+export async function listProjects(): Promise<Project[]> {
+  const db = await getDb();
+  return db.getAllAsync<Project>(
+    `SELECT id, client_id, name, github_repo, pricing_mode, total_project_fee, created_at, updated_at, deleted_at
+     FROM projects
+     WHERE deleted_at IS NULL
+     ORDER BY name COLLATE NOCASE ASC`,
+  );
+}
+
+export async function getProjectById(projectId: string): Promise<Project | null> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<Project>(
+    `SELECT id, client_id, name, github_repo, pricing_mode, total_project_fee, created_at, updated_at, deleted_at
+     FROM projects
+     WHERE id = ?
+       AND deleted_at IS NULL`,
+    projectId,
+  );
+  return row ?? null;
+}
+
+export async function updateProjectPricing(input: {
+  id: string;
+  pricing_mode: PricingMode;
+  total_project_fee: number | null;
+}): Promise<void> {
+  const db = await getDb();
+  if (input.pricing_mode !== 'hourly' && input.pricing_mode !== 'milestone') {
+    throw new Error('Invalid project pricing mode.');
+  }
+  if (
+    input.total_project_fee !== null &&
+    (!Number.isFinite(input.total_project_fee) || input.total_project_fee < 0)
+  ) {
+    throw new Error('Project fee must be a non-negative number.');
+  }
+
+  const result = await db.runAsync(
+    `UPDATE projects
+       SET pricing_mode = ?,
+           total_project_fee = ?,
+           updated_at = ?
+     WHERE id = ?
+       AND deleted_at IS NULL`,
+    input.pricing_mode,
+    input.total_project_fee,
+    nowIso(),
+    input.id,
+  );
+
+  if (result.changes === 0) {
+    throw new Error('Project not found');
+  }
 }
 
 export async function createTask(input: {
@@ -646,6 +874,359 @@ export async function listTasksByProject(projectId: string): Promise<Task[]> {
      ORDER BY name COLLATE NOCASE ASC`,
     projectId,
   );
+}
+
+export async function createProjectMilestone(input: {
+  id: string;
+  project_id: string;
+  title: string;
+  amount_type: MilestoneAmountType;
+  amount_value: number;
+  completion_mode: MilestoneCompletionMode;
+  due_note?: string | null;
+  sort_order: number;
+}): Promise<void> {
+  const db = await getDb();
+  if (input.amount_type !== 'percent' && input.amount_type !== 'fixed') {
+    throw new Error('Invalid milestone amount type.');
+  }
+  if (input.completion_mode !== 'toggle' && input.completion_mode !== 'checklist') {
+    throw new Error('Invalid milestone completion mode.');
+  }
+  if (!Number.isFinite(input.amount_value) || input.amount_value < 0) {
+    throw new Error('Milestone amount must be a non-negative number.');
+  }
+  if (!Number.isInteger(input.sort_order) || input.sort_order < 0) {
+    throw new Error('Milestone sort order must be a non-negative integer.');
+  }
+
+  const timestamp = nowIso();
+  await db.runAsync(
+    `INSERT INTO project_milestones (
+      id,
+      project_id,
+      title,
+      amount_type,
+      amount_value,
+      completion_mode,
+      due_note,
+      sort_order,
+      is_completed,
+      completed_at,
+      created_at,
+      updated_at,
+      deleted_at
+    )
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, ?, ?, NULL)`,
+    input.id,
+    input.project_id,
+    input.title,
+    input.amount_type,
+    input.amount_value,
+    input.completion_mode,
+    input.due_note ?? null,
+    input.sort_order,
+    timestamp,
+    timestamp,
+  );
+}
+
+export async function listProjectMilestones(projectId: string): Promise<ProjectMilestone[]> {
+  const db = await getDb();
+  return db.getAllAsync<ProjectMilestone>(
+    `SELECT
+       id,
+       project_id,
+       title,
+       amount_type,
+       amount_value,
+       completion_mode,
+       due_note,
+       sort_order,
+       is_completed,
+       completed_at,
+       created_at,
+       updated_at,
+       deleted_at
+     FROM project_milestones
+     WHERE project_id = ?
+       AND deleted_at IS NULL
+     ORDER BY sort_order ASC, created_at ASC`,
+    projectId,
+  );
+}
+
+export async function getProjectMilestoneById(milestoneId: string): Promise<ProjectMilestone | null> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<ProjectMilestone>(
+    `SELECT
+       id,
+       project_id,
+       title,
+       amount_type,
+       amount_value,
+       completion_mode,
+       due_note,
+       sort_order,
+       is_completed,
+       completed_at,
+       created_at,
+       updated_at,
+       deleted_at
+     FROM project_milestones
+     WHERE id = ?
+       AND deleted_at IS NULL`,
+    milestoneId,
+  );
+  return row ?? null;
+}
+
+export async function updateProjectMilestone(input: {
+  id: string;
+  title: string;
+  amount_type: MilestoneAmountType;
+  amount_value: number;
+  completion_mode: MilestoneCompletionMode;
+  due_note?: string | null;
+  sort_order: number;
+}): Promise<void> {
+  const db = await getDb();
+  if (input.amount_type !== 'percent' && input.amount_type !== 'fixed') {
+    throw new Error('Invalid milestone amount type.');
+  }
+  if (input.completion_mode !== 'toggle' && input.completion_mode !== 'checklist') {
+    throw new Error('Invalid milestone completion mode.');
+  }
+  if (!Number.isFinite(input.amount_value) || input.amount_value < 0) {
+    throw new Error('Milestone amount must be a non-negative number.');
+  }
+  if (!Number.isInteger(input.sort_order) || input.sort_order < 0) {
+    throw new Error('Milestone sort order must be a non-negative integer.');
+  }
+
+  const result = await db.runAsync(
+    `UPDATE project_milestones
+       SET title = ?,
+           amount_type = ?,
+           amount_value = ?,
+           completion_mode = ?,
+           due_note = ?,
+           sort_order = ?,
+           updated_at = ?
+     WHERE id = ?
+       AND deleted_at IS NULL`,
+    input.title,
+    input.amount_type,
+    input.amount_value,
+    input.completion_mode,
+    input.due_note ?? null,
+    input.sort_order,
+    nowIso(),
+    input.id,
+  );
+
+  if (result.changes === 0) {
+    throw new Error('Milestone not found');
+  }
+}
+
+export async function deleteProjectMilestone(milestoneId: string): Promise<void> {
+  const db = await getDb();
+  const timestamp = nowIso();
+
+  const milestoneResult = await db.runAsync(
+    `UPDATE project_milestones
+       SET deleted_at = ?,
+           updated_at = ?
+     WHERE id = ?
+       AND deleted_at IS NULL`,
+    timestamp,
+    timestamp,
+    milestoneId,
+  );
+
+  if (milestoneResult.changes === 0) {
+    throw new Error('Milestone not found');
+  }
+
+  await db.runAsync(
+    `UPDATE milestone_checklist_items
+       SET deleted_at = ?,
+           updated_at = ?
+     WHERE milestone_id = ?
+       AND deleted_at IS NULL`,
+    timestamp,
+    timestamp,
+    milestoneId,
+  );
+}
+
+export async function setProjectMilestoneCompletion(input: {
+  milestoneId: string;
+  isCompleted: boolean;
+  completedAtIso?: string | null;
+}): Promise<void> {
+  const db = await getDb();
+  const completedAt = input.isCompleted ? input.completedAtIso ?? nowIso() : null;
+  if (completedAt) {
+    parseDbIsoTimestamp(completedAt, 'completed_at');
+  }
+
+  const result = await db.runAsync(
+    `UPDATE project_milestones
+       SET is_completed = ?,
+           completed_at = ?,
+           updated_at = ?
+     WHERE id = ?
+       AND deleted_at IS NULL`,
+    input.isCompleted ? 1 : 0,
+    completedAt,
+    nowIso(),
+    input.milestoneId,
+  );
+
+  if (result.changes === 0) {
+    throw new Error('Milestone not found');
+  }
+}
+
+export async function createMilestoneChecklistItem(input: {
+  id: string;
+  milestone_id: string;
+  label: string;
+  sort_order: number;
+}): Promise<void> {
+  const db = await getDb();
+  if (!Number.isInteger(input.sort_order) || input.sort_order < 0) {
+    throw new Error('Checklist item sort order must be a non-negative integer.');
+  }
+
+  const timestamp = nowIso();
+  await db.runAsync(
+    `INSERT INTO milestone_checklist_items (
+      id,
+      milestone_id,
+      label,
+      sort_order,
+      is_completed,
+      completed_at,
+      created_at,
+      updated_at,
+      deleted_at
+    )
+     VALUES (?, ?, ?, ?, 0, NULL, ?, ?, NULL)`,
+    input.id,
+    input.milestone_id,
+    input.label,
+    input.sort_order,
+    timestamp,
+    timestamp,
+  );
+}
+
+export async function listMilestoneChecklistItems(
+  milestoneId: string,
+): Promise<MilestoneChecklistItem[]> {
+  const db = await getDb();
+  return db.getAllAsync<MilestoneChecklistItem>(
+    `SELECT
+       id,
+       milestone_id,
+       label,
+       sort_order,
+       is_completed,
+       completed_at,
+       created_at,
+       updated_at,
+       deleted_at
+     FROM milestone_checklist_items
+     WHERE milestone_id = ?
+       AND deleted_at IS NULL
+     ORDER BY sort_order ASC, created_at ASC`,
+    milestoneId,
+  );
+}
+
+export async function updateMilestoneChecklistItem(input: {
+  id: string;
+  label: string;
+  sort_order: number;
+  is_completed: boolean;
+  completed_at?: string | null;
+}): Promise<void> {
+  const db = await getDb();
+  const completedAt = input.is_completed ? input.completed_at ?? nowIso() : null;
+  if (!Number.isInteger(input.sort_order) || input.sort_order < 0) {
+    throw new Error('Checklist item sort order must be a non-negative integer.');
+  }
+  if (completedAt) {
+    parseDbIsoTimestamp(completedAt, 'completed_at');
+  }
+
+  const result = await db.runAsync(
+    `UPDATE milestone_checklist_items
+       SET label = ?,
+           sort_order = ?,
+           is_completed = ?,
+           completed_at = ?,
+           updated_at = ?
+     WHERE id = ?
+       AND deleted_at IS NULL`,
+    input.label,
+    input.sort_order,
+    input.is_completed ? 1 : 0,
+    completedAt,
+    nowIso(),
+    input.id,
+  );
+
+  if (result.changes === 0) {
+    throw new Error('Checklist item not found');
+  }
+}
+
+export async function listMilestoneChecklistItemsByMilestoneIds(
+  milestoneIds: string[],
+): Promise<MilestoneChecklistItem[]> {
+  if (milestoneIds.length === 0) {
+    return [];
+  }
+
+  const db = await getDb();
+  const placeholders = milestoneIds.map(() => '?').join(',');
+  return db.getAllAsync<MilestoneChecklistItem>(
+    `SELECT
+       id,
+       milestone_id,
+       label,
+       sort_order,
+       is_completed,
+       completed_at,
+       created_at,
+       updated_at,
+       deleted_at
+     FROM milestone_checklist_items
+     WHERE milestone_id IN (${placeholders})
+       AND deleted_at IS NULL
+     ORDER BY milestone_id ASC, sort_order ASC, created_at ASC`,
+    ...milestoneIds,
+  );
+}
+
+export async function areMilestoneChecklistItemsComplete(milestoneId: string): Promise<boolean> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<{ total_items: number; open_items: number }>(
+    `SELECT
+       COUNT(*) AS total_items,
+       SUM(CASE WHEN is_completed = 0 THEN 1 ELSE 0 END) AS open_items
+     FROM milestone_checklist_items
+     WHERE milestone_id = ?
+       AND deleted_at IS NULL`,
+    milestoneId,
+  );
+  const totalItems = row?.total_items ?? 0;
+  const openItems = row?.open_items ?? 0;
+  return totalItems > 0 && openItems === 0;
 }
 
 export async function startSession(input: {
@@ -1054,27 +1635,127 @@ export async function listSessionsByClientAndRange(input: {
   );
 }
 
+export async function listSessionsByProject(input: {
+  projectId: string;
+  uninvoicedOnly?: boolean;
+}): Promise<Session[]> {
+  const db = await getDb();
+  const invoiceFilter = input.uninvoicedOnly ? 'AND s.invoice_id IS NULL' : '';
+  return db.getAllAsync<Session>(
+    `SELECT
+       s.id,
+       s.client,
+       s.client_id,
+       s.project_id,
+       s.task_id,
+       c.name AS client_name,
+       p.name AS project_name,
+       t.name AS task_name,
+       c.github_org AS github_org,
+       p.github_repo AS github_repo,
+       t.github_branch AS github_branch,
+       (
+         SELECT COUNT(*)
+           FROM session_breaks sb
+          WHERE sb.session_id = s.id
+            AND sb.deleted_at IS NULL
+       ) AS break_count,
+       EXISTS (
+         SELECT 1
+           FROM session_breaks sb
+          WHERE sb.session_id = s.id
+            AND sb.deleted_at IS NULL
+            AND sb.end_time IS NULL
+       ) AS is_paused,
+       s.start_time,
+       s.end_time,
+       s.duration,
+       s.notes,
+       s.commit_sha,
+       CASE
+         WHEN s.commit_sha IS NOT NULL
+           AND c.github_org IS NOT NULL
+           AND p.github_repo IS NOT NULL
+         THEN 'https://github.com/' || c.github_org || '/' || p.github_repo || '/commit/' || s.commit_sha
+         ELSE NULL
+       END AS commit_url,
+       s.invoice_id,
+       s.created_at,
+       s.updated_at,
+       s.deleted_at
+     FROM sessions s
+     LEFT JOIN clients c ON c.id = s.client_id
+     LEFT JOIN projects p ON p.id = s.project_id
+     LEFT JOIN tasks t ON t.id = s.task_id
+     WHERE s.deleted_at IS NULL
+       AND s.project_id = ?
+       ${invoiceFilter}
+     ORDER BY s.start_time ASC`,
+    input.projectId,
+  );
+}
+
 export async function createInvoice(input: {
   id: string;
   client_id: string;
   total: number;
   status?: Invoice['status'];
+  invoice_type?: InvoiceType;
   mercury_invoice_id?: string | null;
   payment_link?: string | null;
+  source_project_id?: string | null;
+  source_project_name?: string | null;
+  source_milestone_id?: string | null;
+  source_milestone_title?: string | null;
+  source_milestone_amount_type?: MilestoneAmountType | null;
+  source_milestone_amount_value?: number | null;
+  source_milestone_completion_mode?: MilestoneCompletionMode | null;
+  source_milestone_completed_at?: string | null;
+  source_session_link_mode?: InvoiceSessionLinkMode | null;
 }): Promise<void> {
   const db = await getDb();
   const timestamp = nowIso();
   assertDbInvoiceTotal(input.total);
 
   await db.runAsync(
-    `INSERT INTO invoices (id, client_id, total, status, mercury_invoice_id, payment_link, created_at, updated_at, deleted_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
+    `INSERT INTO invoices (
+      id,
+      client_id,
+      total,
+      status,
+      invoice_type,
+      mercury_invoice_id,
+      payment_link,
+      source_project_id,
+      source_project_name,
+      source_milestone_id,
+      source_milestone_title,
+      source_milestone_amount_type,
+      source_milestone_amount_value,
+      source_milestone_completion_mode,
+      source_milestone_completed_at,
+      source_session_link_mode,
+      created_at,
+      updated_at,
+      deleted_at
+    )
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
     input.id,
     input.client_id,
     input.total,
     input.status ?? 'draft',
+    input.invoice_type ?? 'hourly',
     input.mercury_invoice_id ?? null,
     input.payment_link ?? null,
+    input.source_project_id ?? null,
+    input.source_project_name ?? null,
+    input.source_milestone_id ?? null,
+    input.source_milestone_title ?? null,
+    input.source_milestone_amount_type ?? null,
+    input.source_milestone_amount_value ?? null,
+    input.source_milestone_completion_mode ?? null,
+    input.source_milestone_completed_at ?? null,
+    input.source_session_link_mode ?? null,
     timestamp,
     timestamp,
   );
@@ -1088,8 +1769,18 @@ export async function listInvoices(): Promise<InvoiceWithClient[]> {
        i.client_id,
        i.total,
        i.status,
+       i.invoice_type,
        i.mercury_invoice_id,
        i.payment_link,
+       i.source_project_id,
+       i.source_project_name,
+       i.source_milestone_id,
+       i.source_milestone_title,
+       i.source_milestone_amount_type,
+       i.source_milestone_amount_value,
+       i.source_milestone_completion_mode,
+       i.source_milestone_completed_at,
+       i.source_session_link_mode,
        i.created_at,
        i.updated_at,
        i.deleted_at,
@@ -1153,8 +1844,17 @@ export async function listSessionsByInvoiceId(invoiceId: string): Promise<Sessio
      LEFT JOIN projects p ON p.id = s.project_id
      LEFT JOIN tasks t ON t.id = s.task_id
      WHERE s.deleted_at IS NULL
-       AND s.invoice_id = ?
+       AND (
+         s.invoice_id = ?
+         OR EXISTS (
+           SELECT 1
+           FROM invoice_session_links isl
+           WHERE isl.invoice_id = ?
+             AND isl.session_id = s.id
+         )
+       )
      ORDER BY s.start_time ASC`,
+    invoiceId,
     invoiceId,
   );
 }
@@ -1174,6 +1874,60 @@ export async function assignSessionsToInvoice(sessionIds: string[], invoiceId: s
     invoiceId,
     nowIso(),
     ...sessionIds,
+  );
+}
+
+export async function createInvoiceSessionLinks(input: {
+  invoiceId: string;
+  sessionIds: string[];
+  linkMode: InvoiceSessionLinkMode;
+}): Promise<void> {
+  if (input.sessionIds.length === 0) {
+    return;
+  }
+  if (input.linkMode !== 'context' && input.linkMode !== 'billed') {
+    throw new Error('Invalid invoice session link mode.');
+  }
+
+  const db = await getDb();
+  const timestamp = nowIso();
+  for (const sessionId of input.sessionIds) {
+    await db.runAsync(
+      `INSERT OR REPLACE INTO invoice_session_links (
+        id,
+        invoice_id,
+        session_id,
+        link_mode,
+        created_at,
+        updated_at
+      )
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      createDbId('invoice_session_link'),
+      input.invoiceId,
+      sessionId,
+      input.linkMode,
+      timestamp,
+      timestamp,
+    );
+  }
+}
+
+export async function listInvoiceSessionLinksByInvoiceId(
+  invoiceId: string,
+): Promise<InvoiceSessionLink[]> {
+  const db = await getDb();
+  return db.getAllAsync<InvoiceSessionLink>(
+    `SELECT
+       id,
+       invoice_id,
+       session_id,
+       link_mode,
+       created_at,
+       updated_at
+     FROM invoice_session_links
+     WHERE invoice_id = ?
+     ORDER BY created_at ASC`,
+    invoiceId,
   );
 }
 

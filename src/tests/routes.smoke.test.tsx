@@ -54,6 +54,10 @@ vi.mock('../components/invoices-overview', () => ({
   InvoicesOverview: () => null,
 }));
 
+vi.mock('../components/projects-overview', () => ({
+  ProjectsOverview: () => null,
+}));
+
 describe('web route smoke tests', () => {
   it('renders the Payments route shell', async () => {
     const { default: PaymentsRoute } = await import('../app/payments');
@@ -63,5 +67,10 @@ describe('web route smoke tests', () => {
   it('renders the Invoices route shell', async () => {
     const { default: InvoicesRoute } = await import('../app/invoices');
     expect(() => renderer.create(<InvoicesRoute />)).not.toThrow();
+  });
+
+  it('renders the Projects route shell', async () => {
+    const { default: ProjectsRoute } = await import('../app/projects');
+    expect(() => renderer.create(<ProjectsRoute />)).not.toThrow();
   });
 });

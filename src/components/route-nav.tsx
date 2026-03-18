@@ -9,6 +9,7 @@ type RouteLink = {
 const routeLinks: RouteLink[] = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/sessions', label: 'Sessions' },
+  { href: '/projects', label: 'Projects' },
   { href: '/invoices', label: 'Invoices' },
   { href: '/bank', label: 'Bank' },
   { href: '/payments', label: 'Payments' },

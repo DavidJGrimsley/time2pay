@@ -1,20 +1,42 @@
-import { describe, expect, it, vi } from 'vitest';
+/* eslint-disable import/first */
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const {
+  assignSessionsToInvoiceMock,
+  createInvoiceSessionLinksMock,
+  createInvoiceMock,
+  listSessionsMock,
+  createMercuryInvoiceMock,
+} = vi.hoisted(() => ({
+  assignSessionsToInvoiceMock: vi.fn(),
+  createInvoiceSessionLinksMock: vi.fn(),
+  createInvoiceMock: vi.fn(),
+  listSessionsMock: vi.fn(),
+  createMercuryInvoiceMock: vi.fn(),
+}));
 
 vi.mock('@/database/db', () => ({
-  assignSessionsToInvoice: vi.fn(),
-  createInvoice: vi.fn(),
-  listSessions: vi.fn(),
+  assignSessionsToInvoice: assignSessionsToInvoiceMock,
+  createInvoiceSessionLinks: createInvoiceSessionLinksMock,
+  createInvoice: createInvoiceMock,
+  listSessions: listSessionsMock,
 }));
 
 vi.mock('@/services/mercury', () => ({
-  createMercuryInvoice: vi.fn(),
+  createMercuryInvoice: createMercuryInvoiceMock,
 }));
 
 vi.mock('@/services/github', () => ({
   shortCommitSha: vi.fn((sha: string) => sha.slice(0, 7)),
 }));
 
-import { buildMercurySessionLineItems, computeInvoiceTotals } from '@/services/invoice';
+import {
+  createMilestoneInvoice,
+  buildMercurySessionLineItems,
+  buildNet7DueDateIso,
+  computeInvoiceTotals,
+  computeMilestoneInvoiceAmount,
+} from '@/services/invoice';
 import type { Session } from '@/database/db';
 
 function buildSession(overrides: Partial<Session> = {}): Session {
@@ -39,6 +61,14 @@ function buildSession(overrides: Partial<Session> = {}): Session {
   };
 }
 
+beforeEach(() => {
+  assignSessionsToInvoiceMock.mockReset();
+  createInvoiceSessionLinksMock.mockReset();
+  createInvoiceMock.mockReset();
+  listSessionsMock.mockReset();
+  createMercuryInvoiceMock.mockReset();
+});
+
 describe('buildMercurySessionLineItems', () => {
   it('preserves unrounded session hours so Mercury matches local invoice totals', () => {
     const totals = computeInvoiceTotals([buildSession()], 100);
@@ -55,5 +85,102 @@ describe('buildMercurySessionLineItems', () => {
     expect(Number((lineItem.quantity * lineItem.unitPrice).toFixed(2))).toBe(
       totals.sessions[0]?.amount,
     );
+  });
+});
+
+describe('createMilestoneInvoice', () => {
+  it('creates context links without locking sessions when markAttachedSessionsInvoiced is false', async () => {
+    listSessionsMock.mockResolvedValue([buildSession()]);
+    createInvoiceMock.mockResolvedValue(undefined);
+    createInvoiceSessionLinksMock.mockResolvedValue(undefined);
+    assignSessionsToInvoiceMock.mockResolvedValue(undefined);
+
+    await createMilestoneInvoice({
+      invoiceId: 'invoice_1',
+      clientId: 'client_1',
+      projectId: 'project_1',
+      projectName: 'Website refresh',
+      projectTotalFee: 10000,
+      milestoneId: 'milestone_1',
+      milestoneTitle: 'Milestone 1',
+      milestoneAmountType: 'percent',
+      milestoneAmountValue: 50,
+      milestoneCompletionMode: 'toggle',
+      sessionIds: ['session_1'],
+      markAttachedSessionsInvoiced: false,
+      hourlyRateForSessionAppendix: 100,
+    });
+
+    expect(createInvoiceMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        invoice_type: 'milestone',
+        source_session_link_mode: 'context',
+      }),
+    );
+    expect(createInvoiceSessionLinksMock).toHaveBeenCalledWith({
+      invoiceId: 'invoice_1',
+      sessionIds: ['session_1'],
+      linkMode: 'context',
+    });
+    expect(assignSessionsToInvoiceMock).not.toHaveBeenCalled();
+  });
+
+  it('marks sessions invoiced when markAttachedSessionsInvoiced is true', async () => {
+    listSessionsMock.mockResolvedValue([buildSession()]);
+    createInvoiceMock.mockResolvedValue(undefined);
+    createInvoiceSessionLinksMock.mockResolvedValue(undefined);
+    assignSessionsToInvoiceMock.mockResolvedValue(undefined);
+
+    await createMilestoneInvoice({
+      invoiceId: 'invoice_2',
+      clientId: 'client_1',
+      projectId: 'project_1',
+      projectName: 'Website refresh',
+      projectTotalFee: 10000,
+      milestoneId: 'milestone_1',
+      milestoneTitle: 'Milestone 1',
+      milestoneAmountType: 'fixed',
+      milestoneAmountValue: 2000,
+      milestoneCompletionMode: 'toggle',
+      sessionIds: ['session_1'],
+      markAttachedSessionsInvoiced: true,
+      hourlyRateForSessionAppendix: 100,
+    });
+
+    expect(createInvoiceSessionLinksMock).toHaveBeenCalledWith({
+      invoiceId: 'invoice_2',
+      sessionIds: ['session_1'],
+      linkMode: 'billed',
+    });
+    expect(assignSessionsToInvoiceMock).toHaveBeenCalledWith(['session_1'], 'invoice_2');
+  });
+});
+
+describe('computeMilestoneInvoiceAmount', () => {
+  it('computes fixed milestone amounts directly', () => {
+    expect(
+      computeMilestoneInvoiceAmount({
+        amountType: 'fixed',
+        amountValue: 1250,
+        projectTotalFee: null,
+      }),
+    ).toBe(1250);
+  });
+
+  it('computes percent milestone amounts from project total fee', () => {
+    expect(
+      computeMilestoneInvoiceAmount({
+        amountType: 'percent',
+        amountValue: 25,
+        projectTotalFee: 8000,
+      }),
+    ).toBe(2000);
+  });
+});
+
+describe('buildNet7DueDateIso', () => {
+  it('defaults to seven days after invoice date', () => {
+    const base = new Date('2026-03-18T10:00:00.000Z');
+    expect(buildNet7DueDateIso(base)).toBe('2026-03-25');
   });
 });

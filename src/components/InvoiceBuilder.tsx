@@ -3,9 +3,11 @@ import { Pressable, Text, View } from 'react-native';
 import {
   initializeDatabase,
   listClients,
+  listProjectsByClient,
   listSessionBreaksBySessionIds,
   listSessions,
   type Client,
+  type Project,
   type Session,
   type SessionBreak,
 } from '@/database/db';
@@ -40,7 +42,9 @@ function createId(prefix?: string): string {
 
 export function InvoiceBuilder({ onInvoiceCreated }: InvoiceBuilderProps) {
   const [clients, setClients] = useState<Client[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [weekOptions, setWeekOptions] = useState<WeekOption[]>([]);
   const [selectedWeekKeys, setSelectedWeekKeys] = useState<string[]>([]);
   const [invoiceStatus, setInvoiceStatus] = useState<StatusNotice>({
@@ -103,6 +107,28 @@ export function InvoiceBuilder({ onInvoiceCreated }: InvoiceBuilderProps) {
 
   async function refreshWeeksForClient(clientId: string | null): Promise<void> {
     if (!clientId) {
+      setProjects([]);
+      setSelectedProjectId(null);
+      setWeekOptions([]);
+      setSelectedWeekKeys([]);
+      return;
+    }
+
+    const projectRows = await listProjectsByClient(clientId);
+    setProjects(projectRows);
+    setSelectedProjectId((current) => {
+      if (current && projectRows.some((project) => project.id === current)) {
+        return current;
+      }
+      return null;
+    });
+  }
+
+  async function refreshWeeksForSelection(input: {
+    clientId: string | null;
+    projectId: string | null;
+  }): Promise<void> {
+    if (!input.clientId) {
       setWeekOptions([]);
       setSelectedWeekKeys([]);
       return;
@@ -111,7 +137,8 @@ export function InvoiceBuilder({ onInvoiceCreated }: InvoiceBuilderProps) {
     const allSessions = await listSessions();
     const uninvoiced = allSessions.filter(
       (session) =>
-        session.client_id === clientId &&
+        session.client_id === input.clientId &&
+        (input.projectId === null || session.project_id === input.projectId) &&
         session.invoice_id === null &&
         session.deleted_at === null &&
         session.end_time !== null,
@@ -143,11 +170,23 @@ export function InvoiceBuilder({ onInvoiceCreated }: InvoiceBuilderProps) {
   useEffect(() => {
     refreshWeeksForClient(selectedClientId).catch((error: unknown) => {
       setInvoiceStatus({
-        message: error instanceof Error ? error.message : 'Failed to load invoice weeks.',
+        message: error instanceof Error ? error.message : 'Failed to load projects.',
         tone: 'error',
       });
     });
   }, [selectedClientId]);
+
+  useEffect(() => {
+    refreshWeeksForSelection({
+      clientId: selectedClientId,
+      projectId: selectedProjectId,
+    }).catch((error: unknown) => {
+      setInvoiceStatus({
+        message: error instanceof Error ? error.message : 'Failed to load invoice weeks.',
+        tone: 'error',
+      });
+    });
+  }, [selectedClientId, selectedProjectId]);
 
   useEffect(() => {
     if (selectedSessionIds.length === 0) {
@@ -199,7 +238,10 @@ export function InvoiceBuilder({ onInvoiceCreated }: InvoiceBuilderProps) {
         tone: 'success',
       });
 
-      await refreshWeeksForClient(selectedClient.id);
+      await refreshWeeksForSelection({
+        clientId: selectedClient.id,
+        projectId: selectedProjectId,
+      });
       onInvoiceCreated?.();
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Failed to create invoice.';
@@ -221,6 +263,9 @@ export function InvoiceBuilder({ onInvoiceCreated }: InvoiceBuilderProps) {
         clients={clients}
         selectedClientId={selectedClientId}
         onSelectClient={setSelectedClientId}
+        projects={projects}
+        selectedProjectId={selectedProjectId}
+        onSelectProject={setSelectedProjectId}
         weekOptions={weekOptions}
         selectedWeekKeys={selectedWeekKeys}
         onToggleWeek={(weekKey) =>

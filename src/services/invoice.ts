@@ -1,6 +1,11 @@
 import {
   assignSessionsToInvoice,
+  createInvoiceSessionLinks,
   createInvoice,
+  type InvoiceSessionLinkMode,
+  type InvoiceType,
+  type MilestoneAmountType,
+  type MilestoneCompletionMode,
   type SessionBreak,
   listSessions,
   type Invoice,
@@ -23,6 +28,15 @@ export type InvoiceComputation = {
   totalHours: number;
   totalAmount: number;
   sessions: SessionWithComputed[];
+  mercuryInvoice?: MercuryInvoiceResponse;
+  mercuryWarning?: string;
+};
+
+export type MilestoneInvoiceComputation = {
+  totalAmount: number;
+  linkedSessionCount: number;
+  linkedSessions: SessionWithComputed[];
+  sessionLinkMode: InvoiceSessionLinkMode | null;
   mercuryInvoice?: MercuryInvoiceResponse;
   mercuryWarning?: string;
 };
@@ -71,9 +85,20 @@ export type CreateInvoiceFromSessionsInput = {
 
 export type ExportableInvoice = {
   invoiceId: string;
+  invoiceType?: InvoiceType;
   issuedAtIso: string;
   hourlyRate: number;
   sessions: SessionWithComputed[];
+  includeSessionAppendix?: boolean;
+  sessionLinkMode?: InvoiceSessionLinkMode | null;
+  milestoneSummary?: {
+    projectName: string;
+    milestoneTitle: string;
+    amountType: MilestoneAmountType;
+    amountValue: number;
+    completionMode: MilestoneCompletionMode;
+    completedAtIso?: string | null;
+  } | null;
   breaksBySessionId?: Record<string, SessionBreak[]>;
   totalHours: number;
   totalAmount: number;
@@ -91,6 +116,25 @@ export type ExportableInvoice = {
     email?: string | null;
   };
   footerLogoUrl?: string | null;
+};
+
+export type CreateMilestoneInvoiceInput = {
+  invoiceId: string;
+  clientId: string;
+  projectId: string;
+  projectName: string;
+  projectTotalFee: number | null;
+  milestoneId: string;
+  milestoneTitle: string;
+  milestoneAmountType: MilestoneAmountType;
+  milestoneAmountValue: number;
+  milestoneCompletionMode: MilestoneCompletionMode;
+  milestoneCompletedAtIso?: string | null;
+  sessionIds?: string[];
+  markAttachedSessionsInvoiced?: boolean;
+  hourlyRateForSessionAppendix?: number;
+  status?: Invoice['status'];
+  mercury?: CreateInvoiceFromSessionsInput['mercury'];
 };
 
 export type SessionBillableSegment = {
@@ -120,6 +164,40 @@ function assertNonNegativeFinite(value: number, fieldName: string): void {
 
 function toMoney(value: number): number {
   return Number(value.toFixed(2));
+}
+
+function toIsoDay(input: Date): string {
+  return input.toISOString().slice(0, 10);
+}
+
+export function buildNet7DueDateIso(baseDate = new Date()): string {
+  const dueDate = new Date(baseDate);
+  dueDate.setUTCDate(dueDate.getUTCDate() + 7);
+  return toIsoDay(dueDate);
+}
+
+export function computeMilestoneInvoiceAmount(input: {
+  amountType: MilestoneAmountType;
+  amountValue: number;
+  projectTotalFee: number | null;
+}): number {
+  if (!Number.isFinite(input.amountValue) || input.amountValue < 0) {
+    throw new Error('Milestone amount must be a non-negative number.');
+  }
+
+  if (input.amountType === 'fixed') {
+    return toMoney(input.amountValue);
+  }
+
+  if (input.amountType !== 'percent') {
+    throw new Error('Invalid milestone amount type.');
+  }
+
+  if (input.projectTotalFee === null || !Number.isFinite(input.projectTotalFee) || input.projectTotalFee < 0) {
+    throw new Error('Project total fee is required for percent-based milestones.');
+  }
+
+  return toMoney((input.projectTotalFee * input.amountValue) / 100);
 }
 
 function toHours(durationSeconds: number | null): number {
@@ -383,6 +461,22 @@ export function buildMercurySessionLineItems(
         unitPrice: toMoney(hourlyRate),
       };
     });
+}
+
+export function buildMercuryMilestoneLineItems(input: {
+  projectName: string;
+  milestoneTitle: string;
+  amount: number;
+}): MercuryLineItemPayload[] {
+  const safeProject = sanitizeSingleLineText(input.projectName) || 'Project';
+  const safeMilestone = sanitizeSingleLineText(input.milestoneTitle) || 'Milestone';
+  return [
+    {
+      name: truncateText(`Milestone: ${safeProject} - ${safeMilestone}`, 240),
+      quantity: 1,
+      unitPrice: toMoney(input.amount),
+    },
+  ];
 }
 
 export function computeInvoiceTotals(sessions: Session[], hourlyRate: number): InvoiceComputation {
@@ -678,17 +772,128 @@ export async function createInvoiceFromSessions(
     client_id: input.clientId,
     total: totals.totalAmount,
     status: input.status ?? 'draft',
+    invoice_type: 'hourly',
     payment_link: mercuryInvoice?.hosted_url ?? input.paypalLink ?? null,
     mercury_invoice_id: mercuryInvoice?.id ?? null,
   });
 
-  await assignSessionsToInvoice(
-    selected.map((session) => session.id),
-    input.invoiceId,
-  );
+  const sessionIds = selected.map((session) => session.id);
+  await assignSessionsToInvoice(sessionIds, input.invoiceId);
+  await createInvoiceSessionLinks({
+    invoiceId: input.invoiceId,
+    sessionIds,
+    linkMode: 'billed',
+  });
 
   return {
     ...totals,
+    mercuryInvoice,
+    mercuryWarning,
+  };
+}
+
+export async function createMilestoneInvoice(
+  input: CreateMilestoneInvoiceInput,
+): Promise<MilestoneInvoiceComputation> {
+  const milestoneAmount = computeMilestoneInvoiceAmount({
+    amountType: input.milestoneAmountType,
+    amountValue: input.milestoneAmountValue,
+    projectTotalFee: input.projectTotalFee,
+  });
+  const selectedSessionIds = Array.from(new Set((input.sessionIds ?? []).filter(Boolean)));
+
+  const allSessions = await listSessions();
+  const linkedSessions = allSessions.filter((session) => selectedSessionIds.includes(session.id));
+  if (linkedSessions.length !== selectedSessionIds.length) {
+    throw new Error('One or more selected sessions could not be found.');
+  }
+
+  const sessionTotals = computeInvoiceTotals(linkedSessions, input.hourlyRateForSessionAppendix ?? 0);
+  const sessionLinkMode: InvoiceSessionLinkMode | null =
+    selectedSessionIds.length === 0
+      ? null
+      : input.markAttachedSessionsInvoiced === false
+        ? 'context'
+        : 'billed';
+
+  let mercuryInvoice: MercuryInvoiceResponse | undefined;
+  let mercuryWarning: string | undefined;
+  if (input.mercury?.enabled) {
+    const invoiceDateIso = input.mercury.invoiceDateIso ?? toIsoDay(new Date());
+    const dueDateIso = input.mercury.dueDateIso ?? buildNet7DueDateIso();
+    const lineItems =
+      input.mercury.lineItems && input.mercury.lineItems.length > 0
+        ? input.mercury.lineItems
+        : buildMercuryMilestoneLineItems({
+            projectName: input.projectName,
+            milestoneTitle: input.milestoneTitle,
+            amount: input.mercury.amount ?? milestoneAmount,
+          });
+    const description =
+      input.mercury.description ??
+      `Milestone invoice for ${sanitizeSingleLineText(input.projectName)} - ${sanitizeSingleLineText(input.milestoneTitle)}.`;
+
+    try {
+      mercuryInvoice = await createMercuryInvoice({
+        customerName: input.mercury.customerName,
+        customerEmail: input.mercury.customerEmail,
+        amount: input.mercury.amount ?? milestoneAmount,
+        currency: input.mercury.currency ?? 'USD',
+        description,
+        dueDateIso,
+        invoiceDateIso,
+        servicePeriodStartDate: input.mercury.servicePeriodStartDate,
+        servicePeriodEndDate: input.mercury.servicePeriodEndDate,
+        destinationAccountId: input.mercury.destinationAccountId,
+        lineItems,
+        sendEmailOption: input.mercury.sendEmailOption,
+        achDebitEnabled: input.mercury.achDebitEnabled,
+        creditCardEnabled: input.mercury.creditCardEnabled,
+        useRealAccountNumber: input.mercury.useRealAccountNumber,
+        ccEmails: input.mercury.ccEmails,
+      });
+    } catch (error: unknown) {
+      const reason = error instanceof Error ? error.message : 'Unknown Mercury API error';
+      mercuryWarning = `Mercury sync skipped: ${reason}`;
+    }
+  }
+
+  await createInvoice({
+    id: input.invoiceId,
+    client_id: input.clientId,
+    total: milestoneAmount,
+    status: input.status ?? 'draft',
+    invoice_type: 'milestone',
+    payment_link: mercuryInvoice?.hosted_url ?? null,
+    mercury_invoice_id: mercuryInvoice?.id ?? null,
+    source_project_id: input.projectId,
+    source_project_name: input.projectName,
+    source_milestone_id: input.milestoneId,
+    source_milestone_title: input.milestoneTitle,
+    source_milestone_amount_type: input.milestoneAmountType,
+    source_milestone_amount_value: input.milestoneAmountValue,
+    source_milestone_completion_mode: input.milestoneCompletionMode,
+    source_milestone_completed_at: input.milestoneCompletedAtIso ?? null,
+    source_session_link_mode: sessionLinkMode,
+  });
+
+  if (selectedSessionIds.length > 0 && sessionLinkMode) {
+    await createInvoiceSessionLinks({
+      invoiceId: input.invoiceId,
+      sessionIds: selectedSessionIds,
+      linkMode: sessionLinkMode,
+    });
+
+    if (sessionLinkMode === 'billed') {
+      await assignSessionsToInvoice(selectedSessionIds, input.invoiceId);
+    }
+  }
+
+  return {
+    totalAmount: milestoneAmount,
+    linkedSessionCount: selectedSessionIds.length,
+    linkedSessions: sessionTotals.sessions,
+    sessionLinkMode,
     mercuryInvoice,
     mercuryWarning,
   };
@@ -761,7 +966,11 @@ export async function exportInvoicePdf(invoice: ExportableInvoice): Promise<Uint
   const minBottom = footerHeight + 18;
   const contentWidth = pageWidth - margin * 2;
 
-  const projectLineItems = groupInvoiceLineItemsByProject(invoice.sessions);
+  const isMilestoneInvoice = invoice.invoiceType === 'milestone';
+  const includeSessionAppendix = isMilestoneInvoice
+    ? (invoice.includeSessionAppendix ?? invoice.sessions.length > 0)
+    : true;
+  const projectLineItems = includeSessionAppendix ? groupInvoiceLineItemsByProject(invoice.sessions) : [];
   const senderDisplayName = normalizePdfText(
     invoice.sender.companyName?.trim() ||
       invoice.sender.fullName?.trim() ||
@@ -1122,6 +1331,63 @@ export async function exportInvoicePdf(invoice: ExportableInvoice): Promise<Uint
   const contactRows = Math.max(recipientLines.length, fromLines.length);
   y -= contactRows * blockLineHeight + 14;
 
+  if (isMilestoneInvoice && invoice.milestoneSummary) {
+    ensurePageSpace(94);
+    page.drawRectangle({
+      x: margin,
+      y: y - 78,
+      width: contentWidth,
+      height: 82,
+      color: tableHeaderColor,
+    });
+    page.drawText('Milestone summary', {
+      x: margin + 10,
+      y: y - 12,
+      size: 11,
+      font: fontBold,
+      color: textColor,
+    });
+    const amountLabel =
+      invoice.milestoneSummary.amountType === 'percent'
+        ? `${invoice.milestoneSummary.amountValue.toFixed(2)}% of project fee`
+        : `$${invoice.milestoneSummary.amountValue.toFixed(2)} fixed amount`;
+    const summaryLines = [
+      `Project: ${invoice.milestoneSummary.projectName}`,
+      `Milestone: ${invoice.milestoneSummary.milestoneTitle}`,
+      `Pricing: ${amountLabel}`,
+      `Completion mode: ${invoice.milestoneSummary.completionMode}`,
+      invoice.milestoneSummary.completedAtIso
+        ? `Completed: ${formatDateEST(invoice.milestoneSummary.completedAtIso)}`
+        : null,
+      invoice.sessionLinkMode
+        ? `Attached session mode: ${invoice.sessionLinkMode}`
+        : 'No sessions attached',
+    ].filter((line): line is string => Boolean(line));
+    for (const [index, line] of summaryLines.entries()) {
+      page.drawText(normalizePdfText(line), {
+        x: margin + 10,
+        y: y - 28 - index * 11,
+        size: 9,
+        font: fontRegular,
+        color: mutedText,
+      });
+    }
+    drawRightText(page, `Milestone total: $${invoice.totalAmount.toFixed(2)}`, amountRightX, y - 12, 10, true);
+    y -= 92;
+  }
+
+  if (includeSessionAppendix && projectLineItems.length > 0) {
+    ensurePageSpace(18);
+    page.drawText(isMilestoneInvoice ? 'Session appendix' : 'Session details', {
+      x: margin,
+      y,
+      size: 11,
+      font: fontBold,
+      color: textColor,
+    });
+    y -= 16;
+  }
+
   for (const projectGroup of projectLineItems) {
     activeProjectLabel = projectGroup.projectLabel;
     drawProjectHeader(projectGroup.projectLabel);
@@ -1283,9 +1549,17 @@ export async function exportInvoicePdf(invoice: ExportableInvoice): Promise<Uint
   });
   y -= 16;
 
-  drawRightText(page, `Grand total hours: ${invoice.totalHours.toFixed(2)}`, amountRightX, y, 11, true);
-  y -= 20;
-  drawRightText(page, `Grand total amount: $${invoice.totalAmount.toFixed(2)}`, amountRightX, y, 14, true);
+  if (!isMilestoneInvoice) {
+    drawRightText(page, `Grand total hours: ${invoice.totalHours.toFixed(2)}`, amountRightX, y, 11, true);
+    y -= 20;
+    drawRightText(page, `Grand total amount: $${invoice.totalAmount.toFixed(2)}`, amountRightX, y, 14, true);
+  } else {
+    if (includeSessionAppendix && invoice.sessions.length > 0) {
+      drawRightText(page, `Appendix hours: ${invoice.totalHours.toFixed(2)}`, amountRightX, y, 10, true, mutedText);
+      y -= 16;
+    }
+    drawRightText(page, `Milestone amount due: $${invoice.totalAmount.toFixed(2)}`, amountRightX, y, 14, true);
+  }
 
   if (invoice.paymentLink) {
     y -= 24;

@@ -67,16 +67,41 @@ async function buildExportableInvoice(invoice: InvoiceWithClient): Promise<{
   const userProfile = await getUserProfile();
   const hourlyRate = invoice.client_hourly_rate ?? 0;
   const totals = computeInvoiceTotals(sessions, hourlyRate);
+  const effectiveTotals: InvoiceComputation =
+    invoice.invoice_type === 'milestone'
+      ? {
+          ...totals,
+          totalAmount: invoice.total,
+        }
+      : totals;
 
   return {
     exportable: {
       invoiceId: invoice.id,
+      invoiceType: invoice.invoice_type,
       issuedAtIso: invoice.created_at,
       hourlyRate,
       sessions: totals.sessions,
+      includeSessionAppendix: sessions.length > 0,
+      sessionLinkMode: invoice.source_session_link_mode ?? null,
+      milestoneSummary:
+        invoice.invoice_type === 'milestone' &&
+        invoice.source_project_name &&
+        invoice.source_milestone_title &&
+        invoice.source_milestone_amount_type &&
+        invoice.source_milestone_completion_mode
+          ? {
+              projectName: invoice.source_project_name,
+              milestoneTitle: invoice.source_milestone_title,
+              amountType: invoice.source_milestone_amount_type,
+              amountValue: invoice.source_milestone_amount_value ?? 0,
+              completionMode: invoice.source_milestone_completion_mode,
+              completedAtIso: invoice.source_milestone_completed_at,
+            }
+          : null,
       breaksBySessionId: groupSessionBreaksBySessionId(sessionBreaks),
-      totalHours: totals.totalHours,
-      totalAmount: totals.totalAmount,
+      totalHours: effectiveTotals.totalHours,
+      totalAmount: effectiveTotals.totalAmount,
       paymentLink: invoice.payment_link ?? null,
       sender: {
         companyName: userProfile.company_name,
@@ -92,7 +117,7 @@ async function buildExportableInvoice(invoice: InvoiceWithClient): Promise<{
       },
       footerLogoUrl: FOOTER_LOGO_URL,
     },
-    totals,
+    totals: effectiveTotals,
   };
 }
 
@@ -238,6 +263,15 @@ export function InvoiceHistory({ refreshKey }: InvoiceHistoryProps) {
             <Text className="text-sm text-muted">Invoice ID: {invoice.id}</Text>
             <Text className="text-sm text-muted">Created: {formatDateTime(invoice.created_at)}</Text>
             <Text className="text-sm text-muted">Status: {invoice.status}</Text>
+            <Text className="text-sm text-muted">
+              Type: {invoice.invoice_type === 'milestone' ? 'Milestone' : 'Hourly'}
+            </Text>
+            {invoice.invoice_type === 'milestone' ? (
+              <Text className="text-sm text-muted">
+                {invoice.source_project_name ?? invoice.source_project_id ?? 'Project'} -{' '}
+                {invoice.source_milestone_title ?? invoice.source_milestone_id ?? 'Milestone'}
+              </Text>
+            ) : null}
             {invoice.mercury_invoice_id ? (
               <Text className="text-sm text-muted">
                 Mercury invoice ID: {invoice.mercury_invoice_id}
