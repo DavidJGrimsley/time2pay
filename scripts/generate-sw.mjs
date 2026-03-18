@@ -10,7 +10,9 @@ const serverBuildDir = path.join(repoRoot, 'dist', 'server');
 const htmlRouteMap = [
   ['/', 'index.html'],
   ['/bank', 'bank.html'],
+  ['/dashboard', 'dashboard.html'],
   ['/invoices', 'invoices.html'],
+  ['/payments', 'payments.html'],
   ['/profile', 'profile.html'],
   ['/sessions', 'sessions.html'],
 ];

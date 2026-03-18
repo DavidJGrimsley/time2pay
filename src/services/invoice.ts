@@ -10,6 +10,7 @@ import {
   createMercuryInvoice,
   type MercuryInvoiceResponse,
   type MercuryLineItemPayload,
+  type MercurySendEmailOption,
 } from '@/services/mercury';
 import { shortCommitSha } from '@/services/github';
 
@@ -52,7 +53,19 @@ export type CreateInvoiceFromSessionsInput = {
     customerName: string;
     customerEmail?: string;
     description?: string;
+    amount?: number;
+    currency?: string;
     dueDateIso?: string;
+    invoiceDateIso?: string;
+    servicePeriodStartDate?: string;
+    servicePeriodEndDate?: string;
+    destinationAccountId?: string;
+    lineItems?: MercuryLineItemPayload[];
+    sendEmailOption?: MercurySendEmailOption;
+    achDebitEnabled?: boolean;
+    creditCardEnabled?: boolean;
+    useRealAccountNumber?: boolean;
+    ccEmails?: string[];
   };
 };
 
@@ -181,6 +194,195 @@ function formatDateTimeEST(isoString: string): string {
 
 function formatInvoiceNumber(invoiceId: string): string {
   return invoiceId.replace(/^invoice[_-]/i, '');
+}
+
+function sanitizeSingleLineText(value: string | null | undefined): string {
+  return `${value ?? ''}`
+    .replace(/\r\n?/g, ' ')
+    .replace(/\u2028|\u2029/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function truncateText(value: string, maxLength: number): string {
+  if (value.length <= maxLength) {
+    return value;
+  }
+
+  return `${value.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...`;
+}
+
+function formatMercurySessionDate(isoString: string): string {
+  const parsed = new Date(isoString);
+  if (Number.isNaN(parsed.getTime())) {
+    return sanitizeSingleLineText(isoString);
+  }
+
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: EST_TIME_ZONE,
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(parsed);
+}
+
+function formatMercurySessionTime(isoString: string): string {
+  const parsed = new Date(isoString);
+  if (Number.isNaN(parsed.getTime())) {
+    return sanitizeSingleLineText(isoString);
+  }
+
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: EST_TIME_ZONE,
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(parsed);
+}
+
+function formatMercurySessionWindow(session: SessionWithComputed): string {
+  const startLabel = formatMercurySessionDate(session.start_time);
+  if (!session.end_time) {
+    return startLabel;
+  }
+
+  return `${startLabel} ${formatMercurySessionTime(session.start_time)}-${formatMercurySessionTime(session.end_time)}`;
+}
+
+function summarizeLabels(labels: string[], maxCount: number, fallback: string): string {
+  if (labels.length === 0) {
+    return fallback;
+  }
+
+  if (labels.length <= maxCount) {
+    return labels.join(', ');
+  }
+
+  return `${labels.slice(0, maxCount).join(', ')} +${labels.length - maxCount} more`;
+}
+
+function normalizePdfText(
+  value: string | null | undefined,
+  options?: { preserveNewlines?: boolean },
+): string {
+  let normalized = `${value ?? ''}`
+    .replace(/\r\n?/g, '\n')
+    .replace(/\u2028|\u2029/g, '\n')
+    .replace(/\t/g, ' ')
+    .replace(/[‘’‚‛]/g, "'")
+    .replace(/[“”„‟]/g, '"')
+    .replace(/[–—]/g, '-')
+    .replace(/…/g, '...')
+    .replace(/•/g, '-')
+    .replace(/[^\S\n]+/g, ' ')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+    .replace(/[^\x20-\x7E\xA0-\xFF\n]/g, '');
+
+  if (options?.preserveNewlines) {
+    return normalized
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  normalized = normalized.replace(/\n+/g, ' ');
+  return normalized.trim();
+}
+
+export function buildMercuryInvoiceDescriptionFromSessions(
+  sessions: SessionWithComputed[],
+): string {
+  if (sessions.length === 0) {
+    return 'Invoice generated with Time2Pay.';
+  }
+
+  const sortedSessions = [...sessions].sort((left, right) =>
+    left.start_time < right.start_time ? -1 : 1,
+  );
+  const firstSession = sortedSessions[0];
+  const lastSession = sortedSessions[sortedSessions.length - 1];
+  const firstDateLabel = formatMercurySessionDate(firstSession.start_time);
+  const lastDateLabel = formatMercurySessionDate(lastSession.start_time);
+  const rangeLabel =
+    firstDateLabel === lastDateLabel ? firstDateLabel : `${firstDateLabel} - ${lastDateLabel}`;
+
+  const projectLabels = Array.from(
+    new Set(
+      sortedSessions
+        .map((session) => sanitizeSingleLineText(session.project_name ?? session.project_id))
+        .filter(Boolean),
+    ),
+  );
+  const taskLabels = Array.from(
+    new Set(
+      sortedSessions
+        .map((session) => sanitizeSingleLineText(session.task_name ?? session.task_id))
+        .filter(Boolean),
+    ),
+  );
+
+  const projectPrefix = projectLabels.length === 1 ? 'Project' : 'Projects';
+  const taskPrefix = taskLabels.length === 1 ? 'task including' : 'tasks including';
+
+  return truncateText(
+    `Service period: ${rangeLabel}. ${projectPrefix}: ${summarizeLabels(projectLabels, 3, 'General work')}; ${taskPrefix} ${summarizeLabels(taskLabels, 6, 'session work')}. Invoice generated with Time2Pay.`,
+    280,
+  );
+}
+
+export function buildMercuryServicePeriodFromSessions(sessions: SessionWithComputed[]): {
+  startDate: string | undefined;
+  endDate: string | undefined;
+} {
+  if (sessions.length === 0) {
+    return {
+      startDate: undefined,
+      endDate: undefined,
+    };
+  }
+
+  const sortedSessions = [...sessions].sort((left, right) =>
+    left.start_time < right.start_time ? -1 : 1,
+  );
+
+  return {
+    startDate: sortedSessions[0]?.start_time.slice(0, 10),
+    endDate: sortedSessions[sortedSessions.length - 1]?.start_time.slice(0, 10),
+  };
+}
+
+export function buildMercurySessionLineItems(
+  sessions: SessionWithComputed[],
+  hourlyRate: number,
+): MercuryLineItemPayload[] {
+  assertNonNegativeFinite(hourlyRate, 'hourlyRate');
+
+  return [...sessions]
+    .sort((left, right) => (left.start_time < right.start_time ? -1 : 1))
+    .filter((session) => session.hours > 0)
+    .map((session) => {
+      const projectLabel = sanitizeSingleLineText(
+        session.project_name ?? session.project_id ?? 'Uncategorized project',
+      );
+      const taskLabel = sanitizeSingleLineText(
+        session.task_name ?? session.task_id ?? 'Uncategorized task',
+      );
+      const noteLabel = truncateText(sanitizeSingleLineText(session.notes), 110);
+      const commitLabel = session.commit_sha ? `Commit ${shortCommitSha(session.commit_sha)}` : null;
+      const nameParts = [
+        formatMercurySessionWindow(session),
+        projectLabel,
+        taskLabel,
+        noteLabel ? `Notes: ${noteLabel}` : null,
+        commitLabel,
+      ].filter((part): part is string => Boolean(part));
+
+      return {
+        name: truncateText(nameParts.join(' | '), 240),
+        quantity: session.hours,
+        unitPrice: toMoney(hourlyRate),
+      };
+    });
 }
 
 export function computeInvoiceTotals(sessions: Session[], hourlyRate: number): InvoiceComputation {
@@ -440,23 +642,30 @@ export async function createInvoiceFromSessions(
   let mercuryInvoice: MercuryInvoiceResponse | undefined;
   let mercuryWarning: string | undefined;
   if (input.mercury?.enabled) {
-    const mercuryLineItems: MercuryLineItemPayload[] = groupInvoiceLineItemsByTask(totals.sessions).map(
-      (group) => ({
-        name: group.taskLabel,
-        quantity: 1,
-        unitPrice: group.totalAmount,
-      }),
-    );
+    const mercuryLineItems: MercuryLineItemPayload[] =
+      input.mercury.lineItems && input.mercury.lineItems.length > 0
+        ? input.mercury.lineItems
+        : buildMercurySessionLineItems(totals.sessions, input.hourlyRate);
 
     try {
       mercuryInvoice = await createMercuryInvoice({
         customerName: input.mercury.customerName,
         customerEmail: input.mercury.customerEmail,
-        amount: totals.totalAmount,
-        currency: 'USD',
-        description: input.mercury.description,
+        amount: input.mercury.amount ?? totals.totalAmount,
+        currency: input.mercury.currency ?? 'USD',
+        description:
+          input.mercury.description ?? buildMercuryInvoiceDescriptionFromSessions(totals.sessions),
         dueDateIso: input.mercury.dueDateIso,
+        invoiceDateIso: input.mercury.invoiceDateIso,
+        servicePeriodStartDate: input.mercury.servicePeriodStartDate,
+        servicePeriodEndDate: input.mercury.servicePeriodEndDate,
+        destinationAccountId: input.mercury.destinationAccountId,
         lineItems: mercuryLineItems,
+        sendEmailOption: input.mercury.sendEmailOption,
+        achDebitEnabled: input.mercury.achDebitEnabled,
+        creditCardEnabled: input.mercury.creditCardEnabled,
+        useRealAccountNumber: input.mercury.useRealAccountNumber,
+        ccEmails: input.mercury.ccEmails,
       });
     } catch (error: unknown) {
       const reason = error instanceof Error ? error.message : 'Unknown Mercury API error';
@@ -553,22 +762,27 @@ export async function exportInvoicePdf(invoice: ExportableInvoice): Promise<Uint
   const contentWidth = pageWidth - margin * 2;
 
   const projectLineItems = groupInvoiceLineItemsByProject(invoice.sessions);
-  const senderDisplayName =
+  const senderDisplayName = normalizePdfText(
     invoice.sender.companyName?.trim() ||
-    invoice.sender.fullName?.trim() ||
-    'Your Business Name';
+      invoice.sender.fullName?.trim() ||
+      'Your Business Name',
+  );
   const senderLines = [
     invoice.sender.companyName?.trim() && invoice.sender.fullName?.trim()
       ? invoice.sender.fullName.trim()
       : null,
     invoice.sender.phone?.trim() || null,
     invoice.sender.email?.trim() || null,
-  ].filter((line): line is string => Boolean(line));
+  ]
+    .map((line) => normalizePdfText(line))
+    .filter((line): line is string => Boolean(line));
   const recipientLines = [
     invoice.recipient.companyName.trim(),
     invoice.recipient.phone?.trim() || null,
     invoice.recipient.email?.trim() || null,
-  ].filter((line): line is string => Boolean(line));
+  ]
+    .map((line) => normalizePdfText(line))
+    .filter((line): line is string => Boolean(line));
 
   const senderLogo = await embedImageFromUrl(invoice.sender.logoUrl ?? null);
   const footerLogo = await embedImageFromUrl(invoice.footerLogoUrl ?? '/images/time2payLogo.png');
@@ -598,9 +812,14 @@ export async function exportInvoicePdf(invoice: ExportableInvoice): Promise<Uint
     bold = false,
     color = textColor,
   ): void {
+    const safeText = normalizePdfText(text);
+    if (!safeText) {
+      return;
+    }
+
     const font = bold ? fontBold : fontRegular;
-    const width = font.widthOfTextAtSize(text, size);
-    targetPage.drawText(text, {
+    const width = font.widthOfTextAtSize(safeText, size);
+    targetPage.drawText(safeText, {
       x: rightX - width,
       y: atY,
       size,
@@ -729,7 +948,10 @@ export async function exportInvoicePdf(invoice: ExportableInvoice): Promise<Uint
 
   function drawProjectHeader(projectLabel: string, continuation = false): void {
     ensurePageSpace(34);
-    const title = continuation ? `Project: ${projectLabel} (cont.)` : `Project: ${projectLabel}`;
+    const safeProjectLabel = normalizePdfText(projectLabel);
+    const title = continuation
+      ? `Project: ${safeProjectLabel} (cont.)`
+      : `Project: ${safeProjectLabel}`;
     page.drawText(title, {
       x: margin,
       y,
@@ -777,15 +999,35 @@ export async function exportInvoicePdf(invoice: ExportableInvoice): Promise<Uint
     const font = options.bold ? fontBold : fontRegular;
     const lineHeight = options.lineHeight ?? options.size + 4;
     const color = options.color ?? mutedText;
-    const words = text.split(' ');
-    let current = '';
+    const normalized = normalizePdfText(text, { preserveNewlines: true });
+    if (!normalized) {
+      return;
+    }
 
-    for (const word of words) {
-      const candidate = current ? `${current} ${word}` : word;
-      const width = font.widthOfTextAtSize(candidate, options.size);
-      if (width <= options.maxWidth) {
-        current = candidate;
-        continue;
+    for (const paragraph of normalized.split('\n')) {
+      const words = paragraph.split(' ');
+      let current = '';
+
+      for (const word of words) {
+        const candidate = current ? `${current} ${word}` : word;
+        const width = font.widthOfTextAtSize(candidate, options.size);
+        if (width <= options.maxWidth) {
+          current = candidate;
+          continue;
+        }
+
+        if (current) {
+          ensurePageSpace(lineHeight, Boolean(activeProjectLabel));
+          page.drawText(current, {
+            x: options.x,
+            y,
+            size: options.size,
+            font,
+            color,
+          });
+          y -= lineHeight;
+        }
+        current = word;
       }
 
       if (current) {
@@ -799,19 +1041,6 @@ export async function exportInvoicePdf(invoice: ExportableInvoice): Promise<Uint
         });
         y -= lineHeight;
       }
-      current = word;
-    }
-
-    if (current) {
-      ensurePageSpace(lineHeight, Boolean(activeProjectLabel));
-      page.drawText(current, {
-        x: options.x,
-        y,
-        size: options.size,
-        font,
-        color,
-      });
-      y -= lineHeight;
     }
   }
 
@@ -899,7 +1128,7 @@ export async function exportInvoicePdf(invoice: ExportableInvoice): Promise<Uint
 
     for (const taskGroup of projectGroup.tasks) {
       ensurePageSpace(16, true);
-      page.drawText(taskGroup.taskLabel, {
+      page.drawText(normalizePdfText(taskGroup.taskLabel), {
         x: colItemX,
         y,
         size: 10,
@@ -989,7 +1218,7 @@ export async function exportInvoicePdf(invoice: ExportableInvoice): Promise<Uint
         }
 
         if (session.commit_sha) {
-          const commitText = `Commit: ${shortCommitSha(session.commit_sha)}`;
+          const commitText = normalizePdfText(`Commit: ${shortCommitSha(session.commit_sha)}`);
           const commitTextSize = 7.5;
           const commitX = detailStartX + 2;
           ensurePageSpace(10, true);

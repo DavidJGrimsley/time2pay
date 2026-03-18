@@ -112,6 +112,7 @@ export default function RootLayout() {
         <Stack.Screen name="sessions" options={{ title: 'Sessions' }} />
         <Stack.Screen name="invoices" options={{ title: 'Invoices' }} />
         <Stack.Screen name="bank" options={{ title: 'Bank' }} />
+        <Stack.Screen name="payments" options={{ title: 'Payments' }} />
         <Stack.Screen name="profile" options={{ title: 'Profile' }} />
         <Stack.Screen name="+not-found" options={{ title: 'Not Found' }} />
       </Stack>

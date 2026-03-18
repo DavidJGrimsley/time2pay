@@ -1,14 +1,10 @@
 import { Octicons } from '@expo/vector-icons';
-import { Picker } from '@react-native-picker/picker';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Linking, Modal, Platform, Pressable, ScrollView, Text, TextInput, useColorScheme, useWindowDimensions, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { Linking, Modal, Platform, Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import {
   getUserProfile,
   initializeDatabase,
-  listClients,
   upsertUserProfile,
-  updateClientInvoiceContact,
-  type Client,
 } from '@/database/db';
 import {
   evaluateProfileCompletion,
@@ -24,7 +20,6 @@ import {
 import { InlineNotice, type NoticeTone } from '@/components/inline-notice';
 import { showActionErrorAlert, showSystemConfirm, showValidationAlert } from '@/services/system-alert';
 
-const EMPTY_PICKER_VALUE = '';
 const FILE_PICKER_CANCELED_MESSAGE = 'Backup import canceled.';
 const GITHUB_PAT_CREATE_URL = 'https://github.com/settings/personal-access-tokens/new';
 const GITHUB_PAT_DOCS_URL =
@@ -129,10 +124,6 @@ async function pickBackupJsonFile(): Promise<PickedBackupFile> {
 
 export function ProfileOverview() {
   const { width } = useWindowDimensions();
-  const scheme = useColorScheme();
-  const pickerTextColor = scheme === 'dark' ? '#f8f7f3' : '#1a1f16';
-  const pickerPlaceholderColor = scheme === 'dark' ? '#b8b7b2' : '#6f7868';
-  const pickerSurfaceColor = scheme === 'dark' ? '#1a1f16' : '#f8f7f3';
   const isLargeScreen = width >= 1200;
   const isTablet = width >= 768 && width < 1200;
   const contentWidthStyle = isLargeScreen
@@ -144,7 +135,6 @@ export function ProfileOverview() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingBusiness, setIsSavingBusiness] = useState(false);
   const [isSavingIntegrations, setIsSavingIntegrations] = useState(false);
-  const [isSavingClient, setIsSavingClient] = useState(false);
   const [isExportingData, setIsExportingData] = useState(false);
   const [isImportingData, setIsImportingData] = useState(false);
   const [createSafetyBackupBeforeImport, setCreateSafetyBackupBeforeImport] = useState(true);
@@ -163,32 +153,8 @@ export function ProfileOverview() {
   const [showPatInfoModal, setShowPatInfoModal] = useState(false);
   const [isSigningInWithGitHub, setIsSigningInWithGitHub] = useState(false);
 
-  const [clients, setClients] = useState<Client[]>([]);
-  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
-  const [clientName, setClientName] = useState('');
-  const [clientPhone, setClientPhone] = useState('');
-  const [clientEmail, setClientEmail] = useState('');
-
-  const selectedClient = useMemo(
-    () => clients.find((client) => client.id === selectedClientId) ?? null,
-    [clients, selectedClientId],
-  );
   const githubClientId = process.env.EXPO_PUBLIC_GITHUB_CLIENT_ID?.trim() ?? '';
   const isGitHubOAuthEnabled = process.env.EXPO_OS === 'web' && Boolean(githubClientId);
-
-  const refreshClients = useCallback(async (preferredClientId?: string | null): Promise<void> => {
-    const clientRows = await listClients();
-    setClients(clientRows);
-    setSelectedClientId((current) => {
-      if (preferredClientId && clientRows.some((client) => client.id === preferredClientId)) {
-        return preferredClientId;
-      }
-      if (current && clientRows.some((client) => client.id === current)) {
-        return current;
-      }
-      return clientRows[0]?.id ?? null;
-    });
-  }, []);
 
   const loadProfileData = useCallback(async (): Promise<void> => {
     setStatus({ message: 'Loading profile...', tone: 'neutral' });
@@ -203,7 +169,7 @@ export function ProfileOverview() {
 
   useEffect(() => {
     initializeDatabase()
-      .then(() => Promise.all([loadProfileData(), refreshClients()]))
+      .then(() => Promise.all([loadProfileData()]))
       .then(() => setStatus({ message: 'Profile loaded.', tone: 'neutral' }))
       .catch((error: unknown) => {
         setStatus({
@@ -212,20 +178,7 @@ export function ProfileOverview() {
         });
       })
       .finally(() => setIsLoading(false));
-  }, [loadProfileData, refreshClients]);
-
-  useEffect(() => {
-    if (!selectedClient) {
-      setClientName('');
-      setClientPhone('');
-      setClientEmail('');
-      return;
-    }
-
-    setClientName(selectedClient.name);
-    setClientPhone(selectedClient.phone ?? '');
-    setClientEmail(selectedClient.email ?? '');
-  }, [selectedClient]);
+  }, [loadProfileData]);
 
   useEffect(() => {
     if (!isGitHubOAuthEnabled || typeof window === 'undefined') {
@@ -379,41 +332,6 @@ export function ProfileOverview() {
     }
   }
 
-  async function handleSaveClient(): Promise<void> {
-    if (!selectedClientId) {
-      const message = 'Select a client to update.';
-      showValidationAlert(message);
-      setStatus({ message, tone: 'error' });
-      return;
-    }
-
-    const trimmedClientName = clientName.trim();
-    if (!trimmedClientName) {
-      const message = 'Client company/name is required.';
-      showValidationAlert(message);
-      setStatus({ message, tone: 'error' });
-      return;
-    }
-
-    setIsSavingClient(true);
-    try {
-      await updateClientInvoiceContact({
-        id: selectedClientId,
-        name: trimmedClientName,
-        phone: toNullableTrimmed(clientPhone),
-        email: toNullableTrimmed(clientEmail),
-      });
-      await refreshClients(selectedClientId);
-      setStatus({ message: 'Client invoice contact saved.', tone: 'success' });
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to save client contact.';
-      showActionErrorAlert(message);
-      setStatus({ message, tone: 'error' });
-    } finally {
-      setIsSavingClient(false);
-    }
-  }
-
   async function handleSaveIntegrations(): Promise<void> {
     setStatus(null);
     setIsSavingIntegrations(true);
@@ -511,7 +429,7 @@ export function ProfileOverview() {
         replaceAll: true,
         createSafetyBackup: createSafetyBackupBeforeImport,
       });
-      await Promise.all([loadProfileData(), refreshClients()]);
+      await Promise.all([loadProfileData()]);
 
       const rollbackMessage = restoreReport.safetyBackupFilename
         ? ` Rollback backup downloaded: ${restoreReport.safetyBackupFilename}.`
@@ -541,7 +459,6 @@ export function ProfileOverview() {
     isLoading ||
     isSavingBusiness ||
     isSavingIntegrations ||
-    isSavingClient ||
     isExportingData ||
     isImportingData;
 
@@ -549,7 +466,7 @@ export function ProfileOverview() {
     <View className="gap-3">
       <Text className="text-3xl font-extrabold text-heading">Profile</Text>
       <Text className="text-muted">
-        Manage invoice sender details and client invoice contact details.
+        Manage invoice sender details, integrations, and local backup tools.
       </Text>
       <View className="items-center">
         <View className="w-full gap-3" style={contentWidthStyle}>
@@ -689,79 +606,6 @@ export function ProfileOverview() {
             </Pressable>
           </View>
         ) : null}
-      </View>
-
-      <View className="gap-3 rounded-xl bg-card p-4">
-        <Text className="text-xl font-bold text-heading">Client Invoice Contact</Text>
-        {clients.length === 0 ? (
-          <Text className="text-sm text-muted">
-            No clients yet. Create one from the Dashboard timer flow, then edit invoice contact info here.
-          </Text>
-        ) : (
-          <>
-            <View className="rounded-md border border-border bg-background">
-              <Picker
-                selectedValue={selectedClientId ?? EMPTY_PICKER_VALUE}
-                onValueChange={(value: string | number) => {
-                  const next = String(value ?? EMPTY_PICKER_VALUE);
-                  setSelectedClientId(next || null);
-                }}
-                dropdownIconColor={pickerTextColor}
-                style={{ color: pickerTextColor, backgroundColor: pickerSurfaceColor }}
-              >
-                <Picker.Item
-                  label="Select client"
-                  value={EMPTY_PICKER_VALUE}
-                  color={pickerPlaceholderColor}
-                  style={{ color: pickerPlaceholderColor, backgroundColor: pickerSurfaceColor }}
-                />
-                {clients.map((client) => (
-                  <Picker.Item
-                    key={client.id}
-                    label={client.name}
-                    value={client.id}
-                    color={pickerTextColor}
-                    style={{ color: pickerTextColor, backgroundColor: pickerSurfaceColor }}
-                  />
-                ))}
-              </Picker>
-            </View>
-
-            <TextInput
-              value={clientName}
-              onChangeText={setClientName}
-              placeholder="Client company/name"
-              className="rounded-md border border-border bg-background px-3 py-2 text-foreground"
-            />
-            <TextInput
-              value={clientPhone}
-              onChangeText={setClientPhone}
-              placeholder="Client phone"
-              keyboardType="phone-pad"
-              className="rounded-md border border-border bg-background px-3 py-2 text-foreground"
-            />
-            <TextInput
-              value={clientEmail}
-              onChangeText={setClientEmail}
-              placeholder="Client email"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              className="rounded-md border border-border bg-background px-3 py-2 text-foreground"
-            />
-            <Pressable
-              className="rounded-md bg-secondary px-4 py-2"
-              onPress={() => {
-                handleSaveClient().catch(() => undefined);
-              }}
-              disabled={isSavingClient || isLoading || !selectedClientId}
-            >
-              <Text className="text-center font-semibold text-white">
-                {isSavingClient ? 'Saving...' : 'Save Client Contact'}
-              </Text>
-            </Pressable>
-          </>
-        )}
       </View>
 
       <View className="gap-3 rounded-xl bg-card p-4">

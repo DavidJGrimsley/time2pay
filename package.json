@@ -14,17 +14,20 @@
     "serve:prod:env": "node --env-file=.env server.js",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "doctor": "npx expo-doctor"
   },
   "dependencies": {
+    "@mr.dj2u/mercury": "0.1.0",
+    "@mr.dj2u/mercury-ui": "0.2.1",
     "@react-native-picker/picker": "2.11.4",
     "compression": "^1.8.1",
     "expo": "~55.0.5",
-    "expo-constants": "~55.0.7",
+    "expo-constants": "~55.0.8",
     "expo-linking": "~55.0.7",
-    "expo-router": "~55.0.4",
+    "expo-router": "~55.0.6",
     "expo-server": "~55.0.6",
-    "expo-sqlite": "~55.0.10",
+    "expo-sqlite": "~55.0.11",
     "expo-status-bar": "~55.0.4",
     "express": "^5.2.1",
     "morgan": "^1.10.1",
@@ -43,10 +46,14 @@
     "uniwind": "^1.2.9"
   },
   "devDependencies": {
+    "@types/node": "^24.6.1",
     "@types/react": "~19.2.10",
+    "@types/react-test-renderer": "^19.1.0",
     "eslint": "^9.39.3",
     "eslint-config-expo": "~55.0.0",
+    "react-test-renderer": "19.2.0",
     "typescript": "~5.9.2",
+    "vitest": "^3.2.4",
     "workbox-build": "^7.4.0"
   }
 }

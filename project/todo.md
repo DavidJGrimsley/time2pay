@@ -1,7 +1,7 @@
 # Time2Pay — TODO
 
 ## Current Status
-- Branch: `work`
+- Branch: `feature/mercury-api-npm`
 - Phase focus: Phase 1 (Web, local-first)
 
 ## Immediate Next Actions
@@ -29,7 +29,7 @@
 - [x] Define API contract for sessions/invoices
 - [x] Map local model fields to PostgreSQL/Supabase schema
 
-## Random
+## Final MVP Pass - Random
 - [x] Add ability edit sessions, make create manual session more robust like clock in, group sessions better(by week and client)
 - [x] Light/dark mode
 - [x] Revise copy icons script and run it to move icons over
@@ -38,13 +38,30 @@
 - [x] A gate on the entire dashboard buttons and interactivity to ensure the user has filled out the profile screen first
 - [x] Move all alerts from inline style to system alert window because inline alerts are not obvious enough and can lead to user frustration 
 - [x] Export & import user data including all profile, clients, time tracked, etc.
-- [ ] Refine github integration - when adding the commit message to the notes, there is no indication that this comes from github or is associated with a commit or anything. I want the whoever looks at the invoice to be able to click a link for each project that takes them to the github commit for that session. the task being the branch name means this could be autofilled for the user. the user should be able to start create a client, project, and task, all from one github link. this should be a separate button on the dashboard maybe so the user can see a modal open that explains the flow. let's also explore sign in with github options but idk if that can be done self-hosted.
-- [ ] Make a landing page that explains how the app works and that it's best if you have mercury banking with at least their 'Plus' plan to take advantage of the invoicing but that there is still some mercury functionality either way. Formatting: if the page were split into thirds, it should have our logo really big centered on the left third, and a big display font title of our app and caption, then the user will scroll to see the rest of how the app works, then they will see the let's get started button at the bottom. It shouldn't be very long, like 3 pages (of full width content, please use responsive styling so it would be of course longer on smaller screens.)
-- [ ] Make comprehensive mercury-api-ui npm package. could we do a sign in with mercury in the future? or only if they partnered with us.
+- [x] Refine github integration - when adding the commit message to the notes, there is no indication that this comes from github or is associated with a commit or anything. I want the whoever looks at the invoice to be able to click a link for each project that takes them to the github commit for that session. the task being the branch name means this could be autofilled for the user. the user should be able to start create a client, project, and task, all from one github link. this should be a separate button on the dashboard maybe so the user can see a modal open that explains the flow. let's also explore sign in with github options but idk if that can be done self-hosted.
+- [x] Make a landing page that explains how the app works and that it's best if you have mercury banking with at least their 'Plus' plan to take advantage of the invoicing but that there is still some mercury functionality either way. Formatting: if the page were split into thirds, it should have our logo really big centered on the left third, and a big display font title of our app and caption, then the user will scroll to see the rest of how the app works, then they will see the let's get started button at the bottom. It shouldn't be very long, like 3 pages (of full width content, please use responsive styling so it would be of course longer on smaller screens.)
+## Mercury Integration
+- [x] Incubate Mercury SDK/UI package work in this branch and publish it on npm
+- [x] Switch the app from local Mercury workspaces to published `@mr.dj2u/*` packages
+- [x] Move the package roadmap and release/versioning backlog to `f:\ReactNativeApps\mercury-bank-sdk\project\todo.md`
+
 
 ## Longer-Term
-- [ ] Multi-user support
-- [ ] Cloud-hosted option
+- [ ] Iterate on landing page with gh integration (
+Client = GH Organization
+Project = GH Repo
+Task = GH Branch
+Notes = GH Commit message)
+- [ ] Add support for project-based pricing where a project is created, and we can clock in and track our time, but also the project has milestones that we create such as what's below. This should let us send these invoices at certain milestones. Maybe the milestone is a checklist or something and we mark it as complete and then it creates an invoice for us to review... something like that.
+```Initial Invoice: 50% of total project fee due upon signing this Agreement.
+Milestone Payments:
+10% due upon approval of Landing and homepage design.
+10% due upon Core Prototype completed.
+10% due upon LTI Integration completed
+20% due upon launch of the website/app.```
+
+- [ ] Multi-user support - supabase db has been created so we can refine our schemas, generate and migrate(drizzle)
+- [ ] Cloud-hosted option (immediately after supabase setup) - host on my vps for other users to use - time2pay.app is the url
 - [ ] Accounting integrations
 - [ ] Automated invoice reminders
 - [ ] Financial dashboards
