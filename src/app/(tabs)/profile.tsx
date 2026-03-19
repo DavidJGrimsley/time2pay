@@ -1,10 +1,9 @@
-import React from 'react';
 import { ScrollView } from 'react-native';
 import Animated, { FadeInDown, LinearTransition } from 'react-native-reanimated';
-import { RouteNav } from '../components/route-nav';
-import { ProjectsOverview } from '../components/projects-overview';
+import { ProfileOverview } from '../../components/profile-overview';
+import { RouteNav } from '../../components/route-nav';
 
-export default function ProjectsRoute() {
+export default function ProfileRoute() {
   const smoothLayout = LinearTransition.springify().damping(20).stiffness(170);
 
   return (
@@ -14,7 +13,7 @@ export default function ProjectsRoute() {
           <RouteNav />
         </Animated.View>
         <Animated.View entering={FadeInDown.delay(40).duration(220)} layout={smoothLayout}>
-          <ProjectsOverview />
+          <ProfileOverview />
         </Animated.View>
       </Animated.View>
     </ScrollView>

@@ -51,10 +51,36 @@ Set these in `.env`:
 - `GITHUB_CLIENT_ID` (optional): server-side GitHub OAuth app client id
 - `GITHUB_CLIENT_SECRET` (optional): server-side GitHub OAuth app client secret
 - `EXPO_PUBLIC_GITHUB_CLIENT_ID` (optional): client-visible GitHub OAuth id used to show the Sign in with GitHub button
+- `EXPO_PUBLIC_TIME2PAY_DATA_MODE` (optional): `local` (default) or `hosted`
+- `EXPO_PUBLIC_SUPABASE_URL` (required in hosted mode)
+- `EXPO_PUBLIC_SUPABASE_ANON_KEY` (required in hosted mode; `EXPO_PUBLIC_SUPABASE_KEY` also works as alias)
+- `EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_URL` (optional): full OAuth/magic-link callback URL
+- `EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_PATH` (optional): path fallback for callback URL, defaults to `/dashboard`
+- `SUPABASE_SERVICE_ROLE_KEY` (required for server-side admin operations)
+- `DATABASE_DIRECT_URL` (recommended for Drizzle migrations; direct database host/port, usually `5432`)
+- `DATABASE_URL` (pooled connection for app/runtime clients, usually `6543`)
 - `PORT` (optional): defaults to `3000`
 
 If `MERCURY_API_KEY` is missing, `/api/mercury` returns `400`.
 If GitHub OAuth env vars are missing, `/api/github` returns `501` and the Sign in with GitHub button is hidden.
+If hosted env vars are missing while `EXPO_PUBLIC_TIME2PAY_DATA_MODE=hosted`, auth/data flows fail at startup.
+
+## Hosted Mode (Supabase + Multi-User)
+
+Set `EXPO_PUBLIC_TIME2PAY_DATA_MODE=hosted` to enable Supabase auth + hosted data.
+
+Hosted mode includes:
+- Email magic-link + GitHub OAuth sign-in
+- User-scoped profile + data reads from Supabase
+- API-routed hosted writes (`/api/db/write`)
+
+Supabase callback setup:
+1. In Supabase Auth settings, add redirect URLs for:
+   - `http://localhost:3000/dashboard`
+   - `https://time2pay.app/dashboard`
+2. In `.env`, set either:
+   - `EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_URL=https://time2pay.app/dashboard` (production), or
+   - `EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_PATH=/dashboard` (origin-relative fallback).
 
 ## Run Modes
 
@@ -160,10 +186,15 @@ Notes:
    - Node 20+: `npm run serve:prod:env`
    - If env vars are managed by Plesk directly: `npm run serve:prod`
 6. Keep HTTPS enabled for full PWA install/service-worker behavior
+7. For hosted mode, ensure Supabase auth redirects include `https://time2pay.app/dashboard`
 
 ## Available Scripts
 
 - `npm run web` - Expo web dev server
+- `npm run db:generate` - generate Drizzle SQL from `drizzle/schema.ts`
+- `npm run db:migrate` - apply migrations using `DATABASE_DIRECT_URL` (or `DATABASE_URL` fallback)
+- `npm run db:studio` - open Drizzle Studio
+- `npm run db:check` - validate migration consistency
 - `npm run icons:sync` - sync icon assets into `public/`
 - `npm run build:web` - icons + web export + service worker generation
 - `npm run serve:prod` - run production server (env from shell)

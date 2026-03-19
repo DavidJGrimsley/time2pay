@@ -1,7 +1,7 @@
 import { ScrollView } from 'react-native';
 import Animated, { FadeInDown, LinearTransition } from 'react-native-reanimated';
-import { DashboardOverview } from '../components/dashboard-overview';
-import { RouteNav } from '../components/route-nav';
+import { DashboardOverview } from '../../components/dashboard-overview';
+import { RouteNav } from '../../components/route-nav';
 
 export default function DashboardRoute() {
   const smoothLayout = LinearTransition.springify().damping(20).stiffness(170);

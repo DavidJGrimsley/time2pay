@@ -2,11 +2,11 @@ import { Pressable, Text, View } from 'react-native';
 import { SemanticView } from './semantic-elements';
 
 type LandingHeaderProps = {
-  onOpenDashboard: () => void;
-  onOpenProfile: () => void;
+  onOpenSignIn: () => void;
+  onTourExperience: () => void;
 };
 
-export function LandingHeader({ onOpenDashboard, onOpenProfile }: LandingHeaderProps) {
+export function LandingHeader({ onOpenSignIn, onTourExperience }: LandingHeaderProps) {
   return (
     <SemanticView
       as="header"
@@ -25,12 +25,12 @@ export function LandingHeader({ onOpenDashboard, onOpenProfile }: LandingHeaderP
         <View className="flex-row items-center gap-2">
           <Pressable
             className="rounded-full border border-border bg-background px-3 py-2"
-            onPress={onOpenDashboard}
+            onPress={onTourExperience}
           >
-            <Text className="text-sm font-semibold text-heading">Dashboard</Text>
+            <Text className="text-sm font-semibold text-heading">Tour the App</Text>
           </Pressable>
-          <Pressable className="rounded-full bg-primary px-3 py-2" onPress={onOpenProfile}>
-            <Text className="text-sm font-semibold text-heading">Profile</Text>
+          <Pressable className="rounded-full bg-primary px-3 py-2" onPress={onOpenSignIn}>
+            <Text className="text-sm font-semibold text-heading">Sign In</Text>
           </Pressable>
         </View>
       </View>

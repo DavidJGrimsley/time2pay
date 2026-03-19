@@ -1,10 +1,9 @@
-import React from 'react';
 import { ScrollView } from 'react-native';
 import Animated, { FadeInDown, LinearTransition } from 'react-native-reanimated';
-import { RouteNav } from '../components/route-nav';
-import { InvoicesOverview } from '../components/invoices-overview';
+import { BankOverview } from '../../components/bank-overview';
+import { RouteNav } from '../../components/route-nav';
 
-export default function InvoicesRoute() {
+export default function BankRoute() {
   const smoothLayout = LinearTransition.springify().damping(20).stiffness(170);
 
   return (
@@ -14,7 +13,7 @@ export default function InvoicesRoute() {
           <RouteNav />
         </Animated.View>
         <Animated.View entering={FadeInDown.delay(40).duration(220)} layout={smoothLayout}>
-          <InvoicesOverview />
+          <BankOverview />
         </Animated.View>
       </Animated.View>
     </ScrollView>

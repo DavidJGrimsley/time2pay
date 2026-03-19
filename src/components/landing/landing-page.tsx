@@ -24,6 +24,8 @@ import {
   workflowSection,
   type LandingCta,
 } from '../../content/landing-content';
+import { isHostedMode } from '@/services/runtime-mode';
+import { useAuthUiStore } from '@/stores/auth-ui-store';
 import { FeaturesScene } from './features-scene';
 import { LandingFooter } from './landing-footer';
 import { LandingHeader } from './landing-header';
@@ -195,6 +197,9 @@ function CtaButtons({
 
 export function LandingPage() {
   const router = useRouter();
+  const hostedMode = isHostedMode();
+  const isAuthenticated = useAuthUiStore((state) => state.isAuthenticated);
+  const startTour = useAuthUiStore((state) => state.startTour);
   const scrollRef = useAnimatedRef<ScrollView>();
   const scrollY = useScrollOffset(scrollRef);
   const heroCopyProgress = useSharedValue(0);
@@ -280,6 +285,23 @@ export function LandingPage() {
     [router],
   );
 
+  const handleSignIn = useCallback(() => {
+    if (!hostedMode) {
+      router.push('/dashboard' as never);
+      return;
+    }
+
+    router.push('/sign-in' as never);
+  }, [hostedMode, router]);
+
+  const handleTourExperience = useCallback(() => {
+    if (hostedMode && !isAuthenticated) {
+      startTour();
+    }
+
+    router.push('/dashboard' as never);
+  }, [hostedMode, isAuthenticated, router, startTour]);
+
   const heroCopyStyle = useHeroPieceStyle(heroCopyProgress, 40);
   const heroGlowPrimaryStyle = useParallaxStyle(scrollY, sectionLayouts[heroSection.id], viewportHeight, 32);
   const heroGlowSecondaryStyle = useParallaxStyle(scrollY, sectionLayouts[heroSection.id], viewportHeight, 54);
@@ -297,8 +319,8 @@ export function LandingPage() {
       showsVerticalScrollIndicator={false}
     >
       <LandingHeader
-        onOpenDashboard={() => handleRoute('/dashboard')}
-        onOpenProfile={() => handleRoute('/profile')}
+        onOpenSignIn={handleSignIn}
+        onTourExperience={handleTourExperience}
       />
 
       <LandingSection
@@ -348,6 +370,19 @@ export function LandingPage() {
                 {heroSection.title}
               </SemanticText>
               <SectionBody paragraphs={heroSection.body} compact={sectionBodyCompact} />
+              <View className="flex-row flex-wrap gap-3">
+                <Pressable className="rounded-full bg-primary px-5 py-3" onPress={handleSignIn}>
+                  <Text className="text-sm font-semibold text-heading">
+                    {hostedMode ? 'Sign In to Continue' : 'Open Dashboard'}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  className="rounded-full border border-border bg-background px-5 py-3"
+                  onPress={handleTourExperience}
+                >
+                  <Text className="text-sm font-semibold text-heading">Tour the Experience</Text>
+                </Pressable>
+              </View>
             </Animated.View>
           </View>
         </View>

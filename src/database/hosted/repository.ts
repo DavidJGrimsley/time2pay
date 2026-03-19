@@ -1,5 +1,4 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
-import * as local from '@/database/db.local';
 import type {
   Client,
   CoreDbValidationReport,
@@ -99,20 +98,8 @@ export async function getCurrentSchemaVersion(): Promise<number> {
   return 1;
 }
 
-async function withLocalFallback<T>(run: () => Promise<T>): Promise<T> {
-  await local.initializeDatabase();
-  return run();
-}
-
-async function withHostedReadFallback<T>(
-  read: () => Promise<T>,
-  fallback: () => Promise<T>,
-): Promise<T> {
-  try {
-    return await read();
-  } catch {
-    return withLocalFallback(fallback);
-  }
+async function withHostedReadFallback<T>(read: () => Promise<T>): Promise<T> {
+  return read();
 }
 
 type HostedWriteAction =
@@ -176,16 +163,8 @@ async function callHostedWriteRoute(
 async function writeWithApiFallback(
   action: HostedWriteAction,
   payload: Record<string, unknown>,
-  fallback: () => Promise<void>,
 ): Promise<void> {
-  try {
-    await callHostedWriteRoute(action, payload);
-    // Keep local mirror in sync until hosted reads are fully direct-Supabase.
-    await withLocalFallback(fallback);
-    return;
-  } catch {
-    await withLocalFallback(fallback);
-  }
+  await callHostedWriteRoute(action, payload);
 }
 
 function toNumber(value: unknown): number {
@@ -335,7 +314,7 @@ export function createClient(input: {
   hourly_rate?: number;
   github_org?: string | null;
 }): Promise<void> {
-  return writeWithApiFallback('client.create', input, () => local.createClient(input));
+  return writeWithApiFallback('client.create', input);
 }
 
 export function listClients(): Promise<Client[]> {
@@ -366,9 +345,7 @@ export function listClients(): Promise<Client[]> {
         updated_at: String(row.updated_at),
         deleted_at: (row.deleted_at as string | null) ?? null,
       }));
-    },
-    () => local.listClients(),
-  );
+    });
 }
 
 export function getClientById(clientId: string): Promise<Client | null> {
@@ -403,9 +380,7 @@ export function getClientById(clientId: string): Promise<Client | null> {
         updated_at: String(row.updated_at),
         deleted_at: (row.deleted_at as string | null) ?? null,
       };
-    },
-    () => local.getClientById(clientId),
-  );
+    });
 }
 
 export async function getUserProfile(): Promise<UserProfile> {
@@ -467,9 +442,7 @@ export function updateClientInvoiceContact(input: {
   email?: string | null;
   phone?: string | null;
 }): Promise<void> {
-  return writeWithApiFallback('client.updateContact', input, () =>
-    local.updateClientInvoiceContact(input),
-  );
+  return writeWithApiFallback('client.updateContact', input);
 }
 
 export function createProject(input: {
@@ -480,7 +453,7 @@ export function createProject(input: {
   pricing_mode?: PricingMode;
   total_project_fee?: number | null;
 }): Promise<void> {
-  return writeWithApiFallback('project.create', input, () => local.createProject(input));
+  return writeWithApiFallback('project.create', input);
 }
 
 export function listProjectsByClient(clientId: string): Promise<Project[]> {
@@ -514,9 +487,7 @@ export function listProjectsByClient(clientId: string): Promise<Project[]> {
         updated_at: String(row.updated_at),
         deleted_at: (row.deleted_at as string | null) ?? null,
       }));
-    },
-    () => local.listProjectsByClient(clientId),
-  );
+    });
 }
 
 export function listProjects(): Promise<Project[]> {
@@ -549,9 +520,7 @@ export function listProjects(): Promise<Project[]> {
         updated_at: String(row.updated_at),
         deleted_at: (row.deleted_at as string | null) ?? null,
       }));
-    },
-    () => local.listProjects(),
-  );
+    });
 }
 
 export function getProjectById(projectId: string): Promise<Project | null> {
@@ -588,9 +557,7 @@ export function getProjectById(projectId: string): Promise<Project | null> {
         updated_at: String(row.updated_at),
         deleted_at: (row.deleted_at as string | null) ?? null,
       };
-    },
-    () => local.getProjectById(projectId),
-  );
+    });
 }
 
 export function updateProjectPricing(input: {
@@ -598,9 +565,7 @@ export function updateProjectPricing(input: {
   pricing_mode: PricingMode;
   total_project_fee: number | null;
 }): Promise<void> {
-  return writeWithApiFallback('project.updatePricing', input, () =>
-    local.updateProjectPricing(input),
-  );
+  return writeWithApiFallback('project.updatePricing', input);
 }
 
 export function createTask(input: {
@@ -609,7 +574,7 @@ export function createTask(input: {
   name: string;
   github_branch?: string | null;
 }): Promise<void> {
-  return writeWithApiFallback('task.create', input, () => local.createTask(input));
+  return writeWithApiFallback('task.create', input);
 }
 
 export function listTasksByProject(projectId: string): Promise<Task[]> {
@@ -639,18 +604,14 @@ export function listTasksByProject(projectId: string): Promise<Task[]> {
         updated_at: String(row.updated_at),
         deleted_at: (row.deleted_at as string | null) ?? null,
       }));
-    },
-    () => local.listTasksByProject(projectId),
-  );
+    });
 }
 
 export function updateClientHourlyRate(input: {
   id: string;
   hourly_rate: number;
 }): Promise<void> {
-  return writeWithApiFallback('client.updateHourlyRate', input, () =>
-    local.updateClientHourlyRate(input),
-  );
+  return writeWithApiFallback('client.updateHourlyRate', input);
 }
 
 export function createProjectMilestone(input: {
@@ -663,9 +624,7 @@ export function createProjectMilestone(input: {
   due_note?: string | null;
   sort_order: number;
 }): Promise<void> {
-  return writeWithApiFallback('milestone.create', input, () =>
-    local.createProjectMilestone(input),
-  );
+  return writeWithApiFallback('milestone.create', input);
 }
 
 export function listProjectMilestones(projectId: string): Promise<ProjectMilestone[]> {
@@ -703,9 +662,7 @@ export function listProjectMilestones(projectId: string): Promise<ProjectMilesto
         updated_at: String(row.updated_at),
         deleted_at: (row.deleted_at as string | null) ?? null,
       }));
-    },
-    () => local.listProjectMilestones(projectId),
-  );
+    });
 }
 
 export function getProjectMilestoneById(milestoneId: string): Promise<ProjectMilestone | null> {
@@ -746,9 +703,7 @@ export function getProjectMilestoneById(milestoneId: string): Promise<ProjectMil
         updated_at: String(row.updated_at),
         deleted_at: (row.deleted_at as string | null) ?? null,
       };
-    },
-    () => local.getProjectMilestoneById(milestoneId),
-  );
+    });
 }
 
 export function updateProjectMilestone(input: {
@@ -760,15 +715,11 @@ export function updateProjectMilestone(input: {
   due_note?: string | null;
   sort_order: number;
 }): Promise<void> {
-  return writeWithApiFallback('milestone.update', input, () =>
-    local.updateProjectMilestone(input),
-  );
+  return writeWithApiFallback('milestone.update', input);
 }
 
 export function deleteProjectMilestone(milestoneId: string): Promise<void> {
-  return writeWithApiFallback('milestone.delete', { milestone_id: milestoneId }, () =>
-    local.deleteProjectMilestone(milestoneId),
-  );
+  return writeWithApiFallback('milestone.delete', { milestone_id: milestoneId });
 }
 
 export function setProjectMilestoneCompletion(input: {
@@ -782,9 +733,7 @@ export function setProjectMilestoneCompletion(input: {
       milestone_id: input.milestoneId,
       is_completed: input.isCompleted,
       completed_at: input.completedAtIso ?? null,
-    },
-    () => local.setProjectMilestoneCompletion(input),
-  );
+    });
 }
 
 export function createMilestoneChecklistItem(input: {
@@ -793,9 +742,7 @@ export function createMilestoneChecklistItem(input: {
   label: string;
   sort_order: number;
 }): Promise<void> {
-  return writeWithApiFallback('milestoneChecklist.create', input, () =>
-    local.createMilestoneChecklistItem(input),
-  );
+  return writeWithApiFallback('milestoneChecklist.create', input);
 }
 
 export function listMilestoneChecklistItems(milestoneId: string): Promise<MilestoneChecklistItem[]> {
@@ -829,9 +776,7 @@ export function listMilestoneChecklistItems(milestoneId: string): Promise<Milest
         updated_at: String(row.updated_at),
         deleted_at: (row.deleted_at as string | null) ?? null,
       }));
-    },
-    () => local.listMilestoneChecklistItems(milestoneId),
-  );
+    });
 }
 
 export function updateMilestoneChecklistItem(input: {
@@ -841,9 +786,7 @@ export function updateMilestoneChecklistItem(input: {
   is_completed: boolean;
   completed_at?: string | null;
 }): Promise<void> {
-  return writeWithApiFallback('milestoneChecklist.update', input, () =>
-    local.updateMilestoneChecklistItem(input),
-  );
+  return writeWithApiFallback('milestoneChecklist.update', input);
 }
 
 export function listMilestoneChecklistItemsByMilestoneIds(
@@ -884,9 +827,7 @@ export function listMilestoneChecklistItemsByMilestoneIds(
         updated_at: String(row.updated_at),
         deleted_at: (row.deleted_at as string | null) ?? null,
       }));
-    },
-    () => local.listMilestoneChecklistItemsByMilestoneIds(milestoneIds),
-  );
+    });
 }
 
 export function areMilestoneChecklistItemsComplete(milestoneId: string): Promise<boolean> {
@@ -894,9 +835,7 @@ export function areMilestoneChecklistItemsComplete(milestoneId: string): Promise
     async () => {
       const items = await listMilestoneChecklistItems(milestoneId);
       return items.length > 0 && items.every((item) => item.is_completed === 1);
-    },
-    () => local.areMilestoneChecklistItemsComplete(milestoneId),
-  );
+    });
 }
 
 export function startSession(input: {
@@ -908,14 +847,14 @@ export function startSession(input: {
   start_time?: string;
   notes?: string | null;
 }): Promise<void> {
-  return writeWithApiFallback('session.start', input, () => local.startSession(input));
+  return writeWithApiFallback('session.start', input);
 }
 
 export function stopSession(input: {
   id: string;
   end_time?: string;
 }): Promise<void> {
-  return writeWithApiFallback('session.stop', input, () => local.stopSession(input));
+  return writeWithApiFallback('session.stop', input);
 }
 
 export function addManualSession(input: {
@@ -928,7 +867,7 @@ export function addManualSession(input: {
   end_time: string;
   notes?: string | null;
 }): Promise<void> {
-  return writeWithApiFallback('session.addManual', input, () => local.addManualSession(input));
+  return writeWithApiFallback('session.addManual', input);
 }
 
 export function updateSession(input: {
@@ -940,7 +879,7 @@ export function updateSession(input: {
   end_time: string;
   notes?: string | null;
 }): Promise<void> {
-  return writeWithApiFallback('session.update', input, () => local.updateSession(input));
+  return writeWithApiFallback('session.update', input);
 }
 
 export function listSessions(): Promise<Session[]> {
@@ -962,9 +901,7 @@ export function listSessions(): Promise<Session[]> {
       }
 
       return hydrateSessions((data ?? []) as Array<Record<string, unknown>>, userId);
-    },
-    () => local.listSessions(),
-  );
+    });
 }
 
 export function listSessionsByClientAndRange(input: {
@@ -999,9 +936,7 @@ export function listSessionsByClientAndRange(input: {
       }
 
       return hydrateSessions((data ?? []) as Array<Record<string, unknown>>, userId);
-    },
-    () => local.listSessionsByClientAndRange(input),
-  );
+    });
 }
 
 export function listSessionsByProject(input: {
@@ -1032,9 +967,7 @@ export function listSessionsByProject(input: {
       }
 
       return hydrateSessions((data ?? []) as Array<Record<string, unknown>>, userId);
-    },
-    () => local.listSessionsByProject(input),
-  );
+    });
 }
 
 export function createInvoice(input: {
@@ -1056,7 +989,7 @@ export function createInvoice(input: {
   source_session_link_mode?: InvoiceSessionLinkMode | null;
   source_session_hourly_rate?: number | null;
 }): Promise<void> {
-  return writeWithApiFallback('invoice.create', input, () => local.createInvoice(input));
+  return writeWithApiFallback('invoice.create', input);
 }
 
 export function listInvoices(): Promise<InvoiceWithClient[]> {
@@ -1117,9 +1050,7 @@ export function listInvoices(): Promise<InvoiceWithClient[]> {
           client_hourly_rate: client?.hourly_rate ?? null,
         };
       });
-    },
-    () => local.listInvoices(),
-  );
+    });
 }
 
 export function listSessionsByInvoiceId(invoiceId: string): Promise<Session[]> {
@@ -1168,17 +1099,13 @@ export function listSessionsByInvoiceId(invoiceId: string): Promise<Session[]> {
       const deduped = new Map(allRows.map((row) => [String(row.id), row]));
       const hydrated = await hydrateSessions([...deduped.values()], userId);
       return hydrated.sort((a, b) => a.start_time.localeCompare(b.start_time));
-    },
-    () => local.listSessionsByInvoiceId(invoiceId),
-  );
+    });
 }
 
 export function assignSessionsToInvoice(sessionIds: string[], invoiceId: string): Promise<void> {
   return writeWithApiFallback(
     'invoice.assignSessions',
-    { session_ids: sessionIds, invoice_id: invoiceId },
-    () => local.assignSessionsToInvoice(sessionIds, invoiceId),
-  );
+    { session_ids: sessionIds, invoice_id: invoiceId });
 }
 
 export function createInvoiceSessionLinks(input: {
@@ -1192,9 +1119,7 @@ export function createInvoiceSessionLinks(input: {
       invoice_id: input.invoiceId,
       session_ids: input.sessionIds,
       link_mode: input.linkMode,
-    },
-    () => local.createInvoiceSessionLinks(input),
-  );
+    });
 }
 
 export function listInvoiceSessionLinksByInvoiceId(
@@ -1224,9 +1149,7 @@ export function listInvoiceSessionLinksByInvoiceId(
         created_at: String(row.created_at),
         updated_at: String(row.updated_at),
       }));
-    },
-    () => local.listInvoiceSessionLinksByInvoiceId(invoiceId),
-  );
+    });
 }
 
 export function updateSessionNotes(input: {
@@ -1234,7 +1157,7 @@ export function updateSessionNotes(input: {
   notes: string | null;
   commit_sha?: string | null;
 }): Promise<void> {
-  return writeWithApiFallback('session.notes', input, () => local.updateSessionNotes(input));
+  return writeWithApiFallback('session.notes', input);
 }
 
 export function listSessionBreaksBySessionId(sessionId: string): Promise<SessionBreak[]> {
@@ -1264,9 +1187,7 @@ export function listSessionBreaksBySessionId(sessionId: string): Promise<Session
         updated_at: String(row.updated_at),
         deleted_at: (row.deleted_at as string | null) ?? null,
       }));
-    },
-    () => local.listSessionBreaksBySessionId(sessionId),
-  );
+    });
 }
 
 export function listSessionBreaksBySessionIds(sessionIds: string[]): Promise<SessionBreak[]> {
@@ -1300,9 +1221,7 @@ export function listSessionBreaksBySessionIds(sessionIds: string[]): Promise<Ses
         updated_at: String(row.updated_at),
         deleted_at: (row.deleted_at as string | null) ?? null,
       }));
-    },
-    () => local.listSessionBreaksBySessionIds(sessionIds),
-  );
+    });
 }
 
 export function isSessionPaused(sessionId: string): Promise<boolean> {
@@ -1324,9 +1243,7 @@ export function isSessionPaused(sessionId: string): Promise<boolean> {
       }
 
       return (data ?? []).length > 0;
-    },
-    () => local.isSessionPaused(sessionId),
-  );
+    });
 }
 
 export function pauseSession(input: {
@@ -1335,9 +1252,7 @@ export function pauseSession(input: {
 }): Promise<void> {
   return writeWithApiFallback(
     'session.pause',
-    { session_id: input.sessionId, start_time: input.start_time },
-    () => local.pauseSession(input),
-  );
+    { session_id: input.sessionId, start_time: input.start_time });
 }
 
 export function resumeSession(input: {
@@ -1346,9 +1261,7 @@ export function resumeSession(input: {
 }): Promise<void> {
   return writeWithApiFallback(
     'session.resume',
-    { session_id: input.sessionId, end_time: input.end_time },
-    () => local.resumeSession(input),
-  );
+    { session_id: input.sessionId, end_time: input.end_time });
 }
 
 export async function runCoreDbValidationScript(): Promise<CoreDbValidationReport> {
@@ -1374,3 +1287,6 @@ export type {
   Task,
   UserProfile,
 };
+
+
+
