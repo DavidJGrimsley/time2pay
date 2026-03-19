@@ -9,7 +9,8 @@
       "@/components/*": ["src/components/*"],
       "@/hooks/*": ["src/hooks/*"],
       "@/services/*": ["src/services/*"],
-      "@/database/*": ["src/database/*"]
+      "@/database/*": ["src/database/*"],
+      "@/stores/*": ["src/stores/*"]
     }
   },
   "include": [

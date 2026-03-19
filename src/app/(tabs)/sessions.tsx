@@ -1,9 +1,9 @@
 import { ScrollView } from 'react-native';
 import Animated, { FadeInDown, LinearTransition } from 'react-native-reanimated';
-import { BankOverview } from '../components/bank-overview';
-import { RouteNav } from '../components/route-nav';
+import { RouteNav } from '../../components/route-nav';
+import { SessionsOverview } from '../../components/sessions-overview';
 
-export default function BankRoute() {
+export default function SessionsRoute() {
   const smoothLayout = LinearTransition.springify().damping(20).stiffness(170);
 
   return (
@@ -13,7 +13,7 @@ export default function BankRoute() {
           <RouteNav />
         </Animated.View>
         <Animated.View entering={FadeInDown.delay(40).duration(220)} layout={smoothLayout}>
-          <BankOverview />
+          <SessionsOverview />
         </Animated.View>
       </Animated.View>
     </ScrollView>

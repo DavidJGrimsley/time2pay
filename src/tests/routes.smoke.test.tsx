@@ -60,17 +60,17 @@ vi.mock('../components/projects-overview', () => ({
 
 describe('web route smoke tests', () => {
   it('renders the Payments route shell', async () => {
-    const { default: PaymentsRoute } = await import('../app/payments');
+    const { default: PaymentsRoute } = await import('../app/(tabs)/payments');
     expect(() => renderer.create(<PaymentsRoute />)).not.toThrow();
   });
 
   it('renders the Invoices route shell', async () => {
-    const { default: InvoicesRoute } = await import('../app/invoices');
+    const { default: InvoicesRoute } = await import('../app/(tabs)/invoices');
     expect(() => renderer.create(<InvoicesRoute />)).not.toThrow();
   });
 
   it('renders the Projects route shell', async () => {
-    const { default: ProjectsRoute } = await import('../app/projects');
+    const { default: ProjectsRoute } = await import('../app/(tabs)/projects');
     expect(() => renderer.create(<ProjectsRoute />)).not.toThrow();
   });
 });

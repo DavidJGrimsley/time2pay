@@ -64,10 +64,24 @@ Milestone Payments:
 10% due upon approval of Landing and homepage design.
 10% due upon Core Prototype completed.
 10% due upon LTI Integration completed
-20% due upon launch of the website/app.```
+20% due upon launch of the website/app.
+```
 
-- [ ] Multi-user support - supabase db has been created so we can refine our schemas, generate and migrate(drizzle)
-- [ ] Cloud-hosted option (immediately after supabase setup) - host on my vps for other users to use - time2pay.app is the url
+## Multi-user support
+- [x] Rebased `feature/multi-user-support` onto latest `origin/main` and resolved conflicts
+- [x] Added hosted auth route structure with public landing + protected tabs + dedicated sign-in route
+- [x] Added Supabase + Drizzle hosted foundation (schema + migration + write API route)
+- [x] Removed hosted-mode fallback to local SQLite for reads/writes (hosted path now fails fast on hosted errors)
+- [x] Switched provider selection so hosted mode always uses hosted repository
+- [x] Added hosted-focused tests for redirect config and no-fallback repository behavior
+- [x] Added callback redirect env support for Supabase auth (`EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_URL/PATH`)
+- [ ] Run `npm run db:migrate` against Supabase (direct connection) and verify tables + RLS in dashboard/SQL
+- [ ] Set `DATABASE_DIRECT_URL` to direct DB host/port (not pooled `6543`) before migration
+- [ ] Finalize Supabase dashboard callback URLs for localhost + `https://time2pay.app/dashboard`
+- [ ] Verify GitHub OAuth sign-in flow end-to-end after migration (no loading loop, profile gate works)
+- [ ] Run two-user hosted smoke test to confirm row isolation
+- [ ] Deploy single Node app (Expo Router server output + API routes) on VPS at `https://time2pay.app`
+
 - [ ] Accounting integrations
 - [ ] Automated invoice reminders
 - [ ] Financial dashboards
