@@ -57,8 +57,9 @@ Set these in `.env`:
 - `EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_URL` (optional): full OAuth/magic-link callback URL
 - `EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_PATH` (optional): path fallback for callback URL, defaults to `/dashboard`
 - `SUPABASE_SERVICE_ROLE_KEY` (required for server-side admin operations)
-- `DATABASE_DIRECT_URL` (recommended for Drizzle migrations; direct database host/port, usually `5432`)
-- `DATABASE_URL` (pooled connection for app/runtime clients, usually `6543`)
+- `DATABASE_URL` (recommended for Drizzle migrations and runtime SQL clients; Supabase pooler, usually `6543`)
+- `DATABASE_DIRECT_URL` (optional direct database host/port, usually `5432`, only if your network supports direct connectivity)
+- `DRIZZLE_DATABASE_URL` (optional): explicit override used by Drizzle CLI (`db:migrate`, `db:check`, etc.)
 - `PORT` (optional): defaults to `3000`
 
 If `MERCURY_API_KEY` is missing, `/api/mercury` returns `400`.
@@ -72,7 +73,7 @@ Set `EXPO_PUBLIC_TIME2PAY_DATA_MODE=hosted` to enable Supabase auth + hosted dat
 Hosted mode includes:
 - Email magic-link + GitHub OAuth sign-in
 - User-scoped profile + data reads from Supabase
-- API-routed hosted writes (`/api/db/write`)
+- API-routed hosted writes (`/api/db/<domain>/<action>`)
 
 Supabase callback setup:
 1. In Supabase Auth settings, add redirect URLs for:
@@ -81,6 +82,11 @@ Supabase callback setup:
 2. In `.env`, set either:
    - `EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_URL=https://time2pay.app/dashboard` (production), or
    - `EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_PATH=/dashboard` (origin-relative fallback).
+
+Drizzle migration connection note:
+- `drizzle.config.ts` precedence is `DRIZZLE_DATABASE_URL -> DATABASE_URL -> DATABASE_DIRECT_URL`.
+- For most setups, set `DATABASE_URL` to Supabase pooler (`6543`) and run migrations directly.
+- Use `DATABASE_DIRECT_URL` only when direct host networking is confirmed in your environment.
 
 ## Run Modes
 
@@ -191,8 +197,9 @@ Notes:
 ## Available Scripts
 
 - `npm run web` - Expo web dev server
-- `npm run db:generate` - generate Drizzle SQL from `drizzle/schema.ts`
-- `npm run db:migrate` - apply migrations using `DATABASE_DIRECT_URL` (or `DATABASE_URL` fallback)
+- `npm run db:generate` - generate Drizzle SQL from `src/database/hosted/**/schema.ts`
+- `npm run db:migrate` - run connection preflight + apply migrations using `DRIZZLE_DATABASE_URL` or `DATABASE_URL` (with `DATABASE_DIRECT_URL` fallback)
+- `npm run db:migrate:raw` - run plain `drizzle-kit migrate` (no preflight checks)
 - `npm run db:studio` - open Drizzle Studio
 - `npm run db:check` - validate migration consistency
 - `npm run icons:sync` - sync icon assets into `public/`

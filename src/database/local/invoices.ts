@@ -1,9 +1,9 @@
-import * as legacy from '@/database/local/legacy';
+import * as queries from '@/database/local/invoices/queries';
 
-export const createInvoice = legacy.createInvoice;
-export const listInvoices = legacy.listInvoices;
-export const listSessionsByInvoiceId = legacy.listSessionsByInvoiceId;
-export const assignSessionsToInvoice = legacy.assignSessionsToInvoice;
-export const createInvoiceSessionLinks = legacy.createInvoiceSessionLinks;
-export const listInvoiceSessionLinksByInvoiceId = legacy.listInvoiceSessionLinksByInvoiceId;
+export const createInvoice = queries.createInvoice;
+export const listInvoices = queries.listInvoices;
+export const listSessionsByInvoiceId = queries.listSessionsByInvoiceId;
+export const assignSessionsToInvoice = queries.assignSessionsToInvoice;
+export const createInvoiceSessionLinks = queries.createInvoiceSessionLinks;
+export const listInvoiceSessionLinksByInvoiceId = queries.listInvoiceSessionLinksByInvoiceId;
 

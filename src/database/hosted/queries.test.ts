@@ -6,7 +6,7 @@ vi.mock('@/services/supabase-client', () => ({
   requireSupabaseUserId: vi.fn(),
 }));
 
-import { createClient, listClients } from '@/database/hosted/repository';
+import { createClient, listClients } from '@/database/hosted/clients-projects';
 import { getSupabaseClient, requireSupabaseUserId } from '@/services/supabase-client';
 
 const getSupabaseClientMock = vi.mocked(getSupabaseClient);
@@ -17,7 +17,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe('hosted repository', () => {
+describe('hosted clients/projects queries', () => {
   beforeEach(() => {
     requireSupabaseUserIdMock.mockResolvedValue('user-1');
   });

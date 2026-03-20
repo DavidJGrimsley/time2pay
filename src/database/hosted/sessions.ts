@@ -1,17 +1,17 @@
-import * as repository from '@/database/hosted/repository';
+import * as queries from '@/database/hosted/sessions/queries';
 
-export const startSession = repository.startSession;
-export const stopSession = repository.stopSession;
-export const addManualSession = repository.addManualSession;
-export const updateSession = repository.updateSession;
-export const listSessions = repository.listSessions;
-export const listSessionsByClientAndRange = repository.listSessionsByClientAndRange;
-export const listSessionsByProject = repository.listSessionsByProject;
-export const updateSessionNotes = repository.updateSessionNotes;
+export const startSession = queries.startSession;
+export const stopSession = queries.stopSession;
+export const addManualSession = queries.addManualSession;
+export const updateSession = queries.updateSession;
+export const listSessions = queries.listSessions;
+export const listSessionsByClientAndRange = queries.listSessionsByClientAndRange;
+export const listSessionsByProject = queries.listSessionsByProject;
+export const updateSessionNotes = queries.updateSessionNotes;
 
-export const listSessionBreaksBySessionId = repository.listSessionBreaksBySessionId;
-export const listSessionBreaksBySessionIds = repository.listSessionBreaksBySessionIds;
-export const isSessionPaused = repository.isSessionPaused;
-export const pauseSession = repository.pauseSession;
-export const resumeSession = repository.resumeSession;
+export const listSessionBreaksBySessionId = queries.listSessionBreaksBySessionId;
+export const listSessionBreaksBySessionIds = queries.listSessionBreaksBySessionIds;
+export const isSessionPaused = queries.isSessionPaused;
+export const pauseSession = queries.pauseSession;
+export const resumeSession = queries.resumeSession;
 

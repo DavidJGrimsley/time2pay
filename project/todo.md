@@ -70,16 +70,41 @@ Milestone Payments:
 ## Multi-user support
 - [x] Rebased `feature/multi-user-support` onto latest `origin/main` and resolved conflicts
 - [x] Added hosted auth route structure with public landing + protected tabs + dedicated sign-in route
-- [x] Added Supabase + Drizzle hosted foundation (schema + migration + write API route)
+- [x] Added callback redirect env support for Supabase auth (`EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_URL/PATH`)
 - [x] Removed hosted-mode fallback to local SQLite for reads/writes (hosted path now fails fast on hosted errors)
 - [x] Switched provider selection so hosted mode always uses hosted repository
-- [x] Added hosted-focused tests for redirect config and no-fallback repository behavior
-- [x] Added callback redirect env support for Supabase auth (`EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_URL/PATH`)
-- [ ] Run `npm run db:migrate` against Supabase (direct connection) and verify tables + RLS in dashboard/SQL
-- [ ] Set `DATABASE_DIRECT_URL` to direct DB host/port (not pooled `6543`) before migration
+- [x] Added hosted-focused tests for redirect config and no-fallback behavior
+- [x] Installed `drizzle-zod` + `zod` and added hosted table-level typed schemas (`select/insert/update`)
+- [x] Moved hosted table definitions to domain schema modules under `src/database/hosted/**/schema.ts`
+- [x] Added hosted `relations.ts` and schema barrel export at `src/database/hosted/schema.ts`
+- [x] Updated `drizzle.config.ts` schema glob to `./src/database/hosted/**/schema.ts`
+- [x] Verified Drizzle integrity after split: `npm run db:generate` (no changes) + `npm run db:check` (pass)
+- [x] Split hosted read/write DB logic into domain `queries.ts` modules
+- [x] Rewired hosted app-facing exports off `src/database/hosted/repository.ts` to domain modules
+- [x] Replaced monolithic `src/app/api/db/write+api.ts` with domain API routes:
+  - `src/app/api/db/clients/[action]+api.ts`
+  - `src/app/api/db/projects/[action]+api.ts`
+  - `src/app/api/db/tasks/[action]+api.ts`
+  - `src/app/api/db/milestones/[action]+api.ts`
+  - `src/app/api/db/milestone-checklist/[action]+api.ts`
+  - `src/app/api/db/sessions/[action]+api.ts`
+  - `src/app/api/db/invoices/[action]+api.ts`
+  - `src/app/api/db/invoice-session-links/[action]+api.ts`
+- [x] Added shared write-route middleware/helpers for token auth, DB connection, and payload validation:
+  - `src/app/api/db/_shared/auth.ts`
+  - `src/app/api/db/_shared/db.ts`
+  - `src/app/api/db/_shared/route.ts`
+  - `src/app/api/db/_shared/parsers.ts`
+- [x] Added domain write-query modules under `src/app/api/db/_queries/*`
+- [x] Added local provider domain `queries.ts` wrappers under `src/database/local/<domain>/queries.ts` for parity with hosted module layout
+- [x] Validation pass complete after split: `npm run typecheck` + `npm test`
+- [ ] Run `npm run db:migrate` against Supabase project and verify `drizzle.__drizzle_migrations` row is written
+- [ ] Apply/verify RLS policies in Supabase SQL editor for all hosted tables (`auth_user_id = auth.uid()`)
 - [ ] Finalize Supabase dashboard callback URLs for localhost + `https://time2pay.app/dashboard`
-- [ ] Verify GitHub OAuth sign-in flow end-to-end after migration (no loading loop, profile gate works)
-- [ ] Run two-user hosted smoke test to confirm row isolation
+- [ ] Verify GitHub OAuth sign-in flow end-to-end post-migration (no loading loop, profile gate works)
+- [ ] Run two-user hosted smoke test to confirm row isolation across reads and writes
+- [ ] Split local `legacy.ts` internals into domain `queries.ts` implementations (keep `db.ts` facade unchanged)
+- [x] Removed deprecated `src/database/hosted/repository.ts` after route and query split validated
 - [ ] Deploy single Node app (Expo Router server output + API routes) on VPS at `https://time2pay.app`
 
 - [ ] Accounting integrations
