@@ -151,6 +151,12 @@ CREATE TABLE "user_profiles" (
 	"deleted_at" timestamp with time zone
 );
 --> statement-breakpoint
+CREATE UNIQUE INDEX "ux_clients_id_auth_user_id" ON "clients" USING btree ("id","auth_user_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "ux_invoices_id_auth_user_id" ON "invoices" USING btree ("id","auth_user_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "ux_project_milestones_id_auth_user_id" ON "project_milestones" USING btree ("id","auth_user_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "ux_projects_id_auth_user_id" ON "projects" USING btree ("id","auth_user_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "ux_sessions_id_auth_user_id" ON "sessions" USING btree ("id","auth_user_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "ux_tasks_id_auth_user_id" ON "tasks" USING btree ("id","auth_user_id");--> statement-breakpoint
 ALTER TABLE "clients" ADD CONSTRAINT "fk_clients_auth_user_id_user_profiles" FOREIGN KEY ("auth_user_id") REFERENCES "public"."user_profiles"("auth_user_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "invoice_session_links" ADD CONSTRAINT "fk_invoice_session_links_auth_user_id_user_profiles" FOREIGN KEY ("auth_user_id") REFERENCES "public"."user_profiles"("auth_user_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "invoice_session_links" ADD CONSTRAINT "fk_invoice_session_links_invoice_id_auth_user_id_invoices" FOREIGN KEY ("invoice_id","auth_user_id") REFERENCES "public"."invoices"("id","auth_user_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -175,7 +181,6 @@ ALTER TABLE "sessions" ADD CONSTRAINT "fk_sessions_invoice_id_auth_user_id_invoi
 ALTER TABLE "tasks" ADD CONSTRAINT "fk_tasks_auth_user_id_user_profiles" FOREIGN KEY ("auth_user_id") REFERENCES "public"."user_profiles"("auth_user_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tasks" ADD CONSTRAINT "fk_tasks_project_id_auth_user_id_projects" FOREIGN KEY ("project_id","auth_user_id") REFERENCES "public"."projects"("id","auth_user_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "idx_clients_auth_user_id" ON "clients" USING btree ("auth_user_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "ux_clients_id_auth_user_id" ON "clients" USING btree ("id","auth_user_id");--> statement-breakpoint
 CREATE INDEX "idx_invoice_session_links_auth_user_id" ON "invoice_session_links" USING btree ("auth_user_id");--> statement-breakpoint
 CREATE INDEX "idx_invoice_session_links_invoice_id" ON "invoice_session_links" USING btree ("invoice_id");--> statement-breakpoint
 CREATE INDEX "idx_invoice_session_links_session_id" ON "invoice_session_links" USING btree ("session_id");--> statement-breakpoint
@@ -183,18 +188,15 @@ CREATE UNIQUE INDEX "ux_invoice_session_links_id_auth_user_id" ON "invoice_sessi
 CREATE UNIQUE INDEX "ux_invoice_session_links_invoice_session_auth_user" ON "invoice_session_links" USING btree ("invoice_id","session_id","auth_user_id");--> statement-breakpoint
 CREATE INDEX "idx_invoices_auth_user_id" ON "invoices" USING btree ("auth_user_id");--> statement-breakpoint
 CREATE INDEX "idx_invoices_client_id" ON "invoices" USING btree ("client_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "ux_invoices_id_auth_user_id" ON "invoices" USING btree ("id","auth_user_id");--> statement-breakpoint
 CREATE INDEX "idx_milestone_checklist_items_auth_user_id" ON "milestone_checklist_items" USING btree ("auth_user_id");--> statement-breakpoint
 CREATE INDEX "idx_milestone_checklist_items_milestone_id" ON "milestone_checklist_items" USING btree ("milestone_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "ux_milestone_checklist_items_id_auth_user_id" ON "milestone_checklist_items" USING btree ("id","auth_user_id");--> statement-breakpoint
 CREATE INDEX "idx_project_milestones_auth_user_id" ON "project_milestones" USING btree ("auth_user_id");--> statement-breakpoint
 CREATE INDEX "idx_project_milestones_project_id" ON "project_milestones" USING btree ("project_id");--> statement-breakpoint
 CREATE INDEX "idx_project_milestones_sort_order" ON "project_milestones" USING btree ("sort_order");--> statement-breakpoint
-CREATE UNIQUE INDEX "ux_project_milestones_id_auth_user_id" ON "project_milestones" USING btree ("id","auth_user_id");--> statement-breakpoint
 CREATE INDEX "idx_projects_auth_user_id" ON "projects" USING btree ("auth_user_id");--> statement-breakpoint
 CREATE INDEX "idx_projects_client_id" ON "projects" USING btree ("client_id");--> statement-breakpoint
 CREATE INDEX "idx_projects_pricing_mode" ON "projects" USING btree ("pricing_mode");--> statement-breakpoint
-CREATE UNIQUE INDEX "ux_projects_id_auth_user_id" ON "projects" USING btree ("id","auth_user_id");--> statement-breakpoint
 CREATE INDEX "idx_session_breaks_auth_user_id" ON "session_breaks" USING btree ("auth_user_id");--> statement-breakpoint
 CREATE INDEX "idx_session_breaks_session_id" ON "session_breaks" USING btree ("session_id");--> statement-breakpoint
 CREATE INDEX "idx_session_breaks_start_time" ON "session_breaks" USING btree ("start_time");--> statement-breakpoint
@@ -207,10 +209,8 @@ CREATE INDEX "idx_sessions_client_id" ON "sessions" USING btree ("client_id");--
 CREATE INDEX "idx_sessions_project_id" ON "sessions" USING btree ("project_id");--> statement-breakpoint
 CREATE INDEX "idx_sessions_task_id" ON "sessions" USING btree ("task_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "ux_sessions_active_per_user" ON "sessions" USING btree ("auth_user_id") WHERE "sessions"."end_time" is null and "sessions"."deleted_at" is null;--> statement-breakpoint
-CREATE UNIQUE INDEX "ux_sessions_id_auth_user_id" ON "sessions" USING btree ("id","auth_user_id");--> statement-breakpoint
 CREATE INDEX "idx_tasks_auth_user_id" ON "tasks" USING btree ("auth_user_id");--> statement-breakpoint
 CREATE INDEX "idx_tasks_project_id" ON "tasks" USING btree ("project_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "ux_tasks_id_auth_user_id" ON "tasks" USING btree ("id","auth_user_id");--> statement-breakpoint
 CREATE INDEX "idx_user_profiles_auth_user_id" ON "user_profiles" USING btree ("auth_user_id");
 --> statement-breakpoint
 ALTER TABLE "user_profiles" ADD CONSTRAINT "fk_user_profiles_auth_user_id_auth_users" FOREIGN KEY ("auth_user_id") REFERENCES "auth"."users"("id") ON DELETE cascade ON UPDATE no action;

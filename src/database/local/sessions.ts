@@ -1,17 +1,17 @@
-import * as legacy from '@/database/local/legacy';
+import * as queries from '@/database/local/sessions/queries';
 
-export const startSession = legacy.startSession;
-export const stopSession = legacy.stopSession;
-export const addManualSession = legacy.addManualSession;
-export const updateSession = legacy.updateSession;
-export const listSessions = legacy.listSessions;
-export const listSessionsByClientAndRange = legacy.listSessionsByClientAndRange;
-export const listSessionsByProject = legacy.listSessionsByProject;
-export const updateSessionNotes = legacy.updateSessionNotes;
+export const startSession = queries.startSession;
+export const stopSession = queries.stopSession;
+export const addManualSession = queries.addManualSession;
+export const updateSession = queries.updateSession;
+export const listSessions = queries.listSessions;
+export const listSessionsByClientAndRange = queries.listSessionsByClientAndRange;
+export const listSessionsByProject = queries.listSessionsByProject;
+export const updateSessionNotes = queries.updateSessionNotes;
 
-export const listSessionBreaksBySessionId = legacy.listSessionBreaksBySessionId;
-export const listSessionBreaksBySessionIds = legacy.listSessionBreaksBySessionIds;
-export const isSessionPaused = legacy.isSessionPaused;
-export const pauseSession = legacy.pauseSession;
-export const resumeSession = legacy.resumeSession;
+export const listSessionBreaksBySessionId = queries.listSessionBreaksBySessionId;
+export const listSessionBreaksBySessionIds = queries.listSessionBreaksBySessionIds;
+export const isSessionPaused = queries.isSessionPaused;
+export const pauseSession = queries.pauseSession;
+export const resumeSession = queries.resumeSession;
 

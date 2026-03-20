@@ -1,7 +1,7 @@
-import * as legacy from '@/database/local/legacy';
+import * as queries from '@/database/local/core/queries';
 
-export const getDb = legacy.getDb;
-export const initializeDatabase = legacy.initializeDatabase;
-export const getCurrentSchemaVersion = legacy.getCurrentSchemaVersion;
-export const runCoreDbValidationScript = legacy.runCoreDbValidationScript;
+export const getDb = queries.getDb;
+export const initializeDatabase = queries.initializeDatabase;
+export const getCurrentSchemaVersion = queries.getCurrentSchemaVersion;
+export const runCoreDbValidationScript = queries.runCoreDbValidationScript;
 

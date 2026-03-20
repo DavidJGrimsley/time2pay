@@ -1,5 +1,5 @@
-import * as legacy from '@/database/local/legacy';
+import * as queries from '@/database/local/profile/queries';
 
-export const getUserProfile = legacy.getUserProfile;
-export const upsertUserProfile = legacy.upsertUserProfile;
+export const getUserProfile = queries.getUserProfile;
+export const upsertUserProfile = queries.upsertUserProfile;
 

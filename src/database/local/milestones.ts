@@ -1,16 +1,16 @@
-import * as legacy from '@/database/local/legacy';
+import * as queries from '@/database/local/milestones/queries';
 
-export const createProjectMilestone = legacy.createProjectMilestone;
-export const listProjectMilestones = legacy.listProjectMilestones;
-export const getProjectMilestoneById = legacy.getProjectMilestoneById;
-export const updateProjectMilestone = legacy.updateProjectMilestone;
-export const deleteProjectMilestone = legacy.deleteProjectMilestone;
-export const setProjectMilestoneCompletion = legacy.setProjectMilestoneCompletion;
+export const createProjectMilestone = queries.createProjectMilestone;
+export const listProjectMilestones = queries.listProjectMilestones;
+export const getProjectMilestoneById = queries.getProjectMilestoneById;
+export const updateProjectMilestone = queries.updateProjectMilestone;
+export const deleteProjectMilestone = queries.deleteProjectMilestone;
+export const setProjectMilestoneCompletion = queries.setProjectMilestoneCompletion;
 
-export const createMilestoneChecklistItem = legacy.createMilestoneChecklistItem;
-export const listMilestoneChecklistItems = legacy.listMilestoneChecklistItems;
-export const updateMilestoneChecklistItem = legacy.updateMilestoneChecklistItem;
+export const createMilestoneChecklistItem = queries.createMilestoneChecklistItem;
+export const listMilestoneChecklistItems = queries.listMilestoneChecklistItems;
+export const updateMilestoneChecklistItem = queries.updateMilestoneChecklistItem;
 export const listMilestoneChecklistItemsByMilestoneIds =
-  legacy.listMilestoneChecklistItemsByMilestoneIds;
-export const areMilestoneChecklistItemsComplete = legacy.areMilestoneChecklistItemsComplete;
+  queries.listMilestoneChecklistItemsByMilestoneIds;
+export const areMilestoneChecklistItemsComplete = queries.areMilestoneChecklistItemsComplete;
 

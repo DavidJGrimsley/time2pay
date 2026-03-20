@@ -1,16 +1,16 @@
-import * as repository from '@/database/hosted/repository';
+import * as queries from '@/database/hosted/milestones/queries';
 
-export const createProjectMilestone = repository.createProjectMilestone;
-export const listProjectMilestones = repository.listProjectMilestones;
-export const getProjectMilestoneById = repository.getProjectMilestoneById;
-export const updateProjectMilestone = repository.updateProjectMilestone;
-export const deleteProjectMilestone = repository.deleteProjectMilestone;
-export const setProjectMilestoneCompletion = repository.setProjectMilestoneCompletion;
+export const createProjectMilestone = queries.createProjectMilestone;
+export const listProjectMilestones = queries.listProjectMilestones;
+export const getProjectMilestoneById = queries.getProjectMilestoneById;
+export const updateProjectMilestone = queries.updateProjectMilestone;
+export const deleteProjectMilestone = queries.deleteProjectMilestone;
+export const setProjectMilestoneCompletion = queries.setProjectMilestoneCompletion;
 
-export const createMilestoneChecklistItem = repository.createMilestoneChecklistItem;
-export const listMilestoneChecklistItems = repository.listMilestoneChecklistItems;
-export const updateMilestoneChecklistItem = repository.updateMilestoneChecklistItem;
+export const createMilestoneChecklistItem = queries.createMilestoneChecklistItem;
+export const listMilestoneChecklistItems = queries.listMilestoneChecklistItems;
+export const updateMilestoneChecklistItem = queries.updateMilestoneChecklistItem;
 export const listMilestoneChecklistItemsByMilestoneIds =
-  repository.listMilestoneChecklistItemsByMilestoneIds;
-export const areMilestoneChecklistItemsComplete = repository.areMilestoneChecklistItemsComplete;
+  queries.listMilestoneChecklistItemsByMilestoneIds;
+export const areMilestoneChecklistItemsComplete = queries.areMilestoneChecklistItemsComplete;
 

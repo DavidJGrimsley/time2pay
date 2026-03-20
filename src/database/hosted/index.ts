@@ -23,5 +23,5 @@ export type {
   MilestoneChecklistItem,
   InvoiceSessionLink,
   CoreDbValidationReport,
-} from '@/database/hosted/repository';
+} from '@/database/hosted/types';
 
