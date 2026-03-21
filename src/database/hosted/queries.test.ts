@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { createClient, listClients } from '@/database/hosted/clients-projects/index';
+import { getSupabaseClient, requireSupabaseUserId } from '@/services/supabase-client';
+
 vi.mock('@/services/supabase-client', () => ({
   getSupabaseClient: vi.fn(),
   getSupabaseUser: vi.fn(),
   requireSupabaseUserId: vi.fn(),
 }));
-
-import { createClient, listClients } from '@/database/hosted/clients-projects';
-import { getSupabaseClient, requireSupabaseUserId } from '@/services/supabase-client';
 
 const getSupabaseClientMock = vi.mocked(getSupabaseClient);
 const requireSupabaseUserIdMock = vi.mocked(requireSupabaseUserId);
@@ -56,6 +56,6 @@ describe('hosted clients/projects queries', () => {
         id: 'client_1',
         name: 'Acme',
       }),
-    ).rejects.toThrow('Hosted write route is only available in web runtime for now.');
+    ).rejects.toThrow('Hosted writes on non-web runtime require EXPO_PUBLIC_HOSTED_API_BASE_URL.');
   });
 });

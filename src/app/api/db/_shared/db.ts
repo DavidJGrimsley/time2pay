@@ -13,12 +13,19 @@ function getDatabaseUrl(): string {
   return url;
 }
 
-export async function withWriteDb<T>(work: (db: WriteDb) => Promise<T>): Promise<T> {
-  const client = postgres(getDatabaseUrl(), { prepare: false });
-  const db = drizzle(client, { schema });
-  try {
-    return await work(db);
-  } finally {
-    await client.end({ timeout: 5 });
+let writeClient: postgres.Sql | null = null;
+let writeDb: WriteDb | null = null;
+
+function getWriteDb(): WriteDb {
+  if (writeDb) {
+    return writeDb;
   }
+
+  writeClient = postgres(getDatabaseUrl(), { prepare: false });
+  writeDb = drizzle(writeClient, { schema });
+  return writeDb;
+}
+
+export async function withWriteDb<T>(work: (db: WriteDb) => Promise<T>): Promise<T> {
+  return work(getWriteDb());
 }

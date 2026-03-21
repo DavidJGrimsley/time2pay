@@ -1,23 +1,3 @@
-import type {
-  Client,
-  CoreDbValidationReport,
-  Invoice,
-  InvoiceSessionLink,
-  InvoiceSessionLinkMode,
-  InvoiceType,
-  InvoiceWithClient,
-  MilestoneAmountType,
-  MilestoneChecklistItem,
-  MilestoneCompletionMode,
-  PricingMode,
-  Project,
-  ProjectMilestone,
-  Session,
-  SessionBreak,
-  Task,
-  UserProfile,
-} from '@/database/db.local';
-
 export type {
   Client,
   CoreDbValidationReport,
@@ -36,4 +16,4 @@ export type {
   SessionBreak,
   Task,
   UserProfile,
-};
+} from '@/database/types';

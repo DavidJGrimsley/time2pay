@@ -1,5 +1,7 @@
 import { sql } from 'drizzle-orm';
 import type { WriteDb } from '@/app/api/db/_shared/db';
+import { notFound, validation } from '@/app/api/db/_shared/errors';
+import { assertUpdated, toNumericString } from '@/app/api/db/_queries/_shared';
 import { nowIso, toIsoOrNow } from '@/app/api/db/_shared/parsers';
 
 export type CreateMilestoneInput = {
@@ -18,6 +20,28 @@ export async function createMilestone(
   authUserId: string,
   input: CreateMilestoneInput,
 ): Promise<void> {
+  if (!input.id.trim() || !input.projectId.trim() || !input.title.trim()) {
+    throw validation('Milestone id, project id, and title are required.');
+  }
+  if (!Number.isFinite(input.amountValue) || input.amountValue < 0) {
+    throw validation('Milestone amount must be a non-negative number.');
+  }
+
+  const projectResult = await db.execute(sql`
+    select id
+    from projects
+    where id = ${input.projectId}
+      and auth_user_id = ${authUserId}::uuid
+      and deleted_at is null
+    limit 1
+  `);
+  const projectRows = Array.isArray(projectResult)
+    ? projectResult
+    : ((projectResult as { rows?: unknown[] }).rows ?? []);
+  if (projectRows.length === 0) {
+    throw notFound('Project not found.');
+  }
+
   const timestamp = nowIso();
   await db.execute(sql`
     insert into project_milestones (
@@ -29,7 +53,7 @@ export async function createMilestone(
       ${input.projectId},
       ${input.title},
       ${input.amountType},
-      ${String(input.amountValue)},
+      ${toNumericString(input.amountValue)},
       ${input.completionMode},
       ${input.dueNote ?? null},
       ${Math.trunc(input.sortOrder)},
@@ -57,21 +81,30 @@ export async function updateMilestone(
   authUserId: string,
   input: UpdateMilestoneInput,
 ): Promise<void> {
+  if (!Number.isFinite(input.amountValue) || input.amountValue < 0) {
+    throw validation('Milestone amount must be a non-negative number.');
+  }
+
   const timestamp = nowIso();
-  await db.execute(sql`
-    update project_milestones
-    set
-      title = ${input.title},
-      amount_type = ${input.amountType},
-      amount_value = ${String(input.amountValue)},
-      completion_mode = ${input.completionMode},
-      due_note = ${input.dueNote ?? null},
-      sort_order = ${Math.trunc(input.sortOrder)},
-      updated_at = ${timestamp}
-    where id = ${input.id}
-      and auth_user_id = ${authUserId}::uuid
-      and deleted_at is null
-  `);
+  await assertUpdated(
+    db,
+    sql`
+      update project_milestones
+      set
+        title = ${input.title},
+        amount_type = ${input.amountType},
+        amount_value = ${toNumericString(input.amountValue)},
+        completion_mode = ${input.completionMode},
+        due_note = ${input.dueNote ?? null},
+        sort_order = ${Math.trunc(input.sortOrder)},
+        updated_at = ${timestamp}
+      where id = ${input.id}
+        and auth_user_id = ${authUserId}::uuid
+        and deleted_at is null
+      returning id
+    `,
+    'Milestone not found.',
+  );
 }
 
 export type DeleteMilestoneInput = {
@@ -84,20 +117,27 @@ export async function deleteMilestone(
   input: DeleteMilestoneInput,
 ): Promise<void> {
   const timestamp = nowIso();
-  await db.execute(sql`
-    update project_milestones
-    set deleted_at = ${timestamp}, updated_at = ${timestamp}
-    where id = ${input.milestoneId}
-      and auth_user_id = ${authUserId}::uuid
-      and deleted_at is null
-  `);
-  await db.execute(sql`
-    update milestone_checklist_items
-    set deleted_at = ${timestamp}, updated_at = ${timestamp}
-    where milestone_id = ${input.milestoneId}
-      and auth_user_id = ${authUserId}::uuid
-      and deleted_at is null
-  `);
+  await db.transaction(async (tx) => {
+    await assertUpdated(
+      tx,
+      sql`
+        update project_milestones
+        set deleted_at = ${timestamp}, updated_at = ${timestamp}
+        where id = ${input.milestoneId}
+          and auth_user_id = ${authUserId}::uuid
+          and deleted_at is null
+        returning id
+      `,
+      'Milestone not found.',
+    );
+    await tx.execute(sql`
+      update milestone_checklist_items
+      set deleted_at = ${timestamp}, updated_at = ${timestamp}
+      where milestone_id = ${input.milestoneId}
+        and auth_user_id = ${authUserId}::uuid
+        and deleted_at is null
+    `);
+  });
 }
 
 export type SetMilestoneCompletionInput = {
@@ -113,14 +153,19 @@ export async function setMilestoneCompletion(
 ): Promise<void> {
   const timestamp = nowIso();
   const completedAt = input.isCompleted ? toIsoOrNow(input.completedAt ?? null) : null;
-  await db.execute(sql`
-    update project_milestones
-    set
-      is_completed = ${input.isCompleted},
-      completed_at = ${completedAt},
-      updated_at = ${timestamp}
-    where id = ${input.milestoneId}
-      and auth_user_id = ${authUserId}::uuid
-      and deleted_at is null
-  `);
+  await assertUpdated(
+    db,
+    sql`
+      update project_milestones
+      set
+        is_completed = ${input.isCompleted},
+        completed_at = ${completedAt},
+        updated_at = ${timestamp}
+      where id = ${input.milestoneId}
+        and auth_user_id = ${authUserId}::uuid
+        and deleted_at is null
+      returning id
+    `,
+    'Milestone not found.',
+  );
 }

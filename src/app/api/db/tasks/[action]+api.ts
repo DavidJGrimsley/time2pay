@@ -1,13 +1,15 @@
-import { z } from 'zod';
 import { handleDbWrite } from '@/app/api/db/_shared/route';
 import { createTask } from '@/app/api/db/_queries/tasks';
+import { taskInsertSchema } from '@/database/hosted/clients-projects/schema';
 
-const createTaskSchema = z.object({
-  id: z.string().min(1),
-  projectId: z.string().min(1),
-  name: z.string().min(1),
-  githubBranch: z.string().nullable().optional(),
-});
+const createTaskSchema = taskInsertSchema
+  .pick({
+    id: true,
+    projectId: true,
+    name: true,
+    githubBranch: true,
+  })
+  .strict();
 
 export async function POST(
   request: Request,

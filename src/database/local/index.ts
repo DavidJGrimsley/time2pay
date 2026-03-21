@@ -1,9 +1,9 @@
-export * from '@/database/local/core';
-export * from '@/database/local/profile';
-export * from '@/database/local/clients-projects';
-export * from '@/database/local/milestones';
-export * from '@/database/local/sessions';
-export * from '@/database/local/invoices';
+export * from '@/database/local/core/index';
+export * from '@/database/local/profile/index';
+export * from '@/database/local/clients-projects/index';
+export * from '@/database/local/milestones/index';
+export * from '@/database/local/sessions/index';
+export * from '@/database/local/invoices/index';
 
 export type {
   PricingMode,
@@ -23,5 +23,5 @@ export type {
   MilestoneChecklistItem,
   InvoiceSessionLink,
   CoreDbValidationReport,
-} from '@/database/local/legacy';
+} from '@/database/types';
 

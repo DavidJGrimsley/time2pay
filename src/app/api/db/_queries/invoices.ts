@@ -1,5 +1,7 @@
 import { sql } from 'drizzle-orm';
 import type { WriteDb } from '@/app/api/db/_shared/db';
+import { conflict, notFound, validation } from '@/app/api/db/_shared/errors';
+import { toNumericString } from '@/app/api/db/_queries/_shared';
 import { nowIso } from '@/app/api/db/_shared/parsers';
 
 export type CreateInvoiceInput = {
@@ -27,6 +29,28 @@ export async function createInvoice(
   authUserId: string,
   input: CreateInvoiceInput,
 ): Promise<void> {
+  if (!input.id.trim() || !input.clientId.trim()) {
+    throw validation('Invoice id and client id are required.');
+  }
+  if (!Number.isFinite(input.total) || input.total < 0) {
+    throw validation('Invoice total must be a non-negative number.');
+  }
+
+  const clientResult = await db.execute(sql`
+    select id
+    from clients
+    where id = ${input.clientId}
+      and auth_user_id = ${authUserId}::uuid
+      and deleted_at is null
+    limit 1
+  `);
+  const clientRows = Array.isArray(clientResult)
+    ? clientResult
+    : ((clientResult as { rows?: unknown[] }).rows ?? []);
+  if (clientRows.length === 0) {
+    throw notFound('Client not found.');
+  }
+
   const timestamp = nowIso();
   await db.execute(sql`
     insert into invoices (
@@ -39,7 +63,7 @@ export async function createInvoice(
       ${input.id},
       ${authUserId}::uuid,
       ${input.clientId},
-      ${String(input.total)},
+      ${toNumericString(input.total)},
       ${input.status ?? 'draft'},
       ${input.invoiceType ?? 'hourly'},
       ${input.mercuryInvoiceId ?? null},
@@ -49,15 +73,11 @@ export async function createInvoice(
       ${input.sourceMilestoneId ?? null},
       ${input.sourceMilestoneTitle ?? null},
       ${input.sourceMilestoneAmountType ?? null},
-      ${input.sourceMilestoneAmountValue === null || input.sourceMilestoneAmountValue === undefined
-        ? null
-        : String(input.sourceMilestoneAmountValue)},
+      ${toNumericString(input.sourceMilestoneAmountValue)},
       ${input.sourceMilestoneCompletionMode ?? null},
       ${input.sourceMilestoneCompletedAt ?? null},
       ${input.sourceSessionLinkMode ?? null},
-      ${input.sourceSessionHourlyRate === null || input.sourceSessionHourlyRate === undefined
-        ? null
-        : String(input.sourceSessionHourlyRate)},
+      ${toNumericString(input.sourceSessionHourlyRate)},
       ${timestamp},
       ${timestamp},
       null
@@ -78,11 +98,49 @@ export async function assignSessionsToInvoice(
   if (input.sessionIds.length === 0) {
     return;
   }
+  const invoiceResult = await db.execute(sql`
+    select id
+    from invoices
+    where id = ${input.invoiceId}
+      and auth_user_id = ${authUserId}::uuid
+      and deleted_at is null
+    limit 1
+  `);
+  const invoiceRows = Array.isArray(invoiceResult)
+    ? invoiceResult
+    : ((invoiceResult as { rows?: unknown[] }).rows ?? []);
+  if (invoiceRows.length === 0) {
+    throw notFound('Invoice not found.');
+  }
+
+  const sessionIdArray = input.sessionIds;
+  const sessionResult = await db.execute(sql`
+    select id
+    from sessions
+    where auth_user_id = ${authUserId}::uuid
+      and id = any(${sessionIdArray}::text[])
+      and deleted_at is null
+  `);
+  const sessionRows = Array.isArray(sessionResult)
+    ? sessionResult
+    : ((sessionResult as { rows?: unknown[] }).rows ?? []);
+  if (sessionRows.length !== sessionIdArray.length) {
+    throw conflict('One or more sessions do not exist or are deleted.');
+  }
+
   const timestamp = nowIso();
-  await db.execute(sql`
+  const updateResult = await db.execute(sql`
     update sessions
     set invoice_id = ${input.invoiceId}, updated_at = ${timestamp}
     where auth_user_id = ${authUserId}::uuid
       and id = any(${input.sessionIds}::text[])
+      and deleted_at is null
+    returning id
   `);
+  const updatedRows = Array.isArray(updateResult)
+    ? updateResult
+    : ((updateResult as { rows?: unknown[] }).rows ?? []);
+  if (updatedRows.length !== input.sessionIds.length) {
+    throw conflict('Failed to assign every requested session to the invoice.');
+  }
 }

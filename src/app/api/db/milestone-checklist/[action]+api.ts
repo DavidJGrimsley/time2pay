@@ -4,21 +4,34 @@ import {
   createMilestoneChecklistItem,
   updateMilestoneChecklistItem,
 } from '@/app/api/db/_queries/milestone-checklist';
+import { milestoneChecklistItemInsertSchema } from '@/database/hosted/milestones/schema';
 
-const createChecklistSchema = z.object({
-  id: z.string().min(1),
-  milestoneId: z.string().min(1),
-  label: z.string().min(1),
-  sortOrder: z.number().int(),
-});
+const createChecklistSchema = milestoneChecklistItemInsertSchema
+  .pick({
+    id: true,
+    milestoneId: true,
+    label: true,
+    sortOrder: true,
+  })
+  .extend({
+    sortOrder: z.coerce.number().int(),
+  })
+  .strict();
 
-const updateChecklistSchema = z.object({
-  id: z.string().min(1),
-  label: z.string().min(1),
-  sortOrder: z.number().int(),
-  isCompleted: z.boolean(),
-  completedAt: z.string().nullable().optional(),
-});
+const updateChecklistSchema = milestoneChecklistItemInsertSchema
+  .pick({
+    id: true,
+    label: true,
+    sortOrder: true,
+    isCompleted: true,
+    completedAt: true,
+  })
+  .extend({
+    sortOrder: z.coerce.number().int(),
+    isCompleted: z.boolean(),
+    completedAt: z.string().nullable().optional(),
+  })
+  .strict();
 
 export async function POST(
   request: Request,

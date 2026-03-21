@@ -1,9 +1,13 @@
 import * as hosted from '@/database/db.hosted';
 import * as local from '@/database/db.local';
+import type { DbProvider } from '@/database/provider';
 import { isHostedMode } from '@/services/runtime-mode';
 
-function provider(): typeof local {
-  return isHostedMode() ? (hosted as unknown as typeof local) : local;
+const localProvider: DbProvider = local;
+const hostedProvider: DbProvider = hosted;
+
+function provider(): DbProvider {
+  return isHostedMode() ? hostedProvider : localProvider;
 }
 
 export type {
@@ -24,7 +28,7 @@ export type {
   MilestoneChecklistItem,
   InvoiceSessionLink,
   CoreDbValidationReport,
-} from '@/database/db.local';
+} from '@/database/types';
 
 export function getDb(...args: Parameters<typeof local.getDb>): ReturnType<typeof local.getDb> {
   return provider().getDb(...args);

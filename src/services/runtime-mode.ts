@@ -19,12 +19,9 @@ export function assertHostedModeConfigured(): void {
     missing.push('EXPO_PUBLIC_SUPABASE_URL');
   }
 
-  const supabaseAnonKey =
-    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() ??
-    process.env.EXPO_PUBLIC_SUPABASE_KEY?.trim() ??
-    '';
+  const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? '';
   if (!supabaseAnonKey) {
-    missing.push('EXPO_PUBLIC_SUPABASE_ANON_KEY or EXPO_PUBLIC_SUPABASE_KEY');
+    missing.push('EXPO_PUBLIC_SUPABASE_ANON_KEY');
   }
 
   if (missing.length > 0) {

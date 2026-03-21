@@ -52,7 +52,7 @@ export function listProjectMilestones(projectId: string): Promise<ProjectMilesto
       throw new Error(error.message);
     }
 
-    const rows = (data ?? []) as Array<Record<string, unknown>>;
+    const rows = (data ?? []) as Record<string, unknown>[];
     return rows.map((row) => ({
       id: String(row.id),
       project_id: String(row.project_id),
@@ -179,7 +179,7 @@ export function listMilestoneChecklistItems(milestoneId: string): Promise<Milest
       throw new Error(error.message);
     }
 
-    const rows = (data ?? []) as Array<Record<string, unknown>>;
+    const rows = (data ?? []) as Record<string, unknown>[];
     return rows.map((row) => ({
       id: String(row.id),
       milestone_id: String(row.milestone_id),
@@ -235,7 +235,7 @@ export function listMilestoneChecklistItemsByMilestoneIds(
       throw new Error(error.message);
     }
 
-    const rows = (data ?? []) as Array<Record<string, unknown>>;
+    const rows = (data ?? []) as Record<string, unknown>[];
     return rows.map((row) => ({
       id: String(row.id),
       milestone_id: String(row.milestone_id),

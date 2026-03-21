@@ -18,12 +18,12 @@ const startSessionSchema = z.object({
   taskId: z.string().nullable().optional(),
   startTime: z.string().optional(),
   notes: z.string().nullable().optional(),
-});
+}).strict();
 
 const stopSessionSchema = z.object({
   id: z.string().min(1),
   endTime: z.string().optional(),
-});
+}).strict();
 
 const addManualSessionSchema = z.object({
   id: z.string().min(1),
@@ -34,7 +34,7 @@ const addManualSessionSchema = z.object({
   startTime: z.string().min(1),
   endTime: z.string().min(1),
   notes: z.string().nullable().optional(),
-});
+}).strict();
 
 const updateSessionSchema = z.object({
   id: z.string().min(1),
@@ -44,23 +44,23 @@ const updateSessionSchema = z.object({
   startTime: z.string().min(1),
   endTime: z.string().min(1),
   notes: z.string().nullable().optional(),
-});
+}).strict();
 
 const updateSessionNotesSchema = z.object({
   id: z.string().min(1),
   notes: z.string().nullable(),
   commitSha: z.string().nullable().optional(),
-});
+}).strict();
 
 const pauseSessionSchema = z.object({
   sessionId: z.string().min(1),
   startTime: z.string().optional(),
-});
+}).strict();
 
 const resumeSessionSchema = z.object({
   sessionId: z.string().min(1),
   endTime: z.string().optional(),
-});
+}).strict();
 
 export async function POST(
   request: Request,
