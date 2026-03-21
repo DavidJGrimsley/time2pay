@@ -14,10 +14,7 @@ function getSupabaseConfig(): { url: string; anonKey: string } {
   assertHostedModeConfigured();
 
   const url = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() ?? '';
-  const anonKey =
-    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() ??
-    process.env.EXPO_PUBLIC_SUPABASE_KEY?.trim() ??
-    '';
+  const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? '';
 
   if (!url || !anonKey) {
     throw new Error('Supabase is not configured for hosted mode.');

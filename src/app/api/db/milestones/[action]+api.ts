@@ -6,40 +6,57 @@ import {
   setMilestoneCompletion,
   updateMilestone,
 } from '@/app/api/db/_queries/milestones';
+import { projectMilestoneInsertSchema } from '@/database/hosted/milestones/schema';
 
 const amountTypeSchema = z.enum(['percent', 'fixed']);
 const completionModeSchema = z.enum(['toggle', 'checklist']);
 
-const createMilestoneSchema = z.object({
-  id: z.string().min(1),
-  projectId: z.string().min(1),
-  title: z.string().min(1),
-  amountType: amountTypeSchema,
-  amountValue: z.number().min(0),
-  completionMode: completionModeSchema,
-  dueNote: z.string().nullable().optional(),
-  sortOrder: z.number().int(),
-});
+const createMilestoneSchema = projectMilestoneInsertSchema
+  .pick({
+    id: true,
+    projectId: true,
+    title: true,
+    amountType: true,
+    amountValue: true,
+    completionMode: true,
+    dueNote: true,
+    sortOrder: true,
+  })
+  .extend({
+    amountType: amountTypeSchema,
+    amountValue: z.coerce.number().min(0),
+    completionMode: completionModeSchema,
+    sortOrder: z.coerce.number().int(),
+  })
+  .strict();
 
-const updateMilestoneSchema = z.object({
-  id: z.string().min(1),
-  title: z.string().min(1),
-  amountType: amountTypeSchema,
-  amountValue: z.number().min(0),
-  completionMode: completionModeSchema,
-  dueNote: z.string().nullable().optional(),
-  sortOrder: z.number().int(),
-});
+const updateMilestoneSchema = projectMilestoneInsertSchema
+  .pick({
+    id: true,
+    title: true,
+    amountType: true,
+    amountValue: true,
+    completionMode: true,
+    dueNote: true,
+    sortOrder: true,
+  })
+  .extend({
+    amountType: amountTypeSchema,
+    amountValue: z.coerce.number().min(0),
+    completionMode: completionModeSchema,
+    sortOrder: z.coerce.number().int(),
+  })
+  .strict();
 
 const deleteMilestoneSchema = z.object({
   milestoneId: z.string().min(1),
-});
+}).strict();
 
 const setCompletionSchema = z.object({
   milestoneId: z.string().min(1),
   isCompleted: z.boolean(),
   completedAt: z.string().nullable().optional(),
-});
+}).strict();
 
 export async function POST(
   request: Request,

@@ -1,6 +1,13 @@
 import { z, type ZodType } from 'zod';
 import { requireAuthUserId } from '@/app/api/db/_shared/auth';
 import { withWriteDb, type WriteDb } from '@/app/api/db/_shared/db';
+import {
+  dbRouteErrorResponse,
+  internal,
+  toDbRouteError,
+  unauthorized,
+  validation,
+} from '@/app/api/db/_shared/errors';
 
 function parseJsonError(error: unknown): string {
   if (error instanceof z.ZodError) {
@@ -17,9 +24,13 @@ async function parseBody<T>(request: Request, schema: ZodType<T>): Promise<T> {
   try {
     body = await request.json();
   } catch {
-    throw new Error('Invalid JSON request body.');
+    throw validation('Invalid JSON request body.');
   }
-  return schema.parse(body);
+  try {
+    return schema.parse(body);
+  } catch (error) {
+    throw toDbRouteError(error);
+  }
 }
 
 export async function handleDbWrite<T>(
@@ -31,9 +42,8 @@ export async function handleDbWrite<T>(
   try {
     authUserId = await requireAuthUserId(request);
   } catch (error) {
-    return Response.json(
-      { error: error instanceof Error ? error.message : 'Invalid request.' },
-      { status: 401 },
+    return dbRouteErrorResponse(
+      unauthorized(error instanceof Error ? error.message : 'Invalid auth token.'),
     );
   }
 
@@ -41,7 +51,11 @@ export async function handleDbWrite<T>(
   try {
     payload = await parseBody(request, schema);
   } catch (error) {
-    return Response.json({ error: parseJsonError(error) }, { status: 400 });
+    const routeError =
+      error instanceof z.ZodError
+        ? validation(parseJsonError(error), error.issues)
+        : toDbRouteError(error);
+    return dbRouteErrorResponse(routeError);
   }
 
   try {
@@ -49,9 +63,10 @@ export async function handleDbWrite<T>(
     return Response.json({ ok: true });
   } catch (error) {
     console.error('Hosted DB write route failed:', error);
-    return Response.json(
-      { error: error instanceof Error ? error.message : 'Hosted write failed.' },
-      { status: 400 },
-    );
+    const routeError = toDbRouteError(error);
+    if (routeError.code === 'internal') {
+      return dbRouteErrorResponse(internal());
+    }
+    return dbRouteErrorResponse(routeError);
   }
 }

@@ -1,15 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 
 function getSupabaseAuthConfig(): { url: string; anonKey: string } {
-  const url = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() ?? process.env.SUPABASE_URL?.trim() ?? '';
-  const anonKey =
-    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() ??
-    process.env.EXPO_PUBLIC_SUPABASE_KEY?.trim() ??
-    process.env.SUPABASE_ANON_KEY?.trim() ??
-    '';
+  const url = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() ?? '';
+  const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? '';
 
   if (!url || !anonKey) {
-    throw new Error('Supabase auth config missing. Set SUPABASE_URL and SUPABASE_ANON_KEY.');
+    throw new Error(
+      'Supabase auth config missing. Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY.',
+    );
   }
 
   return { url, anonKey };

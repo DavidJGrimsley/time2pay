@@ -93,14 +93,27 @@ export function byId<T extends { id: string }>(rows: T[]): Map<string, T> {
   return new Map(rows.map((row) => [row.id, row]));
 }
 
+function resolveHostedWriteUrl(path: string): string {
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const explicitBaseUrl = process.env.EXPO_PUBLIC_HOSTED_API_BASE_URL?.trim() ?? '';
+  if (explicitBaseUrl) {
+    return new URL(normalizedPath, explicitBaseUrl).toString();
+  }
+
+  if (typeof window !== 'undefined') {
+    return normalizedPath;
+  }
+
+  throw new Error(
+    'Hosted writes on non-web runtime require EXPO_PUBLIC_HOSTED_API_BASE_URL.',
+  );
+}
+
 export async function callHostedWriteRoute(
   path: string,
   payload: Record<string, unknown>,
 ): Promise<void> {
-  if (typeof window === 'undefined') {
-    throw new Error('Hosted write route is only available in web runtime for now.');
-  }
-
+  const writeUrl = resolveHostedWriteUrl(path);
   const supabase = getSupabaseClient();
   const { data, error } = await supabase.auth.getSession();
   if (error) {
@@ -112,7 +125,7 @@ export async function callHostedWriteRoute(
     throw new Error('Hosted write route requires an active Supabase session.');
   }
 
-  const response = await fetch(path, {
+  const response = await fetch(writeUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

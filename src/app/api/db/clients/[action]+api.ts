@@ -5,27 +5,40 @@ import {
   updateClientContact,
   updateClientHourlyRate,
 } from '@/app/api/db/_queries/clients';
+import { clientInsertSchema } from '@/database/hosted/clients-projects/schema';
 
-const createClientSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().min(1),
-  email: z.string().email().nullable().optional(),
-  phone: z.string().nullable().optional(),
-  hourlyRate: z.number().min(0).optional(),
-  githubOrg: z.string().nullable().optional(),
-});
+const createClientSchema = clientInsertSchema
+  .pick({
+    id: true,
+    name: true,
+    email: true,
+    phone: true,
+    hourlyRate: true,
+    githubOrg: true,
+  })
+  .extend({
+    hourlyRate: z.coerce.number().min(0).optional(),
+  })
+  .strict();
 
-const updateClientContactSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().min(1),
-  email: z.string().email().nullable().optional(),
-  phone: z.string().nullable().optional(),
-});
+const updateClientContactSchema = clientInsertSchema
+  .pick({
+    id: true,
+    name: true,
+    email: true,
+    phone: true,
+  })
+  .strict();
 
-const updateClientHourlyRateSchema = z.object({
-  id: z.string().min(1),
-  hourlyRate: z.number().min(0),
-});
+const updateClientHourlyRateSchema = clientInsertSchema
+  .pick({
+    id: true,
+    hourlyRate: true,
+  })
+  .extend({
+    hourlyRate: z.coerce.number().min(0),
+  })
+  .strict();
 
 export async function POST(
   request: Request,

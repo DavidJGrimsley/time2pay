@@ -14,5 +14,5 @@ export function toIsoOrNow(value: string | null): string {
 }
 
 export function makeEphemeralId(prefix: string): string {
-  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  return `${prefix}_${crypto.randomUUID()}`;
 }

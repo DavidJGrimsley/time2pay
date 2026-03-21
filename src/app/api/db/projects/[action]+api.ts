@@ -1,23 +1,36 @@
 import { z } from 'zod';
 import { handleDbWrite } from '@/app/api/db/_shared/route';
 import { createProject, updateProjectPricing } from '@/app/api/db/_queries/projects';
+import { projectInsertSchema } from '@/database/hosted/clients-projects/schema';
 
 const pricingModeSchema = z.enum(['hourly', 'milestone']);
 
-const createProjectSchema = z.object({
-  id: z.string().min(1),
-  clientId: z.string().min(1),
-  name: z.string().min(1),
-  githubRepo: z.string().nullable().optional(),
-  pricingMode: pricingModeSchema.optional(),
-  totalProjectFee: z.number().nullable().optional(),
-});
+const createProjectSchema = projectInsertSchema
+  .pick({
+    id: true,
+    clientId: true,
+    name: true,
+    githubRepo: true,
+    pricingMode: true,
+    totalProjectFee: true,
+  })
+  .extend({
+    pricingMode: pricingModeSchema.optional(),
+    totalProjectFee: z.coerce.number().nullable().optional(),
+  })
+  .strict();
 
-const updateProjectPricingSchema = z.object({
-  id: z.string().min(1),
-  pricingMode: pricingModeSchema,
-  totalProjectFee: z.number().nullable(),
-});
+const updateProjectPricingSchema = projectInsertSchema
+  .pick({
+    id: true,
+    pricingMode: true,
+    totalProjectFee: true,
+  })
+  .extend({
+    pricingMode: pricingModeSchema,
+    totalProjectFee: z.coerce.number().nullable(),
+  })
+  .strict();
 
 export async function POST(
   request: Request,

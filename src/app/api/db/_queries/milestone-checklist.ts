@@ -1,5 +1,7 @@
 import { sql } from 'drizzle-orm';
 import type { WriteDb } from '@/app/api/db/_shared/db';
+import { notFound, validation } from '@/app/api/db/_shared/errors';
+import { assertUpdated } from '@/app/api/db/_queries/_shared';
 import { nowIso, toIsoOrNow } from '@/app/api/db/_shared/parsers';
 
 export type CreateMilestoneChecklistItemInput = {
@@ -14,6 +16,25 @@ export async function createMilestoneChecklistItem(
   authUserId: string,
   input: CreateMilestoneChecklistItemInput,
 ): Promise<void> {
+  if (!input.id.trim() || !input.milestoneId.trim() || !input.label.trim()) {
+    throw validation('Checklist id, milestone id, and label are required.');
+  }
+
+  const milestoneResult = await db.execute(sql`
+    select id
+    from project_milestones
+    where id = ${input.milestoneId}
+      and auth_user_id = ${authUserId}::uuid
+      and deleted_at is null
+    limit 1
+  `);
+  const milestoneRows = Array.isArray(milestoneResult)
+    ? milestoneResult
+    : ((milestoneResult as { rows?: unknown[] }).rows ?? []);
+  if (milestoneRows.length === 0) {
+    throw notFound('Milestone not found.');
+  }
+
   const timestamp = nowIso();
   await db.execute(sql`
     insert into milestone_checklist_items (
@@ -48,16 +69,21 @@ export async function updateMilestoneChecklistItem(
 ): Promise<void> {
   const timestamp = nowIso();
   const completedAt = input.isCompleted ? toIsoOrNow(input.completedAt ?? null) : null;
-  await db.execute(sql`
-    update milestone_checklist_items
-    set
-      label = ${input.label},
-      sort_order = ${Math.trunc(input.sortOrder)},
-      is_completed = ${input.isCompleted},
-      completed_at = ${completedAt},
-      updated_at = ${timestamp}
-    where id = ${input.id}
-      and auth_user_id = ${authUserId}::uuid
-      and deleted_at is null
-  `);
+  await assertUpdated(
+    db,
+    sql`
+      update milestone_checklist_items
+      set
+        label = ${input.label},
+        sort_order = ${Math.trunc(input.sortOrder)},
+        is_completed = ${input.isCompleted},
+        completed_at = ${completedAt},
+        updated_at = ${timestamp}
+      where id = ${input.id}
+        and auth_user_id = ${authUserId}::uuid
+        and deleted_at is null
+      returning id
+    `,
+    'Checklist item not found.',
+  );
 }

@@ -26,7 +26,7 @@ async function loadSessionReferenceMaps(userId: string): Promise<{
       if (error) {
         throw new Error(error.message);
       }
-      const rows = (data ?? []) as Array<Record<string, unknown>>;
+      const rows = (data ?? []) as Record<string, unknown>[];
       return rows.map((row) => ({
         id: String(row.id),
         project_id: String(row.project_id),
@@ -47,7 +47,7 @@ async function loadSessionReferenceMaps(userId: string): Promise<{
 }
 
 export async function hydrateSessions(
-  rows: Array<Record<string, unknown>>,
+  rows: Record<string, unknown>[],
   userId: string,
 ): Promise<Session[]> {
   if (rows.length === 0) {
@@ -69,7 +69,7 @@ export async function hydrateSessions(
       if (error) {
         throw new Error(error.message);
       }
-      return (data ?? []) as Array<Record<string, unknown>>;
+      return (data ?? []) as Record<string, unknown>[];
     })(),
   ]);
 
@@ -213,7 +213,7 @@ export function listSessions(): Promise<Session[]> {
       throw new Error(error.message);
     }
 
-    return hydrateSessions((data ?? []) as Array<Record<string, unknown>>, userId);
+    return hydrateSessions((data ?? []) as Record<string, unknown>[], userId);
   });
 }
 
@@ -247,7 +247,7 @@ export function listSessionsByClientAndRange(input: {
       throw new Error(error.message);
     }
 
-    return hydrateSessions((data ?? []) as Array<Record<string, unknown>>, userId);
+    return hydrateSessions((data ?? []) as Record<string, unknown>[], userId);
   });
 }
 
@@ -277,7 +277,7 @@ export function listSessionsByProject(input: {
       throw new Error(error.message);
     }
 
-    return hydrateSessions((data ?? []) as Array<Record<string, unknown>>, userId);
+    return hydrateSessions((data ?? []) as Record<string, unknown>[], userId);
   });
 }
 
@@ -309,7 +309,7 @@ export function listSessionBreaksBySessionId(sessionId: string): Promise<Session
       throw new Error(error.message);
     }
 
-    const rows = (data ?? []) as Array<Record<string, unknown>>;
+    const rows = (data ?? []) as Record<string, unknown>[];
     return rows.map((row) => ({
       id: String(row.id),
       session_id: String(row.session_id),
@@ -342,7 +342,7 @@ export function listSessionBreaksBySessionIds(sessionIds: string[]): Promise<Ses
       throw new Error(error.message);
     }
 
-    const rows = (data ?? []) as Array<Record<string, unknown>>;
+    const rows = (data ?? []) as Record<string, unknown>[];
     return rows.map((row) => ({
       id: String(row.id),
       session_id: String(row.session_id),

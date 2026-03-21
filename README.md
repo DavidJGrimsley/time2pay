@@ -53,7 +53,8 @@ Set these in `.env`:
 - `EXPO_PUBLIC_GITHUB_CLIENT_ID` (optional): client-visible GitHub OAuth id used to show the Sign in with GitHub button
 - `EXPO_PUBLIC_TIME2PAY_DATA_MODE` (optional): `local` (default) or `hosted`
 - `EXPO_PUBLIC_SUPABASE_URL` (required in hosted mode)
-- `EXPO_PUBLIC_SUPABASE_ANON_KEY` (required in hosted mode; `EXPO_PUBLIC_SUPABASE_KEY` also works as alias)
+- `EXPO_PUBLIC_SUPABASE_ANON_KEY` (required in hosted mode)
+- `EXPO_PUBLIC_HOSTED_API_BASE_URL` (required for hosted writes in non-web runtime; example: `https://time2pay.app`)
 - `EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_URL` (optional): full OAuth/magic-link callback URL
 - `EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_PATH` (optional): path fallback for callback URL, defaults to `/dashboard`
 - `SUPABASE_SERVICE_ROLE_KEY` (required for server-side admin operations)
@@ -74,6 +75,7 @@ Hosted mode includes:
 - Email magic-link + GitHub OAuth sign-in
 - User-scoped profile + data reads from Supabase
 - API-routed hosted writes (`/api/db/<domain>/<action>`)
+- Strict write payload validation with typed API error statuses (`401/403/404/409/422/500`)
 
 Supabase callback setup:
 1. In Supabase Auth settings, add redirect URLs for:

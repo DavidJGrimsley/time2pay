@@ -41,7 +41,7 @@ export function listClients(): Promise<Client[]> {
       throw new Error(error.message);
     }
 
-    const rows = (data ?? []) as Array<Record<string, unknown>>;
+    const rows = (data ?? []) as Record<string, unknown>[];
     return rows.map((row) => ({
       id: String(row.id),
       name: String(row.name),
@@ -143,7 +143,7 @@ export function listProjectsByClient(clientId: string): Promise<Project[]> {
       throw new Error(error.message);
     }
 
-    const rows = (data ?? []) as Array<Record<string, unknown>>;
+    const rows = (data ?? []) as Record<string, unknown>[];
     return rows.map((row) => ({
       id: String(row.id),
       client_id: String(row.client_id),
@@ -173,7 +173,7 @@ export function listProjects(): Promise<Project[]> {
       throw new Error(error.message);
     }
 
-    const rows = (data ?? []) as Array<Record<string, unknown>>;
+    const rows = (data ?? []) as Record<string, unknown>[];
     return rows.map((row) => ({
       id: String(row.id),
       client_id: String(row.client_id),
@@ -264,7 +264,7 @@ export function listTasksByProject(projectId: string): Promise<Task[]> {
       throw new Error(error.message);
     }
 
-    const rows = (data ?? []) as Array<Record<string, unknown>>;
+    const rows = (data ?? []) as Record<string, unknown>[];
     return rows.map((row) => ({
       id: String(row.id),
       project_id: String(row.project_id),

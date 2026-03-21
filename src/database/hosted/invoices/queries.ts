@@ -77,7 +77,7 @@ export function listInvoices(): Promise<InvoiceWithClient[]> {
     }
 
     const clientsById = byId(clientsData);
-    const rows = (invoicesResult.data ?? []) as Array<Record<string, unknown>>;
+    const rows = (invoicesResult.data ?? []) as Record<string, unknown>[];
     return rows.map((row) => {
       const client = clientsById.get(String(row.client_id));
       return {
@@ -134,7 +134,7 @@ export function listSessionsByInvoiceId(invoiceId: string): Promise<Session[]> {
     }
 
     const linkedSessionIds = links.map((link) => link.session_id);
-    let linkedRows: Array<Record<string, unknown>> = [];
+    let linkedRows: Record<string, unknown>[] = [];
     if (linkedSessionIds.length > 0) {
       const linkedResult = await supabase
         .from('sessions')
@@ -148,10 +148,10 @@ export function listSessionsByInvoiceId(invoiceId: string): Promise<Session[]> {
       if (linkedResult.error) {
         throw new Error(linkedResult.error.message);
       }
-      linkedRows = (linkedResult.data ?? []) as Array<Record<string, unknown>>;
+      linkedRows = (linkedResult.data ?? []) as Record<string, unknown>[];
     }
 
-    const allRows = [...((directResult.data ?? []) as Array<Record<string, unknown>>), ...linkedRows];
+    const allRows = [...((directResult.data ?? []) as Record<string, unknown>[]), ...linkedRows];
     const deduped = new Map(allRows.map((row) => [String(row.id), row]));
     const hydrated = await hydrateSessions([...deduped.values()], userId);
     return hydrated.sort((a, b) => a.start_time.localeCompare(b.start_time));
@@ -194,7 +194,7 @@ export function listInvoiceSessionLinksByInvoiceId(
       throw new Error(error.message);
     }
 
-    const rows = (data ?? []) as Array<Record<string, unknown>>;
+    const rows = (data ?? []) as Record<string, unknown>[];
     return rows.map((row) => ({
       id: String(row.id),
       invoice_id: String(row.invoice_id),
