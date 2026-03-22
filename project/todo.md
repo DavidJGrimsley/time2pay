@@ -98,7 +98,8 @@ Milestone Payments:
 - [x] Added domain write-query modules under `src/app/api/db/_queries/*`
 - [x] Added local provider domain `queries.ts` wrappers under `src/database/local/<domain>/queries.ts` for parity with hosted module layout
 - [x] Validation pass complete after split: `npm run typecheck` + `npm test`
-- [ ] Run `npm run db:migrate` against Supabase project and verify `drizzle.__drizzle_migrations` row is written
+- [x] Run `npm run db:migrate` against Supabase project and verify `drizzle.__drizzle_migrations` row is written
+  - [x] Migration ledger baseline aligned and verified (`drizzle.__drizzle_migrations` count: `1`)
 - [ ] Apply/verify RLS policies in Supabase SQL editor for all hosted tables (`auth_user_id = auth.uid()`)
 - [ ] Finalize Supabase dashboard callback URLs for localhost + `https://time2pay.app/dashboard`
 - [ ] Verify GitHub OAuth sign-in flow end-to-end post-migration (no loading loop, profile gate works)
