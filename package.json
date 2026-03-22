@@ -65,6 +65,7 @@
     "eslint": "^9.39.3",
     "eslint-config-expo": "~55.0.0",
     "react-test-renderer": "19.2.0",
+    "supabase": "^2.83.0",
     "typescript": "~5.9.2",
     "vitest": "^3.2.4",
     "workbox-build": "^7.4.0"

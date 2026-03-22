@@ -1,6 +1,6 @@
 # Time2Pay
 
-Time2Pay is a local-first contractor invoicing app. Track sessions, group work into invoices, sync with Mercury, and run it as an installable PWA.
+Time2Pay is a dual-mode contractor invoicing app. Run local-first with SQLite or hosted multi-user with Supabase/Postgres, track sessions, group work into invoices, sync with Mercury, and ship as an installable PWA.
 
 ## Features
 
@@ -11,6 +11,7 @@ Time2Pay is a local-first contractor invoicing app. Track sessions, group work i
 - PDF invoice export
 - Installable PWA with update-aware service worker
 - Local SQLite persistence for app data
+- Hosted multi-user auth + data mode (Supabase)
 
 ## Quick Start (Copy/Paste)
 
@@ -89,6 +90,7 @@ Drizzle migration connection note:
 - `drizzle.config.ts` precedence is `DRIZZLE_DATABASE_URL -> DATABASE_URL -> DATABASE_DIRECT_URL`.
 - For most setups, set `DATABASE_URL` to Supabase pooler (`6543`) and run migrations directly.
 - Use `DATABASE_DIRECT_URL` only when direct host networking is confirmed in your environment.
+- If tables already exist but `drizzle.__drizzle_migrations` is empty, align the baseline ledger row first, then rerun `npm run db:migrate`.
 
 ## Run Modes
 

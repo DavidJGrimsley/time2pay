@@ -1,63 +1,50 @@
-# Time2Pay — Project Info
+# Time2Pay - Project Info
 
 ## Vision
-Time2Pay is an open-source, self-hosted time tracking and invoicing system for freelancers/contractors.
+Time2Pay is an open-source, self-hostable time tracking and invoicing system for freelancers and small teams.
 
 Core principles:
-- Local-first architecture
-- Open source
-- Self-hostable
-- Minimal dependencies
+- Local-first support
+- Hosted multi-user support
+- Open source core
+- Minimal operational overhead
 
-## Product Phases
+## Current Product State
 
-### Phase 1 — Web App (Local First)
-- Stack: Expo, React Native, Expo Web, `expo-sqlite`
-- Architecture: Expo Web app + local SQLite (no backend)
-- Goal: single-user local workflow for sessions and invoicing
+### Runtime modes
+- `local` mode: Expo Router app + `expo-sqlite` provider
+- `hosted` mode: Supabase Auth + Postgres (Drizzle) provider
+- App-facing DB contract remains stable across both modes via `src/database/db.ts`
 
-### Phase 2 — Mobile + Sync
-- Stack: Expo React Native, Node.js API, PostgreSQL
-- Architecture: Mobile app -> Time2Pay API -> PostgreSQL
-- Goal: mobile tracking and cross-device sync
+### Hosted architecture
+- Auth: Supabase email magic-link + GitHub OAuth
+- Reads: direct Supabase client (RLS-enforced)
+- Writes: API routes under `src/app/api/db/<domain>/[action]+api.ts`
+- Validation: route-level zod payload parsing + typed route status handling
+- Schema: domain files in `src/database/hosted/**/schema.ts`
+- Migrations: Drizzle migrations in `drizzle/migrations`
 
-### Phase 3 — Desktop
-- Options: Electron or Tauri (preferred)
-- Architecture: Desktop app -> Time2Pay API -> PostgreSQL
+### Migration state
+- Supabase schema is applied
+- Drizzle migration ledger is aligned (`drizzle.__drizzle_migrations` has baseline row)
+- Follow-on schema changes should use:
+  1. `npm run db:generate`
+  2. `npm run db:migrate`
 
 ## Integrations
-- Mercury API (via backend only): invoice generation, payment links, bank info, transaction monitoring
-- PayPal link support in Phase 1 invoice output
-- Future: Stripe/Mercury payment expansion
+- Mercury API (server-side only): invoice generation, payment links, bank info, transaction monitoring
+- GitHub OAuth for hosted sign-in and integration workflows
+- PayPal link support in invoice output
 
-## Data Models (Planned)
+## Data Domains
+- User profiles
+- Clients, projects, tasks
+- Sessions and session breaks
+- Milestones and milestone checklist items
+- Invoices and invoice session links
 
-### Sessions
-- id
-- client
-- start_time
-- end_time
-- duration
-- notes
-- invoice_id
-
-### Clients
-- id
-- name
-- email
-- hourly_rate
-
-### Invoices
-- id
-- client_id
-- total
-- status
-- mercury_invoice_id
-- payment_link
-
-## MVP Scope
-- Timer
-- Session tracking (automatic + manual)
-- Invoice creation
-- PDF export
-- Payment link generation
+## Near-Term Priorities
+- Apply and verify complete RLS policy coverage for hosted tables
+- Final callback URL and hosted auth verification on `https://time2pay.app`
+- Two-user hosted smoke validation for strict tenant isolation
+- VPS deployment of single Node app output (web + API routes)
