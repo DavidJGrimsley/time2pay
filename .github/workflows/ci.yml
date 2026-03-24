@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   quality:
-    name: Lint, Typecheck, Doctor
+    name: Lint, Typecheck, Test, Doctor, Build
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -27,7 +27,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 23
           cache: npm
 
       - name: Install dependencies
@@ -44,3 +44,25 @@ jobs:
 
       - name: Run Expo doctor
         run: npm run doctor
+
+      - name: Run deploy build
+        run: npm run build:web:deploy
+
+  deploy_plesk:
+    name: Trigger Plesk Deploy
+    needs: quality
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Trigger Plesk webhook
+        env:
+          PLESK_DEPLOY_WEBHOOK_URL: ${{ secrets.PLESK_DEPLOY_WEBHOOK_URL }}
+        run: |
+          if [ -z "$PLESK_DEPLOY_WEBHOOK_URL" ]; then
+            echo "Missing PLESK_DEPLOY_WEBHOOK_URL secret." >&2
+            exit 1
+          fi
+
+          curl --fail --silent --show-error --request POST "$PLESK_DEPLOY_WEBHOOK_URL"

@@ -1,6 +1,6 @@
 # Time2Pay
 
-Time2Pay is a local-first contractor invoicing app. Track sessions, group work into invoices, sync with Mercury, and run it as an installable PWA.
+Time2Pay is a dual-mode contractor invoicing app. Run local-first with SQLite or hosted multi-user with Supabase/Postgres, track sessions, group work into invoices, sync with Mercury, and ship as an installable PWA.
 
 ## Features
 
@@ -11,6 +11,7 @@ Time2Pay is a local-first contractor invoicing app. Track sessions, group work i
 - PDF invoice export
 - Installable PWA with update-aware service worker
 - Local SQLite persistence for app data
+- Hosted multi-user auth + data mode (Supabase)
 
 ## Quick Start (Copy/Paste)
 
@@ -51,10 +52,45 @@ Set these in `.env`:
 - `GITHUB_CLIENT_ID` (optional): server-side GitHub OAuth app client id
 - `GITHUB_CLIENT_SECRET` (optional): server-side GitHub OAuth app client secret
 - `EXPO_PUBLIC_GITHUB_CLIENT_ID` (optional): client-visible GitHub OAuth id used to show the Sign in with GitHub button
+- `EXPO_PUBLIC_TIME2PAY_DATA_MODE` (optional): `local` (default) or `hosted`
+- `EXPO_PUBLIC_SUPABASE_URL` (required in hosted mode)
+- `EXPO_PUBLIC_SUPABASE_ANON_KEY` (required in hosted mode)
+- `EXPO_PUBLIC_HOSTED_API_BASE_URL` (required for hosted writes in non-web runtime; example: `https://time2pay.app`)
+- `EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_URL` (optional): full OAuth/magic-link callback URL
+- `EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_PATH` (optional): path fallback for callback URL, defaults to `/dashboard`
+- `SUPABASE_SERVICE_ROLE_KEY` (required for server-side admin operations)
+- `DATABASE_URL` (recommended for Drizzle migrations and runtime SQL clients; Supabase pooler, usually `6543`)
+- `DATABASE_DIRECT_URL` (optional direct database host/port, usually `5432`, only if your network supports direct connectivity)
+- `DRIZZLE_DATABASE_URL` (optional): explicit override used by Drizzle CLI (`db:migrate`, `db:check`, etc.)
 - `PORT` (optional): defaults to `3000`
 
 If `MERCURY_API_KEY` is missing, `/api/mercury` returns `400`.
 If GitHub OAuth env vars are missing, `/api/github` returns `501` and the Sign in with GitHub button is hidden.
+If hosted env vars are missing while `EXPO_PUBLIC_TIME2PAY_DATA_MODE=hosted`, auth/data flows fail at startup.
+
+## Hosted Mode (Supabase + Multi-User)
+
+Set `EXPO_PUBLIC_TIME2PAY_DATA_MODE=hosted` to enable Supabase auth + hosted data.
+
+Hosted mode includes:
+- Email magic-link + GitHub OAuth sign-in
+- User-scoped profile + data reads from Supabase
+- API-routed hosted writes (`/api/db/<domain>/<action>`)
+- Strict write payload validation with typed API error statuses (`401/403/404/409/422/500`)
+
+Supabase callback setup:
+1. In Supabase Auth settings, add redirect URLs for:
+   - `http://localhost:3000/dashboard`
+   - `https://time2pay.app/dashboard`
+2. In `.env`, set either:
+   - `EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_URL=https://time2pay.app/dashboard` (production), or
+   - `EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_PATH=/dashboard` (origin-relative fallback).
+
+Drizzle migration connection note:
+- `drizzle.config.ts` precedence is `DRIZZLE_DATABASE_URL -> DATABASE_URL -> DATABASE_DIRECT_URL`.
+- For most setups, set `DATABASE_URL` to Supabase pooler (`6543`) and run migrations directly.
+- Use `DATABASE_DIRECT_URL` only when direct host networking is confirmed in your environment.
+- If tables already exist but `drizzle.__drizzle_migrations` is empty, align the baseline ledger row first, then rerun `npm run db:migrate`.
 
 ## Run Modes
 
@@ -152,20 +188,49 @@ Notes:
 
 ## Plesk Deployment (Node App)
 
-1. Upload project
-2. Install dependencies: `npm ci`
-3. Configure env vars (`MERCURY_API_KEY`, optional `MERCURY_BASE_URL`, optional `PORT`)
-4. Build: `npm run build:web`
-5. Startup command:
-   - Node 20+: `npm run serve:prod:env`
-   - If env vars are managed by Plesk directly: `npm run serve:prod`
-6. Keep HTTPS enabled for full PWA install/service-worker behavior
+Use Plesk as the deployment target, but deploy the repository into the Node app root, not into `dist/client`.
+
+1. Connect the GitHub repository in **Plesk -> Git** and keep branch `main`.
+2. Set the Git deployment target to the **Application Root**:
+   - `/lucid-lewin.108-175-12-95.plesk.page`
+   - Do not deploy to `/lucid-lewin.108-175-12-95.plesk.page/dist/client`
+3. Keep the Node.js app settings aligned with `server.js`:
+   - Application Root: `/lucid-lewin.108-175-12-95.plesk.page`
+   - Document Root: `/lucid-lewin.108-175-12-95.plesk.page/dist/client`
+   - Startup File: `server.js`
+4. Configure env vars in Plesk (`MERCURY_API_KEY`, optional `MERCURY_BASE_URL`, optional `PORT`, hosted-mode vars as needed).
+5. In the Git repository settings, enable **Additional deployment actions** and use:
+
+```sh
+sh ./scripts/plesk-post-deploy.sh
+```
+
+This runs `npm ci --include=dev`, builds `dist/client` + `dist/server`, and touches `../tmp/restart.txt` so the Node app restarts.
+
+6. In GitHub repository secrets, add `PLESK_DEPLOY_WEBHOOK_URL` with the webhook URL from the Plesk Git repository screen.
+7. Pushes to `main` now flow like this:
+   - GitHub Actions runs lint, typecheck, tests, Expo doctor, and `npm run build:web:deploy`
+   - If those all pass, Actions `POST`s the Plesk webhook URL
+   - Plesk pulls the new commit, runs the post-deploy script, rebuilds the app, and restarts it
+8. Keep HTTPS enabled for full PWA install/service-worker behavior.
+9. For hosted mode, ensure Supabase auth redirects include `https://time2pay.app/dashboard`.
+
+Notes:
+
+- `build:web:deploy` skips `icons:sync`, which is intentional for CI and Plesk because the repo already tracks the built public icons while the source `time2pay_icons/` folder is local-only.
+- If you change the active Node version in Plesk, update `.github/workflows/ci.yml` to match the same major version.
 
 ## Available Scripts
 
 - `npm run web` - Expo web dev server
+- `npm run db:generate` - generate Drizzle SQL from `src/database/hosted/**/schema.ts`
+- `npm run db:migrate` - run connection preflight + apply migrations using `DRIZZLE_DATABASE_URL` or `DATABASE_URL` (with `DATABASE_DIRECT_URL` fallback)
+- `npm run db:migrate:raw` - run plain `drizzle-kit migrate` (no preflight checks)
+- `npm run db:studio` - open Drizzle Studio
+- `npm run db:check` - validate migration consistency
 - `npm run icons:sync` - sync icon assets into `public/`
-- `npm run build:web` - icons + web export + service worker generation
+- `npm run build:web:deploy` - web export + service worker generation (CI/Plesk-safe)
+- `npm run build:web` - icons sync + deploy build
 - `npm run serve:prod` - run production server (env from shell)
 - `npm run serve:prod:env` - run production server with `.env` (Node 20+)
 - `npm run typecheck` - TypeScript type checks
