@@ -100,6 +100,99 @@ function parseDurationSeconds(startIso: string, endIso: string): number {
   return Math.round((endMs - startMs) / 1000);
 }
 
+type SessionBreakInterval = {
+  start_time: string;
+  end_time: string | null;
+};
+
+function parseIsoMs(value: string, fieldName: string): number {
+  const parsed = new Date(value);
+  const ms = parsed.getTime();
+  if (!Number.isFinite(ms)) {
+    throw validation(`Invalid ${fieldName}: expected ISO-8601 timestamp.`);
+  }
+  return ms;
+}
+
+function ensureNonNegativeDurationMs(startIso: string, endIso: string): number {
+  const startMs = parseIsoMs(startIso, 'start_time');
+  const endMs = parseIsoMs(endIso, 'end_time');
+  const durationMs = endMs - startMs;
+  if (durationMs < 0) {
+    throw validation('Invalid session time range: endTime must be after startTime.');
+  }
+  return durationMs;
+}
+
+function computeBreakDurationMsForSession(
+  sessionStartIso: string,
+  sessionEndIso: string,
+  breaks: SessionBreakInterval[],
+): number {
+  const sessionStartMs = parseIsoMs(sessionStartIso, 'start_time');
+  const sessionEndMs = parseIsoMs(sessionEndIso, 'end_time');
+
+  if (sessionEndMs <= sessionStartMs) {
+    return 0;
+  }
+
+  const clampedIntervals = breaks
+    .map((sessionBreak) => {
+      if (!sessionBreak.end_time) {
+        return null;
+      }
+
+      const breakStartMs = parseIsoMs(sessionBreak.start_time, 'break.start_time');
+      const breakEndMs = parseIsoMs(sessionBreak.end_time, 'break.end_time');
+      if (breakEndMs < breakStartMs) {
+        throw validation('Invalid break interval: end_time must be after start_time');
+      }
+
+      const intervalStart = Math.max(sessionStartMs, breakStartMs);
+      const intervalEnd = Math.min(sessionEndMs, breakEndMs);
+      if (intervalEnd <= intervalStart) {
+        return null;
+      }
+
+      return [intervalStart, intervalEnd] as const;
+    })
+    .filter((interval): interval is readonly [number, number] => interval !== null)
+    .sort((a, b) => a[0] - b[0]);
+
+  if (clampedIntervals.length === 0) {
+    return 0;
+  }
+
+  let mergedStart = clampedIntervals[0][0];
+  let mergedEnd = clampedIntervals[0][1];
+  let totalMs = 0;
+
+  for (let i = 1; i < clampedIntervals.length; i += 1) {
+    const [start, end] = clampedIntervals[i];
+    if (start > mergedEnd) {
+      totalMs += mergedEnd - mergedStart;
+      mergedStart = start;
+      mergedEnd = end;
+    } else if (end > mergedEnd) {
+      mergedEnd = end;
+    }
+  }
+
+  totalMs += mergedEnd - mergedStart;
+  return totalMs;
+}
+
+function computeBilledDurationSeconds(
+  sessionStartIso: string,
+  sessionEndIso: string,
+  breaks: SessionBreakInterval[],
+): number {
+  const sessionDurationMs = ensureNonNegativeDurationMs(sessionStartIso, sessionEndIso);
+  const breakDurationMs = computeBreakDurationMsForSession(sessionStartIso, sessionEndIso, breaks);
+  const billedMs = Math.max(0, sessionDurationMs - breakDurationMs);
+  return Math.round(billedMs / 1000);
+}
+
 export async function startSession(
   db: WriteDb,
   authUserId: string,
@@ -151,19 +244,112 @@ export async function stopSession(
   input: StopSessionInput,
 ): Promise<void> {
   const timestamp = nowIso();
-  await assertUpdated(
-    db,
-    sql`
-      update sessions
-      set end_time = ${toIsoOrNow(input.endTime ?? null)}, updated_at = ${timestamp}
-      where id = ${input.id}
-        and auth_user_id = ${authUserId}::uuid
-        and deleted_at is null
-        and end_time is null
-      returning id
-    `,
-    'Active session not found.',
-  );
+  let endTime: string;
+  try {
+    endTime = toIsoOrNow(input.endTime ?? null);
+  } catch (error) {
+    throw validation(error instanceof Error ? error.message : 'Invalid end time.');
+  }
+
+  try {
+    await db.transaction(async (tx) => {
+      const sessionResult = await tx.execute(sql`
+        select start_time, end_time
+        from sessions
+        where id = ${input.id}
+          and auth_user_id = ${authUserId}::uuid
+          and deleted_at is null
+        limit 1
+      `);
+      const sessionRows = rowsFromResult(sessionResult);
+      if (sessionRows.length === 0) {
+        throw notFound('Active session not found.');
+      }
+
+      const sessionRow = sessionRows[0] as { start_time: string; end_time?: string | null };
+      if (sessionRow.end_time) {
+        throw conflict('Session is already stopped.');
+      }
+
+      const startTime = String(sessionRow.start_time);
+
+      const openBreakResult = await tx.execute(sql`
+        select id, start_time
+        from session_breaks
+        where session_id = ${input.id}
+          and auth_user_id = ${authUserId}::uuid
+          and deleted_at is null
+          and end_time is null
+        order by start_time desc
+        limit 1
+      `);
+      const openBreakRows = rowsFromResult(openBreakResult) as {
+        id: string;
+        start_time: string;
+      }[];
+      if (openBreakRows.length > 0) {
+        const breakStartIso = String(openBreakRows[0].start_time);
+        const breakStartMs = new Date(breakStartIso).getTime();
+        const endMs = new Date(endTime).getTime();
+        if (!Number.isFinite(endMs) || endMs < breakStartMs) {
+          throw validation('Cannot clock out before active break start.');
+        }
+
+        await assertUpdated(
+          tx,
+          sql`
+            update session_breaks
+            set end_time = ${endTime}, updated_at = ${timestamp}
+            where id = ${String(openBreakRows[0].id)}
+              and auth_user_id = ${authUserId}::uuid
+              and end_time is null
+            returning id
+          `,
+          'Session is not paused.',
+        );
+      }
+
+      const billedSeconds = computeBilledDurationSeconds(
+        startTime,
+        endTime,
+        rowsFromResult(
+          await tx.execute(sql`
+            select start_time, end_time
+            from session_breaks
+            where session_id = ${input.id}
+              and auth_user_id = ${authUserId}::uuid
+              and deleted_at is null
+          `),
+        ).map((row) => {
+          const { start_time, end_time } = row as { start_time: string; end_time: string | null };
+          return {
+            start_time: String(start_time),
+            end_time: (end_time ?? null) as string | null,
+          };
+        }),
+      );
+
+      await assertUpdated(
+        tx,
+        sql`
+          update sessions
+          set end_time = ${endTime}, duration = ${billedSeconds}, updated_at = ${timestamp}
+          where id = ${input.id}
+            and auth_user_id = ${authUserId}::uuid
+            and deleted_at is null
+            and end_time is null
+          returning id
+        `,
+        'Active session not found.',
+      );
+    });
+  } catch (error) {
+    const pgCode = (error as { code?: unknown }).code;
+    if (typeof pgCode === 'string' && /^[0-9]{5}$/.test(pgCode)) {
+      throw conflict('Unable to stop session due to a database constraint.');
+    }
+    throw error;
+  }
 }
 
 export type AddManualSessionInput = {
