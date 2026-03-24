@@ -1,15 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { handleDbWrite } from '@/app/api/db/_shared/route';
-import { conflict, forbidden, notFound } from '@/app/api/db/_shared/errors';
-import { requireAuthUserId } from '@/app/api/db/_shared/auth';
-import { withWriteDb } from '@/app/api/db/_shared/db';
+import { handleDbWrite } from '@/server/db/_shared/route';
+import { conflict, forbidden, notFound } from '@/server/db/_shared/errors';
+import { requireAuthUserId } from '@/server/db/_shared/auth';
+import { withWriteDb } from '@/server/db/_shared/db';
 
-vi.mock('@/app/api/db/_shared/auth', () => ({
+vi.mock('@/server/db/_shared/auth', () => ({
   requireAuthUserId: vi.fn(),
 }));
 
-vi.mock('@/app/api/db/_shared/db', () => ({
+vi.mock('@/server/db/_shared/db', () => ({
   withWriteDb: vi.fn(),
 }));
 

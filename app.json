@@ -10,6 +10,7 @@
         "expo-router",
         {
           "origin": "https://lucid-lewin.108-175-12-95.plesk.page",
+          "sitemap": false,
           "headers": {
             "Cross-Origin-Embedder-Policy": "credentialless",
             "Cross-Origin-Opener-Policy": "same-origin"

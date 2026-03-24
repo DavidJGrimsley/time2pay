@@ -1,3 +1,4 @@
+import { Octicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { InlineNotice, type NoticeTone } from '@/components/inline-notice';
@@ -84,15 +85,19 @@ export function HostedAuthGate({ onTourExperience }: HostedAuthGateProps) {
         </Pressable>
 
         <Pressable
-          className="rounded-md border border-border px-4 py-2"
+          className="self-start rounded-full border px-4 py-2"
+          style={{ borderColor: '#ffffff', backgroundColor: '#24292f' }}
           onPress={() => {
             handleGitHubSignIn().catch(() => undefined);
           }}
           disabled={isSendingMagicLink || isGitHubRedirecting}
         >
-          <Text className="text-center font-semibold text-heading">
-            {isGitHubRedirecting ? 'Redirecting to GitHub...' : 'Continue with GitHub'}
-          </Text>
+          <View className="flex-row items-center gap-2">
+            <Octicons name="mark-github" size={16} color="#ffffff" />
+            <Text className="font-semibold" style={{ color: '#ffffff' }}>
+              {isGitHubRedirecting ? 'Redirecting to GitHub...' : 'Continue with GitHub'}
+            </Text>
+          </View>
         </Pressable>
 
         {status ? <InlineNotice tone={status.tone} message={status.message} /> : null}

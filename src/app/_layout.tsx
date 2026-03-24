@@ -1,16 +1,30 @@
 import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
-import { useEffect } from 'react';
-import { useColorScheme } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Platform, useColorScheme } from 'react-native';
 import { Uniwind } from 'uniwind';
 import { AppLoadingShell } from '@/components/app-loading-shell';
 import { LandingSeoHead } from '@/components/landing/landing-seo-head';
-import { useResolvedDataMode } from '@/hooks/use-resolved-data-mode';
+import { NoIndexSeoHead } from '@/components/no-index-seo-head';
+import { isHostedMode, resolveAppAccessMode } from '@/services/runtime-mode';
 import { getSupabaseSession, onSupabaseAuthStateChange } from '@/services/supabase-client';
+import { ensureTourDemoData } from '@/services/tour-demo';
 import { useAuthUiStore } from '@/stores/auth-ui-store';
 import '../../global.css';
 
+export const unstable_settings = {
+  anchor: 'index',
+};
+
+if (Platform.OS === 'web' && typeof window !== 'undefined') {
+  try {
+    Uniwind.setTheme('system');
+  } catch {
+    // no-op
+  }
+}
+
 export default function RootLayout() {
-  const { hostedMode, resolved: dataModeResolved } = useResolvedDataMode();
+  const hostedMode = isHostedMode();
   const pathname = usePathname();
   const segments = useSegments();
   const router = useRouter();
@@ -23,16 +37,14 @@ export default function RootLayout() {
   const tourModeEnabled = useAuthUiStore((state) => state.tourModeEnabled);
   const syncHostedAuth = useAuthUiStore((state) => state.syncHostedAuth);
   const resetForLocalMode = useAuthUiStore((state) => state.resetForLocalMode);
+  const [isTourSeedReady, setIsTourSeedReady] = useState(!tourModeEnabled);
+  const appAccessMode = resolveAppAccessMode(hostedMode ? 'hosted' : 'local', tourModeEnabled);
 
   useEffect(() => {
     Uniwind.setTheme('system');
   }, []);
 
   useEffect(() => {
-    if (!dataModeResolved) {
-      return;
-    }
-
     if (!hostedMode) {
       resetForLocalMode();
       return;
@@ -77,13 +89,40 @@ export default function RootLayout() {
       isActive = false;
       unsubscribe();
     };
-  }, [dataModeResolved, hostedMode, resetForLocalMode, syncHostedAuth]);
+  }, [hostedMode, resetForLocalMode, syncHostedAuth]);
 
-  const canAccessTabs = dataModeResolved && (!hostedMode || isAuthenticated || tourModeEnabled);
+  useEffect(() => {
+    let isActive = true;
+
+    if (!hostedMode || appAccessMode !== 'tour') {
+      setIsTourSeedReady(true);
+      return () => {
+        isActive = false;
+      };
+    }
+
+    setIsTourSeedReady(false);
+
+    ensureTourDemoData()
+      .catch((error) => {
+        console.error('Failed to seed tour demo data:', error);
+      })
+      .finally(() => {
+        if (isActive) {
+          setIsTourSeedReady(true);
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [appAccessMode, hostedMode]);
+
+  const canAccessTabs = !hostedMode || isAuthenticated || tourModeEnabled;
   const isInsideTabsGroup = segments[0] === '(tabs)';
 
   useEffect(() => {
-    if (!dataModeResolved || !hostedMode || !authReady) {
+    if (!hostedMode || !authReady) {
       return;
     }
 
@@ -95,12 +134,12 @@ export default function RootLayout() {
     if (isAuthenticated && pathname === '/sign-in') {
       router.replace('/dashboard');
     }
-  }, [authReady, canAccessTabs, dataModeResolved, hostedMode, isAuthenticated, isInsideTabsGroup, pathname, router]);
+  }, [authReady, canAccessTabs, hostedMode, isAuthenticated, isInsideTabsGroup, pathname, router]);
 
-  if (!dataModeResolved || (hostedMode && !authReady)) {
+  if (hostedMode && (!authReady || (appAccessMode === 'tour' && !isTourSeedReady))) {
     return (
       <>
-        {isLandingEntry ? <LandingSeoHead /> : null}
+        {isLandingEntry ? <LandingSeoHead /> : <NoIndexSeoHead />}
         <AppLoadingShell />
       </>
     );
@@ -108,7 +147,7 @@ export default function RootLayout() {
 
   return (
     <>
-      {isLandingEntry ? <LandingSeoHead /> : null}
+      {isLandingEntry ? <LandingSeoHead /> : <NoIndexSeoHead />}
       <Stack
         screenOptions={{
           headerShown: false,

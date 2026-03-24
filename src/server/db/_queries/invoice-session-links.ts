@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
-import type { WriteDb } from '@/app/api/db/_shared/db';
-import { conflict, notFound } from '@/app/api/db/_shared/errors';
-import { makeEphemeralId, nowIso } from '@/app/api/db/_shared/parsers';
+import type { WriteDb } from '@/server/db/_shared/db';
+import { conflict, notFound } from '@/server/db/_shared/errors';
+import { makeEphemeralId, nowIso } from '@/server/db/_shared/parsers';
 
 export type UpsertInvoiceSessionLinksInput = {
   invoiceId: string;

@@ -1,33 +1,13 @@
+import * as hosted from '@/database/db.hosted';
+import * as local from '@/database/db.local';
 import type { DbProvider } from '@/database/provider';
-import { isHostedMode } from '@/services/runtime-mode';
+import { usesHostedData } from '@/services/runtime-mode';
 
-type LocalDbModule = typeof import('@/database/db.local');
-type HostedDbModule = typeof import('@/database/db.hosted');
-
-let localProvider: DbProvider | null = null;
-let hostedProvider: DbProvider | null = null;
-
-function getLocalProvider(): DbProvider {
-  if (!localProvider) {
-    // Keep the local SQLite provider out of hosted bundles until it is actually needed.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    localProvider = require('@/database/db.local') as LocalDbModule;
-  }
-
-  return localProvider;
-}
-
-function getHostedProvider(): DbProvider {
-  if (!hostedProvider) {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    hostedProvider = require('@/database/db.hosted') as HostedDbModule;
-  }
-
-  return hostedProvider;
-}
+const localProvider: DbProvider = local;
+const hostedProvider: DbProvider = hosted;
 
 function provider(): DbProvider {
-  return isHostedMode() ? getHostedProvider() : getLocalProvider();
+  return usesHostedData() ? hostedProvider : localProvider;
 }
 
 export type {
@@ -50,195 +30,288 @@ export type {
   CoreDbValidationReport,
 } from '@/database/types';
 
-export function getDb(...args: Parameters<LocalDbModule['getDb']>): ReturnType<LocalDbModule['getDb']> {
+export function getDb(...args: Parameters<typeof local.getDb>): ReturnType<typeof local.getDb> {
   return provider().getDb(...args);
 }
 
-export function initializeDatabase(...args: Parameters<LocalDbModule['initializeDatabase']>): ReturnType<LocalDbModule['initializeDatabase']> {
+export function initializeDatabase(
+  ...args: Parameters<typeof local.initializeDatabase>
+): ReturnType<typeof local.initializeDatabase> {
   return provider().initializeDatabase(...args);
 }
 
-export function getCurrentSchemaVersion(...args: Parameters<LocalDbModule['getCurrentSchemaVersion']>): ReturnType<LocalDbModule['getCurrentSchemaVersion']> {
+export function getCurrentSchemaVersion(
+  ...args: Parameters<typeof local.getCurrentSchemaVersion>
+): ReturnType<typeof local.getCurrentSchemaVersion> {
   return provider().getCurrentSchemaVersion(...args);
 }
 
-export function createClient(...args: Parameters<LocalDbModule['createClient']>): ReturnType<LocalDbModule['createClient']> {
+export function createClient(
+  ...args: Parameters<typeof local.createClient>
+): ReturnType<typeof local.createClient> {
   return provider().createClient(...args);
 }
 
-export function listClients(...args: Parameters<LocalDbModule['listClients']>): ReturnType<LocalDbModule['listClients']> {
+export function listClients(
+  ...args: Parameters<typeof local.listClients>
+): ReturnType<typeof local.listClients> {
   return provider().listClients(...args);
 }
 
-export function getClientById(...args: Parameters<LocalDbModule['getClientById']>): ReturnType<LocalDbModule['getClientById']> {
+export function getClientById(
+  ...args: Parameters<typeof local.getClientById>
+): ReturnType<typeof local.getClientById> {
   return provider().getClientById(...args);
 }
 
-export function getUserProfile(...args: Parameters<LocalDbModule['getUserProfile']>): ReturnType<LocalDbModule['getUserProfile']> {
+export function getUserProfile(
+  ...args: Parameters<typeof local.getUserProfile>
+): ReturnType<typeof local.getUserProfile> {
   return provider().getUserProfile(...args);
 }
 
-export function upsertUserProfile(...args: Parameters<LocalDbModule['upsertUserProfile']>): ReturnType<LocalDbModule['upsertUserProfile']> {
+export function upsertUserProfile(
+  ...args: Parameters<typeof local.upsertUserProfile>
+): ReturnType<typeof local.upsertUserProfile> {
   return provider().upsertUserProfile(...args);
 }
 
-export function updateClientInvoiceContact(...args: Parameters<LocalDbModule['updateClientInvoiceContact']>): ReturnType<LocalDbModule['updateClientInvoiceContact']> {
+export function updateClientInvoiceContact(
+  ...args: Parameters<typeof local.updateClientInvoiceContact>
+): ReturnType<typeof local.updateClientInvoiceContact> {
   return provider().updateClientInvoiceContact(...args);
 }
 
-export function updateClientHourlyRate(...args: Parameters<LocalDbModule['updateClientHourlyRate']>): ReturnType<LocalDbModule['updateClientHourlyRate']> {
+export function updateClientHourlyRate(
+  ...args: Parameters<typeof local.updateClientHourlyRate>
+): ReturnType<typeof local.updateClientHourlyRate> {
   return provider().updateClientHourlyRate(...args);
 }
 
-export function createProject(...args: Parameters<LocalDbModule['createProject']>): ReturnType<LocalDbModule['createProject']> {
+export function createProject(
+  ...args: Parameters<typeof local.createProject>
+): ReturnType<typeof local.createProject> {
   return provider().createProject(...args);
 }
 
-export function listProjectsByClient(...args: Parameters<LocalDbModule['listProjectsByClient']>): ReturnType<LocalDbModule['listProjectsByClient']> {
+export function listProjectsByClient(
+  ...args: Parameters<typeof local.listProjectsByClient>
+): ReturnType<typeof local.listProjectsByClient> {
   return provider().listProjectsByClient(...args);
 }
 
-export function listProjects(...args: Parameters<LocalDbModule['listProjects']>): ReturnType<LocalDbModule['listProjects']> {
+export function listProjects(
+  ...args: Parameters<typeof local.listProjects>
+): ReturnType<typeof local.listProjects> {
   return provider().listProjects(...args);
 }
 
-export function getProjectById(...args: Parameters<LocalDbModule['getProjectById']>): ReturnType<LocalDbModule['getProjectById']> {
+export function getProjectById(
+  ...args: Parameters<typeof local.getProjectById>
+): ReturnType<typeof local.getProjectById> {
   return provider().getProjectById(...args);
 }
 
-export function updateProjectPricing(...args: Parameters<LocalDbModule['updateProjectPricing']>): ReturnType<LocalDbModule['updateProjectPricing']> {
+export function updateProjectPricing(
+  ...args: Parameters<typeof local.updateProjectPricing>
+): ReturnType<typeof local.updateProjectPricing> {
   return provider().updateProjectPricing(...args);
 }
 
-export function createTask(...args: Parameters<LocalDbModule['createTask']>): ReturnType<LocalDbModule['createTask']> {
+export function createTask(
+  ...args: Parameters<typeof local.createTask>
+): ReturnType<typeof local.createTask> {
   return provider().createTask(...args);
 }
 
-export function listTasksByProject(...args: Parameters<LocalDbModule['listTasksByProject']>): ReturnType<LocalDbModule['listTasksByProject']> {
+export function listTasksByProject(
+  ...args: Parameters<typeof local.listTasksByProject>
+): ReturnType<typeof local.listTasksByProject> {
   return provider().listTasksByProject(...args);
 }
 
-export function createProjectMilestone(...args: Parameters<LocalDbModule['createProjectMilestone']>): ReturnType<LocalDbModule['createProjectMilestone']> {
+export function createProjectMilestone(
+  ...args: Parameters<typeof local.createProjectMilestone>
+): ReturnType<typeof local.createProjectMilestone> {
   return provider().createProjectMilestone(...args);
 }
 
-export function listProjectMilestones(...args: Parameters<LocalDbModule['listProjectMilestones']>): ReturnType<LocalDbModule['listProjectMilestones']> {
+export function listProjectMilestones(
+  ...args: Parameters<typeof local.listProjectMilestones>
+): ReturnType<typeof local.listProjectMilestones> {
   return provider().listProjectMilestones(...args);
 }
 
-export function getProjectMilestoneById(...args: Parameters<LocalDbModule['getProjectMilestoneById']>): ReturnType<LocalDbModule['getProjectMilestoneById']> {
+export function getProjectMilestoneById(
+  ...args: Parameters<typeof local.getProjectMilestoneById>
+): ReturnType<typeof local.getProjectMilestoneById> {
   return provider().getProjectMilestoneById(...args);
 }
 
-export function updateProjectMilestone(...args: Parameters<LocalDbModule['updateProjectMilestone']>): ReturnType<LocalDbModule['updateProjectMilestone']> {
+export function updateProjectMilestone(
+  ...args: Parameters<typeof local.updateProjectMilestone>
+): ReturnType<typeof local.updateProjectMilestone> {
   return provider().updateProjectMilestone(...args);
 }
 
-export function deleteProjectMilestone(...args: Parameters<LocalDbModule['deleteProjectMilestone']>): ReturnType<LocalDbModule['deleteProjectMilestone']> {
+export function deleteProjectMilestone(
+  ...args: Parameters<typeof local.deleteProjectMilestone>
+): ReturnType<typeof local.deleteProjectMilestone> {
   return provider().deleteProjectMilestone(...args);
 }
 
-export function setProjectMilestoneCompletion(...args: Parameters<LocalDbModule['setProjectMilestoneCompletion']>): ReturnType<LocalDbModule['setProjectMilestoneCompletion']> {
+export function setProjectMilestoneCompletion(
+  ...args: Parameters<typeof local.setProjectMilestoneCompletion>
+): ReturnType<typeof local.setProjectMilestoneCompletion> {
   return provider().setProjectMilestoneCompletion(...args);
 }
 
-export function createMilestoneChecklistItem(...args: Parameters<LocalDbModule['createMilestoneChecklistItem']>): ReturnType<LocalDbModule['createMilestoneChecklistItem']> {
+export function createMilestoneChecklistItem(
+  ...args: Parameters<typeof local.createMilestoneChecklistItem>
+): ReturnType<typeof local.createMilestoneChecklistItem> {
   return provider().createMilestoneChecklistItem(...args);
 }
 
-export function listMilestoneChecklistItems(...args: Parameters<LocalDbModule['listMilestoneChecklistItems']>): ReturnType<LocalDbModule['listMilestoneChecklistItems']> {
+export function listMilestoneChecklistItems(
+  ...args: Parameters<typeof local.listMilestoneChecklistItems>
+): ReturnType<typeof local.listMilestoneChecklistItems> {
   return provider().listMilestoneChecklistItems(...args);
 }
 
-export function updateMilestoneChecklistItem(...args: Parameters<LocalDbModule['updateMilestoneChecklistItem']>): ReturnType<LocalDbModule['updateMilestoneChecklistItem']> {
+export function updateMilestoneChecklistItem(
+  ...args: Parameters<typeof local.updateMilestoneChecklistItem>
+): ReturnType<typeof local.updateMilestoneChecklistItem> {
   return provider().updateMilestoneChecklistItem(...args);
 }
 
-export function listMilestoneChecklistItemsByMilestoneIds(...args: Parameters<LocalDbModule['listMilestoneChecklistItemsByMilestoneIds']>): ReturnType<LocalDbModule['listMilestoneChecklistItemsByMilestoneIds']> {
+export function listMilestoneChecklistItemsByMilestoneIds(
+  ...args: Parameters<typeof local.listMilestoneChecklistItemsByMilestoneIds>
+): ReturnType<typeof local.listMilestoneChecklistItemsByMilestoneIds> {
   return provider().listMilestoneChecklistItemsByMilestoneIds(...args);
 }
 
-export function areMilestoneChecklistItemsComplete(...args: Parameters<LocalDbModule['areMilestoneChecklistItemsComplete']>): ReturnType<LocalDbModule['areMilestoneChecklistItemsComplete']> {
+export function areMilestoneChecklistItemsComplete(
+  ...args: Parameters<typeof local.areMilestoneChecklistItemsComplete>
+): ReturnType<typeof local.areMilestoneChecklistItemsComplete> {
   return provider().areMilestoneChecklistItemsComplete(...args);
 }
 
-export function startSession(...args: Parameters<LocalDbModule['startSession']>): ReturnType<LocalDbModule['startSession']> {
+export function startSession(
+  ...args: Parameters<typeof local.startSession>
+): ReturnType<typeof local.startSession> {
   return provider().startSession(...args);
 }
 
-export function stopSession(...args: Parameters<LocalDbModule['stopSession']>): ReturnType<LocalDbModule['stopSession']> {
+export function stopSession(
+  ...args: Parameters<typeof local.stopSession>
+): ReturnType<typeof local.stopSession> {
   return provider().stopSession(...args);
 }
 
-export function addManualSession(...args: Parameters<LocalDbModule['addManualSession']>): ReturnType<LocalDbModule['addManualSession']> {
+export function addManualSession(
+  ...args: Parameters<typeof local.addManualSession>
+): ReturnType<typeof local.addManualSession> {
   return provider().addManualSession(...args);
 }
 
-export function updateSession(...args: Parameters<LocalDbModule['updateSession']>): ReturnType<LocalDbModule['updateSession']> {
+export function updateSession(
+  ...args: Parameters<typeof local.updateSession>
+): ReturnType<typeof local.updateSession> {
   return provider().updateSession(...args);
 }
 
-export function listSessions(...args: Parameters<LocalDbModule['listSessions']>): ReturnType<LocalDbModule['listSessions']> {
+export function listSessions(
+  ...args: Parameters<typeof local.listSessions>
+): ReturnType<typeof local.listSessions> {
   return provider().listSessions(...args);
 }
 
-export function listSessionsByClientAndRange(...args: Parameters<LocalDbModule['listSessionsByClientAndRange']>): ReturnType<LocalDbModule['listSessionsByClientAndRange']> {
+export function listSessionsByClientAndRange(
+  ...args: Parameters<typeof local.listSessionsByClientAndRange>
+): ReturnType<typeof local.listSessionsByClientAndRange> {
   return provider().listSessionsByClientAndRange(...args);
 }
 
-export function listSessionsByProject(...args: Parameters<LocalDbModule['listSessionsByProject']>): ReturnType<LocalDbModule['listSessionsByProject']> {
+export function listSessionsByProject(
+  ...args: Parameters<typeof local.listSessionsByProject>
+): ReturnType<typeof local.listSessionsByProject> {
   return provider().listSessionsByProject(...args);
 }
 
-export function createInvoice(...args: Parameters<LocalDbModule['createInvoice']>): ReturnType<LocalDbModule['createInvoice']> {
+export function createInvoice(
+  ...args: Parameters<typeof local.createInvoice>
+): ReturnType<typeof local.createInvoice> {
   return provider().createInvoice(...args);
 }
 
-export function listInvoices(...args: Parameters<LocalDbModule['listInvoices']>): ReturnType<LocalDbModule['listInvoices']> {
+export function listInvoices(
+  ...args: Parameters<typeof local.listInvoices>
+): ReturnType<typeof local.listInvoices> {
   return provider().listInvoices(...args);
 }
 
-export function listSessionsByInvoiceId(...args: Parameters<LocalDbModule['listSessionsByInvoiceId']>): ReturnType<LocalDbModule['listSessionsByInvoiceId']> {
+export function listSessionsByInvoiceId(
+  ...args: Parameters<typeof local.listSessionsByInvoiceId>
+): ReturnType<typeof local.listSessionsByInvoiceId> {
   return provider().listSessionsByInvoiceId(...args);
 }
 
-export function assignSessionsToInvoice(...args: Parameters<LocalDbModule['assignSessionsToInvoice']>): ReturnType<LocalDbModule['assignSessionsToInvoice']> {
+export function assignSessionsToInvoice(
+  ...args: Parameters<typeof local.assignSessionsToInvoice>
+): ReturnType<typeof local.assignSessionsToInvoice> {
   return provider().assignSessionsToInvoice(...args);
 }
 
-export function createInvoiceSessionLinks(...args: Parameters<LocalDbModule['createInvoiceSessionLinks']>): ReturnType<LocalDbModule['createInvoiceSessionLinks']> {
+export function createInvoiceSessionLinks(
+  ...args: Parameters<typeof local.createInvoiceSessionLinks>
+): ReturnType<typeof local.createInvoiceSessionLinks> {
   return provider().createInvoiceSessionLinks(...args);
 }
 
-export function listInvoiceSessionLinksByInvoiceId(...args: Parameters<LocalDbModule['listInvoiceSessionLinksByInvoiceId']>): ReturnType<LocalDbModule['listInvoiceSessionLinksByInvoiceId']> {
+export function listInvoiceSessionLinksByInvoiceId(
+  ...args: Parameters<typeof local.listInvoiceSessionLinksByInvoiceId>
+): ReturnType<typeof local.listInvoiceSessionLinksByInvoiceId> {
   return provider().listInvoiceSessionLinksByInvoiceId(...args);
 }
 
-export function updateSessionNotes(...args: Parameters<LocalDbModule['updateSessionNotes']>): ReturnType<LocalDbModule['updateSessionNotes']> {
+export function updateSessionNotes(
+  ...args: Parameters<typeof local.updateSessionNotes>
+): ReturnType<typeof local.updateSessionNotes> {
   return provider().updateSessionNotes(...args);
 }
 
-export function listSessionBreaksBySessionId(...args: Parameters<LocalDbModule['listSessionBreaksBySessionId']>): ReturnType<LocalDbModule['listSessionBreaksBySessionId']> {
+export function listSessionBreaksBySessionId(
+  ...args: Parameters<typeof local.listSessionBreaksBySessionId>
+): ReturnType<typeof local.listSessionBreaksBySessionId> {
   return provider().listSessionBreaksBySessionId(...args);
 }
 
-export function listSessionBreaksBySessionIds(...args: Parameters<LocalDbModule['listSessionBreaksBySessionIds']>): ReturnType<LocalDbModule['listSessionBreaksBySessionIds']> {
+export function listSessionBreaksBySessionIds(
+  ...args: Parameters<typeof local.listSessionBreaksBySessionIds>
+): ReturnType<typeof local.listSessionBreaksBySessionIds> {
   return provider().listSessionBreaksBySessionIds(...args);
 }
 
-export function isSessionPaused(...args: Parameters<LocalDbModule['isSessionPaused']>): ReturnType<LocalDbModule['isSessionPaused']> {
+export function isSessionPaused(
+  ...args: Parameters<typeof local.isSessionPaused>
+): ReturnType<typeof local.isSessionPaused> {
   return provider().isSessionPaused(...args);
 }
 
-export function pauseSession(...args: Parameters<LocalDbModule['pauseSession']>): ReturnType<LocalDbModule['pauseSession']> {
+export function pauseSession(
+  ...args: Parameters<typeof local.pauseSession>
+): ReturnType<typeof local.pauseSession> {
   return provider().pauseSession(...args);
 }
 
-export function resumeSession(...args: Parameters<LocalDbModule['resumeSession']>): ReturnType<LocalDbModule['resumeSession']> {
+export function resumeSession(
+  ...args: Parameters<typeof local.resumeSession>
+): ReturnType<typeof local.resumeSession> {
   return provider().resumeSession(...args);
 }
 
-export function runCoreDbValidationScript(...args: Parameters<LocalDbModule['runCoreDbValidationScript']>): ReturnType<LocalDbModule['runCoreDbValidationScript']> {
+export function runCoreDbValidationScript(
+  ...args: Parameters<typeof local.runCoreDbValidationScript>
+): ReturnType<typeof local.runCoreDbValidationScript> {
   return provider().runCoreDbValidationScript(...args);
 }
-

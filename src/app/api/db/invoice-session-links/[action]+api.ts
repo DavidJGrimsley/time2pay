@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { handleDbWrite } from '@/app/api/db/_shared/route';
-import { upsertInvoiceSessionLinks } from '@/app/api/db/_queries/invoice-session-links';
+import { handleDbWrite } from '@/server/db/_shared/route';
+import { upsertInvoiceSessionLinks } from '@/server/db/_queries/invoice-session-links';
 import { invoiceSessionLinkInsertSchema } from '@/database/hosted/invoice-session-links/schema';
 
 const upsertLinksSchema = invoiceSessionLinkInsertSchema
