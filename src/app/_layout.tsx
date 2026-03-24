@@ -1,19 +1,18 @@
-import { Stack, usePathname } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
+import { useEffect } from 'react';
 import { Platform, useColorScheme } from 'react-native';
 import { Uniwind } from 'uniwind';
 import { AppLoadingShell } from '@/components/app-loading-shell';
 import { LandingSeoHead } from '@/components/landing/landing-seo-head';
-import { isProfileComplete } from '@/services/profile-completion';
+import { isHostedMode } from '@/services/runtime-mode';
+import { getSupabaseSession, onSupabaseAuthStateChange } from '@/services/supabase-client';
+import { useAuthUiStore } from '@/stores/auth-ui-store';
 import '../../global.css';
 
-const MIN_BOOTSTRAP_MS = 420;
-
 export const unstable_settings = {
-  anchor: 'dashboard',
+  anchor: 'index',
 };
 
-// Web: apply system theme ASAP (before first paint) to avoid light→dark flash.
 if (Platform.OS === 'web' && typeof window !== 'undefined') {
   try {
     Uniwind.setTheme('system');
@@ -23,69 +22,90 @@ if (Platform.OS === 'web' && typeof window !== 'undefined') {
 }
 
 export default function RootLayout() {
+  const hostedMode = isHostedMode();
   const pathname = usePathname();
+  const segments = useSegments();
+  const router = useRouter();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const isLandingEntry = pathname === '/';
-  const shouldBypassGate = Platform.OS === 'web' && isLandingEntry;
-  const [isGateReady, setIsGateReady] = useState(shouldBypassGate);
-  const [profileComplete, setProfileComplete] = useState(false);
 
-  // Native: sync Uniwind with OS appearance.
+  const authReady = useAuthUiStore((state) => state.authReady);
+  const isAuthenticated = useAuthUiStore((state) => state.isAuthenticated);
+  const tourModeEnabled = useAuthUiStore((state) => state.tourModeEnabled);
+  const syncHostedAuth = useAuthUiStore((state) => state.syncHostedAuth);
+  const resetForLocalMode = useAuthUiStore((state) => state.resetForLocalMode);
+
   useEffect(() => {
     Uniwind.setTheme('system');
   }, []);
 
   useEffect(() => {
-    if (shouldBypassGate) {
+    if (!hostedMode) {
+      resetForLocalMode();
       return;
     }
 
     let isActive = true;
 
-    const bootstrapApp = async () => {
-      const minimumDelay = new Promise((resolve) => {
-        setTimeout(resolve, MIN_BOOTSTRAP_MS);
+    getSupabaseSession()
+      .then((session) => {
+        if (!isActive) {
+          return;
+        }
+
+        syncHostedAuth({
+          ready: true,
+          authenticated: Boolean(session?.user),
+        });
+      })
+      .catch(() => {
+        if (!isActive) {
+          return;
+        }
+
+        syncHostedAuth({
+          ready: true,
+          authenticated: false,
+        });
       });
 
-      try {
-        const [complete] = await Promise.all([isProfileComplete(), minimumDelay]);
-
-        if (!isActive) {
-          return;
-        }
-
-        setProfileComplete(complete);
-      } catch {
-        if (!isActive) {
-          return;
-        }
-
-        setProfileComplete(false);
-      } finally {
-        if (!isActive) {
-          return;
-        }
-
-        setIsGateReady(true);
-      }
-    };
-
-    bootstrapApp().catch(() => {
+    const unsubscribe = onSupabaseAuthStateChange((_, session) => {
       if (!isActive) {
         return;
       }
 
-      setProfileComplete(false);
-      setIsGateReady(true);
+      syncHostedAuth({
+        ready: true,
+        authenticated: Boolean(session?.user),
+      });
     });
 
     return () => {
       isActive = false;
+      unsubscribe();
     };
-  }, [shouldBypassGate]);
+  }, [hostedMode, resetForLocalMode, syncHostedAuth]);
 
-  if (!isGateReady) {
+  const canAccessTabs = !hostedMode || isAuthenticated || tourModeEnabled;
+  const isInsideTabsGroup = segments[0] === '(tabs)';
+
+  useEffect(() => {
+    if (!hostedMode || !authReady) {
+      return;
+    }
+
+    if (!canAccessTabs && isInsideTabsGroup) {
+      router.replace('/sign-in');
+      return;
+    }
+
+    if (isAuthenticated && pathname === '/sign-in') {
+      router.replace('/dashboard');
+    }
+  }, [authReady, canAccessTabs, hostedMode, isAuthenticated, isInsideTabsGroup, pathname, router]);
+
+  if (hostedMode && !authReady) {
     return (
       <>
         {isLandingEntry ? <LandingSeoHead /> : null}
@@ -105,16 +125,11 @@ export default function RootLayout() {
           contentStyle: { backgroundColor: isDark ? '#1a1f16' : '#f8f7f3' },
         }}
       >
-        <Stack.Protected guard={!profileComplete}>
-          <Stack.Screen name="index" options={{ title: 'Time2Pay' }} />
+        <Stack.Screen name="index" options={{ title: 'Time2Pay' }} />
+        <Stack.Screen name="sign-in" options={{ title: 'Sign In' }} />
+        <Stack.Protected guard={canAccessTabs}>
+          <Stack.Screen name="(tabs)" options={{ title: 'Time2Pay' }} />
         </Stack.Protected>
-        <Stack.Screen name="dashboard" options={{ title: 'Dashboard' }} />
-        <Stack.Screen name="sessions" options={{ title: 'Sessions' }} />
-        <Stack.Screen name="projects" options={{ title: 'Projects' }} />
-        <Stack.Screen name="invoices" options={{ title: 'Invoices' }} />
-        <Stack.Screen name="bank" options={{ title: 'Bank' }} />
-        <Stack.Screen name="payments" options={{ title: 'Payments' }} />
-        <Stack.Screen name="profile" options={{ title: 'Profile' }} />
         <Stack.Screen name="+not-found" options={{ title: 'Not Found' }} />
       </Stack>
     </>
