@@ -152,20 +152,43 @@ Notes:
 
 ## Plesk Deployment (Node App)
 
-1. Upload project
-2. Install dependencies: `npm ci`
-3. Configure env vars (`MERCURY_API_KEY`, optional `MERCURY_BASE_URL`, optional `PORT`)
-4. Build: `npm run build:web`
-5. Startup command:
-   - Node 20+: `npm run serve:prod:env`
-   - If env vars are managed by Plesk directly: `npm run serve:prod`
-6. Keep HTTPS enabled for full PWA install/service-worker behavior
+Use Plesk as the deployment target, but deploy the repository into the Node app root, not into `dist/client`.
+
+1. Connect the GitHub repository in **Plesk -> Git** and keep branch `main`.
+2. Set the Git deployment target to the **Application Root**:
+   - `/lucid-lewin.108-175-12-95.plesk.page`
+   - Do not deploy to `/lucid-lewin.108-175-12-95.plesk.page/dist/client`
+3. Keep the Node.js app settings aligned with `server.js`:
+   - Application Root: `/lucid-lewin.108-175-12-95.plesk.page`
+   - Document Root: `/lucid-lewin.108-175-12-95.plesk.page/dist/client`
+   - Startup File: `server.js`
+4. Configure env vars in Plesk (`MERCURY_API_KEY`, optional `MERCURY_BASE_URL`, optional `PORT`).
+5. In the Git repository settings, enable **Additional deployment actions** and use:
+
+```sh
+sh ./scripts/plesk-post-deploy.sh
+```
+
+This runs `npm ci --include=dev`, builds `dist/client` + `dist/server`, and touches `../tmp/restart.txt` so the Node app restarts.
+
+6. In GitHub repository secrets, add `PLESK_DEPLOY_WEBHOOK_URL` with the webhook URL from the Plesk Git repository screen.
+7. Pushes to `main` now flow like this:
+   - GitHub Actions runs lint, typecheck, tests, Expo doctor, and `npm run build:web:deploy`
+   - If those all pass, Actions `POST`s the Plesk webhook URL
+   - Plesk pulls the new commit, runs the post-deploy script, rebuilds the app, and restarts it
+8. Keep HTTPS enabled for full PWA install/service-worker behavior.
+
+Notes:
+
+- `build:web:deploy` skips `icons:sync`, which is intentional for CI and Plesk because the repo already tracks the built public icons while the source `time2pay_icons/` folder is local-only.
+- If you change the active Node version in Plesk, update `.github/workflows/ci.yml` to match the same major version.
 
 ## Available Scripts
 
 - `npm run web` - Expo web dev server
 - `npm run icons:sync` - sync icon assets into `public/`
-- `npm run build:web` - icons + web export + service worker generation
+- `npm run build:web:deploy` - web export + service worker generation (CI/Plesk-safe)
+- `npm run build:web` - icons sync + deploy build
 - `npm run serve:prod` - run production server (env from shell)
 - `npm run serve:prod:env` - run production server with `.env` (Node 20+)
 - `npm run typecheck` - TypeScript type checks
