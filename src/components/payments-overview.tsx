@@ -1,10 +1,11 @@
-import { Text, useWindowDimensions, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { MercurySendMoneyWorkflow } from '@mr.dj2u/mercury-ui';
+import { useStableWindowDimensions } from '@/hooks/use-stable-window-dimensions';
 import { mercuryUiAdapter } from '@/services/mercury-ui-adapters';
 import { showActionErrorAlert } from '@/services/system-alert';
 
 export function PaymentsOverview() {
-  const { width } = useWindowDimensions();
+  const { width } = useStableWindowDimensions();
   const isLargeScreen = width >= 1200;
   const isTablet = width >= 768 && width < 1200;
   const contentWidthStyle = isLargeScreen

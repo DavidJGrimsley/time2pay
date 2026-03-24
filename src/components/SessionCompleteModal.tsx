@@ -7,10 +7,10 @@ import {
   Text,
   TextInput,
   useColorScheme,
-  useWindowDimensions,
   View,
 } from 'react-native';
 import { getUserProfile } from '@/database/db';
+import { useStableWindowDimensions } from '@/hooks/use-stable-window-dimensions';
 import {
   fetchCommitInfo,
   inferBranchFromCommit,
@@ -82,7 +82,7 @@ export function SessionCompleteModal({
   onSkip,
 }: SessionCompleteModalProps) {
   const scheme = useColorScheme();
-  const { height: viewportHeight, width: viewportWidth } = useWindowDimensions();
+  const { height: viewportHeight, width: viewportWidth } = useStableWindowDimensions();
   const isLargeScreen = viewportWidth >= 1200;
   const pickerTextColor = scheme === 'dark' ? '#f8f7f3' : '#1a1f16';
   const pickerPlaceholderColor = scheme === 'dark' ? '#b8b7b2' : '#6f7868';

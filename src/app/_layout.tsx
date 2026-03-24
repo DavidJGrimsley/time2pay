@@ -1,28 +1,16 @@
 import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
-import { Platform, useColorScheme } from 'react-native';
+import { useColorScheme } from 'react-native';
 import { Uniwind } from 'uniwind';
 import { AppLoadingShell } from '@/components/app-loading-shell';
 import { LandingSeoHead } from '@/components/landing/landing-seo-head';
-import { isHostedMode } from '@/services/runtime-mode';
+import { useResolvedDataMode } from '@/hooks/use-resolved-data-mode';
 import { getSupabaseSession, onSupabaseAuthStateChange } from '@/services/supabase-client';
 import { useAuthUiStore } from '@/stores/auth-ui-store';
 import '../../global.css';
 
-export const unstable_settings = {
-  anchor: 'index',
-};
-
-if (Platform.OS === 'web' && typeof window !== 'undefined') {
-  try {
-    Uniwind.setTheme('system');
-  } catch {
-    // no-op
-  }
-}
-
 export default function RootLayout() {
-  const hostedMode = isHostedMode();
+  const { hostedMode, resolved: dataModeResolved } = useResolvedDataMode();
   const pathname = usePathname();
   const segments = useSegments();
   const router = useRouter();
@@ -41,6 +29,10 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
+    if (!dataModeResolved) {
+      return;
+    }
+
     if (!hostedMode) {
       resetForLocalMode();
       return;
@@ -85,13 +77,13 @@ export default function RootLayout() {
       isActive = false;
       unsubscribe();
     };
-  }, [hostedMode, resetForLocalMode, syncHostedAuth]);
+  }, [dataModeResolved, hostedMode, resetForLocalMode, syncHostedAuth]);
 
-  const canAccessTabs = !hostedMode || isAuthenticated || tourModeEnabled;
+  const canAccessTabs = dataModeResolved && (!hostedMode || isAuthenticated || tourModeEnabled);
   const isInsideTabsGroup = segments[0] === '(tabs)';
 
   useEffect(() => {
-    if (!hostedMode || !authReady) {
+    if (!dataModeResolved || !hostedMode || !authReady) {
       return;
     }
 
@@ -103,9 +95,9 @@ export default function RootLayout() {
     if (isAuthenticated && pathname === '/sign-in') {
       router.replace('/dashboard');
     }
-  }, [authReady, canAccessTabs, hostedMode, isAuthenticated, isInsideTabsGroup, pathname, router]);
+  }, [authReady, canAccessTabs, dataModeResolved, hostedMode, isAuthenticated, isInsideTabsGroup, pathname, router]);
 
-  if (hostedMode && !authReady) {
+  if (!dataModeResolved || (hostedMode && !authReady)) {
     return (
       <>
         {isLandingEntry ? <LandingSeoHead /> : null}

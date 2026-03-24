@@ -1,6 +1,6 @@
 import { Octicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { Pressable, Text, TextInput, View } from 'react-native';
 import Animated, { FadeInDown, FadeOutUp, LinearTransition } from 'react-native-reanimated';
 import {
   createProject,
@@ -15,6 +15,7 @@ import {
   type Session,
   type Task,
 } from '@/database/db';
+import { useStableWindowDimensions } from '@/hooks/use-stable-window-dimensions';
 import { createTime2PayClient } from '@/services/client-sync';
 import {
   createRuntimeManualSession,
@@ -332,7 +333,7 @@ function saveLastSelection(selection: LastSelection): void {
 }
 
 export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps) {
-  const { width: viewportWidth } = useWindowDimensions();
+  const { width: viewportWidth } = useStableWindowDimensions();
   const defaults = loadLastSelection();
   const [clients, setClients] = useState<Client[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);

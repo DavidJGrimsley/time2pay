@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { Modal, Pressable, Text, TextInput, View } from 'react-native';
 import Animated, { FadeInDown, FadeOutUp, LinearTransition } from 'react-native-reanimated';
 import {
   createMilestoneChecklistItem,
@@ -25,6 +25,7 @@ import {
   type ProjectMilestone,
   type Session,
 } from '@/database/db';
+import { useStableWindowDimensions } from '@/hooks/use-stable-window-dimensions';
 import { InlineNotice, type NoticeTone } from '@/components/inline-notice';
 import { PickerControl, PickerField } from '@/components/picker-field';
 import { buildNet7DueDateIso } from '@/services/invoice';
@@ -109,7 +110,7 @@ function saveLastProjectsSelection(selection: LastProjectsSelection): void {
 }
 
 export function ProjectsOverview() {
-  const { width } = useWindowDimensions();
+  const { width } = useStableWindowDimensions();
   const selectionDefaults = useMemo(() => loadLastProjectsSelection(), []);
   const isLarge = width >= 1200;
   const isTablet = width >= 768 && width < 1200;

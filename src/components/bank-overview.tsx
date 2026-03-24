@@ -1,8 +1,9 @@
-import { Text, useWindowDimensions, View } from 'react-native';
+import { Text, View } from 'react-native';
 import {
   MercuryBankOverview,
   MercuryCustomerContactPanel,
 } from '@mr.dj2u/mercury-ui';
+import { useStableWindowDimensions } from '@/hooks/use-stable-window-dimensions';
 import {
   mercuryCustomerContactAdapter,
   mercuryUiAdapter,
@@ -10,7 +11,7 @@ import {
 import { showActionErrorAlert } from '@/services/system-alert';
 
 export function BankOverview() {
-  const { width } = useWindowDimensions();
+  const { width } = useStableWindowDimensions();
   const isLargeScreen = width >= 1200;
   const isTablet = width >= 768 && width < 1200;
   const contentWidthStyle = isLargeScreen

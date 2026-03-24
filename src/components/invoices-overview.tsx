@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Text, useWindowDimensions, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { MercurySessionInvoiceWorkspace } from '@mr.dj2u/mercury-ui';
 import { InvoiceBuilder } from './InvoiceBuilder';
 import { InvoiceHistory } from './InvoiceHistory';
+import { useStableWindowDimensions } from '@/hooks/use-stable-window-dimensions';
 import { useTime2PayMercurySessionWorkspace } from '@/hooks/use-time2pay-mercury-session-workspace';
 import { testMercuryConnection, testMercuryInvoiceAccess } from '@/services/mercury';
 import { mercuryUiAdapter } from '@/services/mercury-ui-adapters';
@@ -10,7 +11,7 @@ import { mercuryUiAdapter } from '@/services/mercury-ui-adapters';
 type InvoiceBuilderMode = 'checking' | 'generic' | 'mercury';
 
 export function InvoicesOverview() {
-  const { width } = useWindowDimensions();
+  const { width } = useStableWindowDimensions();
   const isLargeScreen = width >= 1200;
   const isTablet = width >= 768 && width < 1200;
   const contentWidthStyle = isLargeScreen

@@ -2,8 +2,8 @@ import { Stack, usePathname, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { useColorScheme } from 'react-native';
 import { AppLoadingShell } from '@/components/app-loading-shell';
+import { useResolvedDataMode } from '@/hooks/use-resolved-data-mode';
 import { isProfileComplete } from '@/services/profile-completion';
-import { isHostedMode } from '@/services/runtime-mode';
 import { useAuthUiStore } from '@/stores/auth-ui-store';
 
 const MIN_PROFILE_CHECK_MS = 220;
@@ -11,7 +11,7 @@ const MIN_PROFILE_CHECK_MS = 220;
 export default function TabsLayout() {
   const router = useRouter();
   const pathname = usePathname();
-  const hostedMode = isHostedMode();
+  const { hostedMode, resolved: dataModeResolved } = useResolvedDataMode();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const isProfileRoute = pathname === '/profile' || pathname.endsWith('/profile');
@@ -19,11 +19,18 @@ export default function TabsLayout() {
   const isAuthenticated = useAuthUiStore((state) => state.isAuthenticated);
   const tourModeEnabled = useAuthUiStore((state) => state.tourModeEnabled);
 
-  const shouldRequireProfileCompletion = !tourModeEnabled && (!hostedMode || isAuthenticated);
-  const [isProfileGateReady, setIsProfileGateReady] = useState(!shouldRequireProfileCompletion);
+  const shouldRequireProfileCompletion = dataModeResolved && !tourModeEnabled && (!hostedMode || isAuthenticated);
+  const [isProfileGateReady, setIsProfileGateReady] = useState(!dataModeResolved || !shouldRequireProfileCompletion);
 
   useEffect(() => {
     let isActive = true;
+
+    if (!dataModeResolved) {
+      setIsProfileGateReady(false);
+      return () => {
+        isActive = false;
+      };
+    }
 
     if (!shouldRequireProfileCompletion) {
       setIsProfileGateReady(true);
@@ -72,9 +79,9 @@ export default function TabsLayout() {
     return () => {
       isActive = false;
     };
-  }, [isProfileRoute, router, shouldRequireProfileCompletion]);
+  }, [dataModeResolved, isProfileRoute, router, shouldRequireProfileCompletion]);
 
-  if (!isProfileGateReady) {
+  if (!dataModeResolved || !isProfileGateReady) {
     return <AppLoadingShell />;
   }
 
