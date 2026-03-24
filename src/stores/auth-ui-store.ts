@@ -29,6 +29,8 @@ type AuthUiState = {
   authReady: boolean;
   isAuthenticated: boolean;
   tourModeEnabled: boolean;
+  tourModeHydrated: boolean;
+  hydrateTourMode: () => void;
   setAuthReady: (ready: boolean) => void;
   setAuthenticated: (authenticated: boolean) => void;
   setTourModeEnabled: (enabled: boolean) => void;
@@ -41,7 +43,19 @@ type AuthUiState = {
 export const useAuthUiStore = create<AuthUiState>((set) => ({
   authReady: false,
   isAuthenticated: false,
-  tourModeEnabled: loadPersistedTourMode(),
+  tourModeEnabled: false,
+  tourModeHydrated: false,
+  hydrateTourMode: () =>
+    set((state) => {
+      if (state.tourModeHydrated) {
+        return state;
+      }
+
+      return {
+        tourModeEnabled: loadPersistedTourMode(),
+        tourModeHydrated: true,
+      };
+    }),
   setAuthReady: (ready) => set({ authReady: ready }),
   setAuthenticated: (authenticated) =>
     set((state) => {
@@ -56,17 +70,17 @@ export const useAuthUiStore = create<AuthUiState>((set) => ({
   setTourModeEnabled: (enabled) =>
     set(() => {
       persistTourMode(enabled);
-      return { tourModeEnabled: enabled };
+      return { tourModeEnabled: enabled, tourModeHydrated: true };
     }),
   startTour: () =>
     set(() => {
       persistTourMode(true);
-      return { tourModeEnabled: true };
+      return { tourModeEnabled: true, tourModeHydrated: true };
     }),
   endTour: () =>
     set(() => {
       persistTourMode(false);
-      return { tourModeEnabled: false };
+      return { tourModeEnabled: false, tourModeHydrated: true };
     }),
   syncHostedAuth: ({ ready, authenticated }) =>
     set((state) => {
@@ -77,6 +91,7 @@ export const useAuthUiStore = create<AuthUiState>((set) => ({
         authReady: ready,
         isAuthenticated: authenticated,
         tourModeEnabled: nextTourModeEnabled,
+        tourModeHydrated: true,
       };
     }),
   resetForLocalMode: () =>
@@ -86,6 +101,7 @@ export const useAuthUiStore = create<AuthUiState>((set) => ({
         authReady: true,
         isAuthenticated: true,
         tourModeEnabled: false,
+        tourModeHydrated: true,
       };
     }),
 }));

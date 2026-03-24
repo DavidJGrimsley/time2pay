@@ -6,18 +6,7 @@ import { loadExpoRouterPluginConfig, publicDir } from './web-output-utils.mjs';
 loadEnvFile();
 
 const INDEXED_PUBLIC_ROUTES = ['/'];
-const PRIVATE_ROUTE_BLOCKLIST = [
-  '/sign-in',
-  '/dashboard',
-  '/sessions',
-  '/projects',
-  '/invoices',
-  '/bank',
-  '/payments',
-  '/profile',
-  '/api/',
-  '/_sitemap',
-];
+const PRIVATE_ROUTE_BLOCKLIST = ['/api/', '/_sitemap'];
 
 function normalizeSiteOrigin(rawOrigin) {
   return new URL(rawOrigin).origin;
@@ -41,17 +30,9 @@ async function resolveSiteOrigin() {
 }
 
 function buildSitemapXml(siteOrigin) {
-  const lastModified = new Date().toISOString();
   const routeEntries = INDEXED_PUBLIC_ROUTES.map((route) => {
     const location = route === '/' ? `${siteOrigin}/` : `${siteOrigin}${route}`;
-    return [
-      '  <url>',
-      `    <loc>${location}</loc>`,
-      `    <lastmod>${lastModified}</lastmod>`,
-      '    <changefreq>weekly</changefreq>',
-      '    <priority>1.0</priority>',
-      '  </url>',
-    ].join('\n');
+    return ['  <url>', `    <loc>${location}</loc>`, '  </url>'].join('\n');
   });
 
   return [

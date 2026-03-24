@@ -35,6 +35,8 @@ export default function RootLayout() {
   const authReady = useAuthUiStore((state) => state.authReady);
   const isAuthenticated = useAuthUiStore((state) => state.isAuthenticated);
   const tourModeEnabled = useAuthUiStore((state) => state.tourModeEnabled);
+  const tourModeHydrated = useAuthUiStore((state) => state.tourModeHydrated);
+  const hydrateTourMode = useAuthUiStore((state) => state.hydrateTourMode);
   const syncHostedAuth = useAuthUiStore((state) => state.syncHostedAuth);
   const resetForLocalMode = useAuthUiStore((state) => state.resetForLocalMode);
   const [isTourSeedReady, setIsTourSeedReady] = useState(!tourModeEnabled);
@@ -43,6 +45,10 @@ export default function RootLayout() {
   useEffect(() => {
     Uniwind.setTheme('system');
   }, []);
+
+  useEffect(() => {
+    hydrateTourMode();
+  }, [hydrateTourMode]);
 
   useEffect(() => {
     if (!hostedMode) {
@@ -122,7 +128,7 @@ export default function RootLayout() {
   const isInsideTabsGroup = segments[0] === '(tabs)';
 
   useEffect(() => {
-    if (!hostedMode || !authReady) {
+    if (!hostedMode || !tourModeHydrated || !authReady) {
       return;
     }
 
@@ -134,9 +140,21 @@ export default function RootLayout() {
     if (isAuthenticated && pathname === '/sign-in') {
       router.replace('/dashboard');
     }
-  }, [authReady, canAccessTabs, hostedMode, isAuthenticated, isInsideTabsGroup, pathname, router]);
+  }, [
+    authReady,
+    canAccessTabs,
+    hostedMode,
+    isAuthenticated,
+    isInsideTabsGroup,
+    pathname,
+    router,
+    tourModeHydrated,
+  ]);
 
-  if (hostedMode && (!authReady || (appAccessMode === 'tour' && !isTourSeedReady))) {
+  if (
+    hostedMode &&
+    (!tourModeHydrated || !authReady || (appAccessMode === 'tour' && !isTourSeedReady))
+  ) {
     return (
       <>
         {isLandingEntry ? <LandingSeoHead /> : <NoIndexSeoHead />}
