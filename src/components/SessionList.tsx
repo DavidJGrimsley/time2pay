@@ -1,6 +1,6 @@
 import { Picker } from '@react-native-picker/picker';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, Text, TextInput, useColorScheme, useWindowDimensions, View } from 'react-native';
+import { Modal, Pressable, ScrollView, Text, TextInput, useColorScheme, View } from 'react-native';
 import {
   createProject,
   createTask,
@@ -17,6 +17,7 @@ import { createTime2PayClient } from '@/services/client-sync';
 import { CalendarDateField } from '@/components/calendar-date-field';
 import { GitHubCommitBadge } from '@/components/github-commit-badge';
 import { InlineNotice, type NoticeTone } from '@/components/inline-notice';
+import { useStableWindowDimensions } from '@/hooks/use-stable-window-dimensions';
 import { prettifyBranchName } from '@/services/github';
 import { listRuntimeSessions, updateRuntimeSession } from '@/services/session-runtime';
 import { showActionErrorAlert, showBlockedAlert, showValidationAlert } from '@/services/system-alert';
@@ -265,7 +266,7 @@ function createId(prefix: string): string {
 }
 
 export function SessionList() {
-  const { width } = useWindowDimensions();
+  const { width } = useStableWindowDimensions();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);

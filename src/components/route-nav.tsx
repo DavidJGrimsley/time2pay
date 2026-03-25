@@ -1,6 +1,6 @@
 import { type Href, Link, usePathname } from 'expo-router';
 import { Pressable, Text, View } from 'react-native';
-import { isHostedMode } from '@/services/runtime-mode';
+import { useResolvedDataMode } from '@/hooks/use-resolved-data-mode';
 import { useAuthUiStore } from '@/stores/auth-ui-store';
 
 type RouteLink = {
@@ -20,10 +20,10 @@ const routeLinks: RouteLink[] = [
 
 export function RouteNav() {
   const pathname = usePathname();
-  const hostedMode = isHostedMode();
+  const { hostedMode, resolved: dataModeResolved } = useResolvedDataMode();
   const isAuthenticated = useAuthUiStore((state) => state.isAuthenticated);
   const tourModeEnabled = useAuthUiStore((state) => state.tourModeEnabled);
-  const showSignInBanner = hostedMode && !isAuthenticated;
+  const showSignInBanner = dataModeResolved && hostedMode && !isAuthenticated;
 
   return (
     <View className="gap-2">

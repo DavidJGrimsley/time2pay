@@ -1,11 +1,12 @@
 import { Octicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useState } from 'react';
-import { Linking, Modal, Platform, Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { Linking, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import {
   getUserProfile,
   initializeDatabase,
   upsertUserProfile,
 } from '@/database/db';
+import { useStableWindowDimensions } from '@/hooks/use-stable-window-dimensions';
 import {
   evaluateProfileCompletion,
   REQUIRED_PROFILE_FIELD_LABELS,
@@ -129,7 +130,7 @@ async function pickBackupJsonFile(): Promise<PickedBackupFile> {
 }
 
 export function ProfileOverview() {
-  const { width } = useWindowDimensions();
+  const { width } = useStableWindowDimensions();
   const isLargeScreen = width >= 1200;
   const isTablet = width >= 768 && width < 1200;
   const contentWidthStyle = isLargeScreen

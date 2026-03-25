@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { handleDbWrite } from '@/app/api/db/_shared/route';
-import { assignSessionsToInvoice, createInvoice } from '@/app/api/db/_queries/invoices';
+import { handleDbWrite } from '@/server/db/_shared/route';
+import { assignSessionsToInvoice, createInvoice } from '@/server/db/_queries/invoices';
 import { invoiceInsertSchema } from '@/database/hosted/invoices/schema';
 
 const invoiceStatusSchema = z.enum(['draft', 'sent', 'paid', 'overdue']);

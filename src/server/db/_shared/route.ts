@@ -1,13 +1,13 @@
 import { z, type ZodType } from 'zod';
-import { requireAuthUserId } from '@/app/api/db/_shared/auth';
-import { withWriteDb, type WriteDb } from '@/app/api/db/_shared/db';
+import { requireAuthUserId } from '@/server/db/_shared/auth';
+import { withWriteDb, type WriteDb } from '@/server/db/_shared/db';
 import {
   dbRouteErrorResponse,
   internal,
   toDbRouteError,
   unauthorized,
   validation,
-} from '@/app/api/db/_shared/errors';
+} from '@/server/db/_shared/errors';
 
 function parseJsonError(error: unknown): string {
   if (error instanceof z.ZodError) {

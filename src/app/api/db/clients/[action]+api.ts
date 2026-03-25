@@ -1,10 +1,10 @@
 import { z } from 'zod';
-import { handleDbWrite } from '@/app/api/db/_shared/route';
+import { handleDbWrite } from '@/server/db/_shared/route';
 import {
   createClient,
   updateClientContact,
   updateClientHourlyRate,
-} from '@/app/api/db/_queries/clients';
+} from '@/server/db/_queries/clients';
 import { clientInsertSchema } from '@/database/hosted/clients-projects/schema';
 
 const createClientSchema = clientInsertSchema

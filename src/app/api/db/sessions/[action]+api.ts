@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { handleDbWrite } from '@/app/api/db/_shared/route';
+import { handleDbWrite } from '@/server/db/_shared/route';
 import {
   addManualSession,
   pauseSession,
@@ -8,7 +8,7 @@ import {
   stopSession,
   updateSession,
   updateSessionNotes,
-} from '@/app/api/db/_queries/sessions';
+} from '@/server/db/_queries/sessions';
 
 const startSessionSchema = z.object({
   id: z.string().min(1),

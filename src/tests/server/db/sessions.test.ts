@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
-import type { WriteDb } from '@/app/api/db/_shared/db';
-import { stopSession } from '@/app/api/db/_queries/sessions';
+import type { WriteDb } from '@/server/db/_shared/db';
+import { stopSession } from '@/server/db/_queries/sessions';
 
 type Query = ReturnType<typeof sql>;
 

@@ -1,11 +1,11 @@
 import { z } from 'zod';
-import { handleDbWrite } from '@/app/api/db/_shared/route';
+import { handleDbWrite } from '@/server/db/_shared/route';
 import {
   createMilestone,
   deleteMilestone,
   setMilestoneCompletion,
   updateMilestone,
-} from '@/app/api/db/_queries/milestones';
+} from '@/server/db/_queries/milestones';
 import { projectMilestoneInsertSchema } from '@/database/hosted/milestones/schema';
 
 const amountTypeSchema = z.enum(['percent', 'fixed']);

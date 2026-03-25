@@ -1,11 +1,13 @@
 import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Platform, useColorScheme } from 'react-native';
 import { Uniwind } from 'uniwind';
 import { AppLoadingShell } from '@/components/app-loading-shell';
 import { LandingSeoHead } from '@/components/landing/landing-seo-head';
-import { isHostedMode } from '@/services/runtime-mode';
+import { NoIndexSeoHead } from '@/components/no-index-seo-head';
+import { isHostedMode, resolveAppAccessMode } from '@/services/runtime-mode';
 import { getSupabaseSession, onSupabaseAuthStateChange } from '@/services/supabase-client';
+import { ensureTourDemoData } from '@/services/tour-demo';
 import { useAuthUiStore } from '@/stores/auth-ui-store';
 import '../../global.css';
 
@@ -33,12 +35,20 @@ export default function RootLayout() {
   const authReady = useAuthUiStore((state) => state.authReady);
   const isAuthenticated = useAuthUiStore((state) => state.isAuthenticated);
   const tourModeEnabled = useAuthUiStore((state) => state.tourModeEnabled);
+  const tourModeHydrated = useAuthUiStore((state) => state.tourModeHydrated);
+  const hydrateTourMode = useAuthUiStore((state) => state.hydrateTourMode);
   const syncHostedAuth = useAuthUiStore((state) => state.syncHostedAuth);
   const resetForLocalMode = useAuthUiStore((state) => state.resetForLocalMode);
+  const [isTourSeedReady, setIsTourSeedReady] = useState(!tourModeEnabled);
+  const appAccessMode = resolveAppAccessMode(hostedMode ? 'hosted' : 'local', tourModeEnabled);
 
   useEffect(() => {
     Uniwind.setTheme('system');
   }, []);
+
+  useEffect(() => {
+    hydrateTourMode();
+  }, [hydrateTourMode]);
 
   useEffect(() => {
     if (!hostedMode) {
@@ -87,11 +97,38 @@ export default function RootLayout() {
     };
   }, [hostedMode, resetForLocalMode, syncHostedAuth]);
 
+  useEffect(() => {
+    let isActive = true;
+
+    if (!hostedMode || appAccessMode !== 'tour') {
+      setIsTourSeedReady(true);
+      return () => {
+        isActive = false;
+      };
+    }
+
+    setIsTourSeedReady(false);
+
+    ensureTourDemoData()
+      .catch((error) => {
+        console.error('Failed to seed tour demo data:', error);
+      })
+      .finally(() => {
+        if (isActive) {
+          setIsTourSeedReady(true);
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [appAccessMode, hostedMode]);
+
   const canAccessTabs = !hostedMode || isAuthenticated || tourModeEnabled;
   const isInsideTabsGroup = segments[0] === '(tabs)';
 
   useEffect(() => {
-    if (!hostedMode || !authReady) {
+    if (!hostedMode || !tourModeHydrated || !authReady) {
       return;
     }
 
@@ -103,12 +140,24 @@ export default function RootLayout() {
     if (isAuthenticated && pathname === '/sign-in') {
       router.replace('/dashboard');
     }
-  }, [authReady, canAccessTabs, hostedMode, isAuthenticated, isInsideTabsGroup, pathname, router]);
+  }, [
+    authReady,
+    canAccessTabs,
+    hostedMode,
+    isAuthenticated,
+    isInsideTabsGroup,
+    pathname,
+    router,
+    tourModeHydrated,
+  ]);
 
-  if (hostedMode && !authReady) {
+  if (
+    hostedMode &&
+    (!tourModeHydrated || !authReady || (appAccessMode === 'tour' && !isTourSeedReady))
+  ) {
     return (
       <>
-        {isLandingEntry ? <LandingSeoHead /> : null}
+        {isLandingEntry ? <LandingSeoHead /> : <NoIndexSeoHead />}
         <AppLoadingShell />
       </>
     );
@@ -116,7 +165,7 @@ export default function RootLayout() {
 
   return (
     <>
-      {isLandingEntry ? <LandingSeoHead /> : null}
+      {isLandingEntry ? <LandingSeoHead /> : <NoIndexSeoHead />}
       <Stack
         screenOptions={{
           headerShown: false,

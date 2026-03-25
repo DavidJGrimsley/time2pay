@@ -1,9 +1,9 @@
 import { z } from 'zod';
-import { handleDbWrite } from '@/app/api/db/_shared/route';
+import { handleDbWrite } from '@/server/db/_shared/route';
 import {
   createMilestoneChecklistItem,
   updateMilestoneChecklistItem,
-} from '@/app/api/db/_queries/milestone-checklist';
+} from '@/server/db/_queries/milestone-checklist';
 import { milestoneChecklistItemInsertSchema } from '@/database/hosted/milestones/schema';
 
 const createChecklistSchema = milestoneChecklistItemInsertSchema

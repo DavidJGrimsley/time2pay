@@ -2,29 +2,13 @@ import { createHash } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { generateSW } from 'workbox-build';
-
-const repoRoot = process.cwd();
-const clientBuildDir = path.join(repoRoot, 'dist', 'client');
-const serverBuildDir = path.join(repoRoot, 'dist', 'server');
-
-const htmlRouteMap = [
-  ['/', 'index.html'],
-  ['/bank', 'bank.html'],
-  ['/dashboard', 'dashboard.html'],
-  ['/invoices', 'invoices.html'],
-  ['/payments', 'payments.html'],
-  ['/profile', 'profile.html'],
-  ['/sessions', 'sessions.html'],
-];
-
-async function ensureDirectory(dirPath, label) {
-  const stat = await fs
-    .stat(dirPath)
-    .catch(() => null);
-  if (!stat?.isDirectory()) {
-    throw new Error(`${label} not found at ${dirPath}. Run "expo export -p web" first.`);
-  }
-}
+import {
+  clientBuildDir,
+  discoverExportedHtmlPages,
+  ensureDirectory,
+  repoRoot,
+  serverBuildDir,
+} from './web-output-utils.mjs';
 
 async function hashFile(filePath) {
   const fileBuffer = await fs.readFile(filePath);
@@ -32,23 +16,17 @@ async function hashFile(filePath) {
 }
 
 async function createHtmlManifestEntries() {
+  const htmlPages = await discoverExportedHtmlPages(serverBuildDir);
   const entries = [];
 
-  for (const [url, filename] of htmlRouteMap) {
-    const filePath = path.join(serverBuildDir, filename);
-    const fileExists = await fs
-      .stat(filePath)
-      .then((stat) => stat.isFile())
-      .catch(() => false);
-
-    if (!fileExists) {
-      console.warn(`Skipping precache entry: missing ${path.relative(repoRoot, filePath)}`);
+  for (const htmlPage of htmlPages) {
+    if (htmlPage.isInternal || htmlPage.isNotFound) {
       continue;
     }
 
     entries.push({
-      url,
-      revision: await hashFile(filePath),
+      url: htmlPage.urlPath,
+      revision: await hashFile(htmlPage.filePath),
     });
   }
 
@@ -65,7 +43,7 @@ async function main() {
   const { count, size, warnings } = await generateSW({
     swDest,
     globDirectory: clientBuildDir,
-    globPatterns: ['**/*.{css,html,ico,js,json,png,svg,txt,wasm,woff,woff2}'],
+    globPatterns: ['**/*.{css,html,ico,js,json,png,svg,txt,wasm,woff,woff2,xml}'],
     ignoreURLParametersMatching: [/^utm_/, /^fbclid$/],
     additionalManifestEntries,
     skipWaiting: true,

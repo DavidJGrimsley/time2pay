@@ -1,8 +1,8 @@
 import { sql } from 'drizzle-orm';
-import type { WriteDb } from '@/app/api/db/_shared/db';
-import { validation } from '@/app/api/db/_shared/errors';
-import { assertUpdated, toNumericString } from '@/app/api/db/_queries/_shared';
-import { nowIso } from '@/app/api/db/_shared/parsers';
+import type { WriteDb } from '@/server/db/_shared/db';
+import { validation } from '@/server/db/_shared/errors';
+import { assertUpdated, toNumericString } from '@/server/db/_queries/_shared';
+import { nowIso } from '@/server/db/_shared/parsers';
 
 export type CreateClientInput = {
   id: string;

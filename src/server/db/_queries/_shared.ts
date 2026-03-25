@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
-import type { WriteDb } from '@/app/api/db/_shared/db';
-import { conflict, notFound, validation } from '@/app/api/db/_shared/errors';
+import type { WriteDb } from '@/server/db/_shared/db';
+import { conflict, notFound, validation } from '@/server/db/_shared/errors';
 
 type SqlExecutor = Pick<WriteDb, 'execute'>;
 

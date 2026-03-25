@@ -10,6 +10,22 @@ import { assertHostedModeConfigured } from '@/services/runtime-mode';
 let supabaseClient: SupabaseClient | null = null;
 const DEFAULT_AUTH_REDIRECT_PATH = '/dashboard';
 
+function isMissingAuthSessionMessage(message: string): boolean {
+  return /auth session missing!?/i.test(message);
+}
+
+function normalizeSupabaseAuthMessage(
+  error: unknown,
+  fallback = 'Sign in to access your hosted Time2Pay data.',
+): string {
+  const rawMessage = error instanceof Error ? error.message.trim() : '';
+  if (!rawMessage || isMissingAuthSessionMessage(rawMessage)) {
+    return fallback;
+  }
+
+  return rawMessage;
+}
+
 function getSupabaseConfig(): { url: string; anonKey: string } {
   assertHostedModeConfigured();
 
@@ -44,7 +60,11 @@ export async function getSupabaseSession(): Promise<Session | null> {
   const client = getSupabaseClient();
   const { data, error } = await client.auth.getSession();
   if (error) {
-    throw new Error(error.message);
+    if (isMissingAuthSessionMessage(error.message)) {
+      return null;
+    }
+
+    throw new Error(normalizeSupabaseAuthMessage(error));
   }
 
   return data.session;
@@ -54,7 +74,11 @@ export async function getSupabaseUser(): Promise<User | null> {
   const client = getSupabaseClient();
   const { data, error } = await client.auth.getUser();
   if (error) {
-    throw new Error(error.message);
+    if (isMissingAuthSessionMessage(error.message)) {
+      return null;
+    }
+
+    throw new Error(normalizeSupabaseAuthMessage(error));
   }
 
   return data.user;
@@ -63,7 +87,7 @@ export async function getSupabaseUser(): Promise<User | null> {
 export async function requireSupabaseUserId(): Promise<string> {
   const user = await getSupabaseUser();
   if (!user?.id) {
-    throw new Error('You must be signed in to access hosted data.');
+    throw new Error('Sign in to access your hosted Time2Pay data.');
   }
 
   return user.id;
@@ -86,7 +110,7 @@ export async function signInWithMagicLink(email: string): Promise<void> {
   });
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error(normalizeSupabaseAuthMessage(error, 'Failed to send the magic link.'));
   }
 }
 
@@ -102,7 +126,7 @@ export async function signInWithGitHubOAuth(): Promise<void> {
   });
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error(normalizeSupabaseAuthMessage(error, 'Failed to start GitHub sign-in.'));
   }
 }
 
@@ -124,7 +148,7 @@ export async function signOutSupabase(): Promise<void> {
   const client = getSupabaseClient();
   const { error } = await client.auth.signOut();
   if (error) {
-    throw new Error(error.message);
+    throw new Error(normalizeSupabaseAuthMessage(error, 'Failed to sign out.'));
   }
 }
 

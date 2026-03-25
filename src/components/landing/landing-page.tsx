@@ -7,7 +7,6 @@ import {
   ScrollView,
   Text,
   View,
-  useWindowDimensions,
   type LayoutChangeEvent,
 } from 'react-native';
 import Animated, {
@@ -24,7 +23,6 @@ import {
   workflowSection,
   type LandingCta,
 } from '../../content/landing-content';
-import { isHostedMode } from '@/services/runtime-mode';
 import { useAuthUiStore } from '@/stores/auth-ui-store';
 import { FeaturesScene } from './features-scene';
 import { LandingFooter } from './landing-footer';
@@ -36,6 +34,8 @@ import {
   useParallaxStyle,
   useSectionRevealStyle,
 } from './landing-motion';
+import { useResolvedDataMode } from '@/hooks/use-resolved-data-mode';
+import { useStableWindowDimensions } from '@/hooks/use-stable-window-dimensions';
 import { LandingSection } from './landing-section';
 import { SemanticText } from './semantic-elements';
 
@@ -197,14 +197,14 @@ function CtaButtons({
 
 export function LandingPage() {
   const router = useRouter();
-  const hostedMode = isHostedMode();
+  const { hostedMode, resolved: dataModeResolved } = useResolvedDataMode();
   const isAuthenticated = useAuthUiStore((state) => state.isAuthenticated);
   const startTour = useAuthUiStore((state) => state.startTour);
   const scrollRef = useAnimatedRef<ScrollView>();
   const scrollY = useScrollOffset(scrollRef);
   const heroCopyProgress = useSharedValue(0);
   const [sectionLayouts, setSectionLayouts] = useState<Record<string, SectionLayout>>({});
-  const { width, height } = useWindowDimensions();
+  const { width, height } = useStableWindowDimensions();
 
   const viewportWidth = width > 0 ? width : 1280;
   const viewportHeight = height > 0 ? height : 900;
@@ -286,21 +286,29 @@ export function LandingPage() {
   );
 
   const handleSignIn = useCallback(() => {
+    if (!dataModeResolved) {
+      return;
+    }
+
     if (!hostedMode) {
       router.push('/dashboard' as never);
       return;
     }
 
     router.push('/sign-in' as never);
-  }, [hostedMode, router]);
+  }, [dataModeResolved, hostedMode, router]);
 
   const handleTourExperience = useCallback(() => {
+    if (!dataModeResolved) {
+      return;
+    }
+
     if (hostedMode && !isAuthenticated) {
       startTour();
     }
 
     router.push('/dashboard' as never);
-  }, [hostedMode, isAuthenticated, router, startTour]);
+  }, [dataModeResolved, hostedMode, isAuthenticated, router, startTour]);
 
   const heroCopyStyle = useHeroPieceStyle(heroCopyProgress, 40);
   const heroGlowPrimaryStyle = useParallaxStyle(scrollY, sectionLayouts[heroSection.id], viewportHeight, 32);
@@ -373,7 +381,7 @@ export function LandingPage() {
               <View className="flex-row flex-wrap gap-3">
                 <Pressable className="rounded-full bg-primary px-5 py-3" onPress={handleSignIn}>
                   <Text className="text-sm font-semibold text-heading">
-                    {hostedMode ? 'Sign In to Continue' : 'Open Dashboard'}
+                    {!dataModeResolved ? 'Continue' : hostedMode ? 'Sign In to Continue' : 'Open Dashboard'}
                   </Text>
                 </Pressable>
                 <Pressable

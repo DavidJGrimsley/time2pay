@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { handleDbWrite } from '@/app/api/db/_shared/route';
-import { createProject, updateProjectPricing } from '@/app/api/db/_queries/projects';
+import { handleDbWrite } from '@/server/db/_shared/route';
+import { createProject, updateProjectPricing } from '@/server/db/_queries/projects';
 import { projectInsertSchema } from '@/database/hosted/clients-projects/schema';
 
 const pricingModeSchema = z.enum(['hourly', 'milestone']);

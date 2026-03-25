@@ -1,5 +1,5 @@
-import { handleDbWrite } from '@/app/api/db/_shared/route';
-import { createTask } from '@/app/api/db/_queries/tasks';
+import { handleDbWrite } from '@/server/db/_shared/route';
+import { createTask } from '@/server/db/_queries/tasks';
 import { taskInsertSchema } from '@/database/hosted/clients-projects/schema';
 
 const createTaskSchema = taskInsertSchema

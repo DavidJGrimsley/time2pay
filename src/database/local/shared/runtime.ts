@@ -1,7 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 
 const DB_NAME = 'time2pay.db';
-const SCHEMA_VERSION = 10;
+const SCHEMA_VERSION = 11;
 export const USER_PROFILE_ID = 'me';
 
 const MIGRATIONS: { version: number; upSql: string }[] = [
@@ -230,6 +230,12 @@ const MIGRATIONS: { version: number; upSql: string }[] = [
       ALTER TABLE invoices ADD COLUMN source_session_hourly_rate REAL;
     `,
   },
+  {
+    version: 11,
+    upSql: `
+      ALTER TABLE user_profile ADD COLUMN tour_seed_version INTEGER NOT NULL DEFAULT 0;
+    `,
+  },
 ];
 
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
@@ -397,17 +403,18 @@ export async function getCurrentSchemaVersion(): Promise<number> {
 export async function ensureUserProfileRow(db: SQLite.SQLiteDatabase): Promise<void> {
   const timestamp = nowIso();
   await db.runAsync(
-    `INSERT OR IGNORE INTO user_profile (
+     `INSERT OR IGNORE INTO user_profile (
        id,
        company_name,
        logo_url,
        full_name,
        phone,
        email,
+       tour_seed_version,
        created_at,
        updated_at
      )
-     VALUES (?, NULL, NULL, NULL, NULL, NULL, ?, ?)`,
+     VALUES (?, NULL, NULL, NULL, NULL, NULL, 0, ?, ?)`,
     USER_PROFILE_ID,
     timestamp,
     timestamp,

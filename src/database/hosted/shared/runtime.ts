@@ -117,12 +117,12 @@ export async function callHostedWriteRoute(
   const supabase = getSupabaseClient();
   const { data, error } = await supabase.auth.getSession();
   if (error) {
-    throw new Error(error.message);
+    throw new Error('Sign in to save changes to your hosted account.');
   }
 
   const token = data.session?.access_token?.trim();
   if (!token) {
-    throw new Error('Hosted write route requires an active Supabase session.');
+    throw new Error('Sign in to save changes to your hosted account.');
   }
 
   const response = await fetch(writeUrl, {
