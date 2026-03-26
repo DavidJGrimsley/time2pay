@@ -53,6 +53,7 @@ Set these in `.env`:
 - `GITHUB_CLIENT_SECRET` (optional): server-side GitHub OAuth app client secret
 - `EXPO_PUBLIC_GITHUB_CLIENT_ID` (optional): client-visible GitHub OAuth id used to show the Sign in with GitHub button
 - `EXPO_PUBLIC_TIME2PAY_DATA_MODE` (optional): `local` (default) or `hosted`
+- `TIME2PAY_FAIL_BUILD_IF_LOCAL` (optional): when truthy (`1/true/yes/on`), blocks web export if data mode resolves to `local`
 - `EXPO_PUBLIC_SUPABASE_URL` (required in hosted mode)
 - `EXPO_PUBLIC_SUPABASE_ANON_KEY` (required in hosted mode)
 - `EXPO_PUBLIC_HOSTED_API_BASE_URL` (required for hosted writes in non-web runtime; example: `https://time2pay.app`)
@@ -67,6 +68,7 @@ Set these in `.env`:
 If `MERCURY_API_KEY` is missing, `/api/mercury` returns `400`.
 If GitHub OAuth env vars are missing, `/api/github` returns `501` and the Sign in with GitHub button is hidden.
 If hosted env vars are missing while `EXPO_PUBLIC_TIME2PAY_DATA_MODE=hosted`, auth/data flows fail at startup.
+If `TIME2PAY_FAIL_BUILD_IF_LOCAL` is truthy, deployment builds fail fast unless mode resolves to `hosted`.
 
 ## Hosted Mode (Supabase + Multi-User)
 
@@ -91,6 +93,14 @@ Drizzle migration connection note:
 - For most setups, set `DATABASE_URL` to Supabase pooler (`6543`) and run migrations directly.
 - Use `DATABASE_DIRECT_URL` only when direct host networking is confirmed in your environment.
 - If tables already exist but `drizzle.__drizzle_migrations` is empty, align the baseline ledger row first, then rerun `npm run db:migrate`.
+
+## Runtime Diagnostics (Auth/Profile Gate)
+
+Use this when production auth/routing behavior is unclear:
+
+- Add `?debugAuth=1` to any app URL to enable structured auth/profile-gate diagnostics in browser console.
+- Debug mode persists via localStorage key `time2pay.debug.auth`.
+- Disable diagnostics with `?debugAuth=0`.
 
 ## Run Modes
 

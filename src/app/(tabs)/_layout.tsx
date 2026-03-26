@@ -3,10 +3,20 @@ import { useEffect, useState } from 'react';
 import { useColorScheme } from 'react-native';
 import { AppLoadingShell } from '@/components/app-loading-shell';
 import { useResolvedDataMode } from '@/hooks/use-resolved-data-mode';
+import { logRuntimeDiagnostic } from '@/services/runtime-diagnostics';
 import { isProfileComplete } from '@/services/profile-completion';
 import { useAuthUiStore } from '@/stores/auth-ui-store';
 
 const MIN_PROFILE_CHECK_MS = 220;
+const PROFILE_GATE_TIMEOUT_MS = 7000;
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return String(error);
+}
 
 export default function TabsLayout() {
   const router = useRouter();
@@ -24,9 +34,21 @@ export default function TabsLayout() {
 
   useEffect(() => {
     let isActive = true;
+    logRuntimeDiagnostic('profileGate.effect.start', {
+      pathname,
+      dataModeResolved,
+      hostedMode,
+      isAuthenticated,
+      tourModeEnabled,
+      shouldRequireProfileCompletion,
+      isProfileRoute,
+    });
 
     if (!dataModeResolved) {
       setIsProfileGateReady(false);
+      logRuntimeDiagnostic('profileGate.waitingForDataMode', {
+        pathname,
+      });
       return () => {
         isActive = false;
       };
@@ -34,6 +56,9 @@ export default function TabsLayout() {
 
     if (!shouldRequireProfileCompletion) {
       setIsProfileGateReady(true);
+      logRuntimeDiagnostic('profileGate.skipped', {
+        reason: 'profile-requirement-disabled',
+      });
       return () => {
         isActive = false;
       };
@@ -45,14 +70,67 @@ export default function TabsLayout() {
       const minimumDelay = new Promise((resolve) => {
         setTimeout(resolve, MIN_PROFILE_CHECK_MS);
       });
+      const profileGateTimeout = new Promise<{ status: 'timeout' }>((resolve) => {
+        setTimeout(() => resolve({ status: 'timeout' }), PROFILE_GATE_TIMEOUT_MS);
+      });
+      const profileGateCheck = isProfileComplete()
+        .then((complete) => ({ status: 'resolved' as const, complete }))
+        .catch((error: unknown) => ({
+          status: 'error' as const,
+          message: errorMessage(error),
+        }));
 
       try {
-        const [complete] = await Promise.all([isProfileComplete(), minimumDelay]);
+        const [result] = await Promise.all([Promise.race([profileGateCheck, profileGateTimeout]), minimumDelay]);
         if (!isActive) {
           return;
         }
 
-        if (!complete && !isProfileRoute) {
+        if (result.status === 'timeout') {
+          logRuntimeDiagnostic(
+            'profileGate.timeout',
+            {
+              timeoutMs: PROFILE_GATE_TIMEOUT_MS,
+              isProfileRoute,
+            },
+            { level: 'warn' },
+          );
+          if (!isProfileRoute) {
+            logRuntimeDiagnostic('profileGate.redirect.toProfile', {
+              reason: 'timeout',
+            });
+            router.replace('/profile');
+          }
+          return;
+        }
+
+        if (result.status === 'error') {
+          logRuntimeDiagnostic(
+            'profileGate.error',
+            {
+              message: result.message,
+              isProfileRoute,
+            },
+            { level: 'error' },
+          );
+          if (!isProfileRoute) {
+            logRuntimeDiagnostic('profileGate.redirect.toProfile', {
+              reason: 'check-error',
+            });
+            router.replace('/profile');
+          }
+          return;
+        }
+
+        logRuntimeDiagnostic('profileGate.result', {
+          complete: result.complete,
+          isProfileRoute,
+        });
+
+        if (!result.complete && !isProfileRoute) {
+          logRuntimeDiagnostic('profileGate.redirect.toProfile', {
+            reason: 'incomplete-profile',
+          });
           router.replace('/profile');
         }
       } catch {
@@ -60,11 +138,24 @@ export default function TabsLayout() {
           return;
         }
 
+        logRuntimeDiagnostic(
+          'profileGate.unexpectedError',
+          {
+            isProfileRoute,
+          },
+          { level: 'error' },
+        );
         if (!isProfileRoute) {
+          logRuntimeDiagnostic('profileGate.redirect.toProfile', {
+            reason: 'unexpected-exception',
+          });
           router.replace('/profile');
         }
       } finally {
         if (isActive) {
+          logRuntimeDiagnostic('profileGate.ready', {
+            pathname,
+          });
           setIsProfileGateReady(true);
         }
       }
@@ -72,6 +163,7 @@ export default function TabsLayout() {
 
     checkProfileGate().catch(() => {
       if (isActive) {
+        logRuntimeDiagnostic('profileGate.effect.promiseRejected', undefined, { level: 'error' });
         setIsProfileGateReady(true);
       }
     });
@@ -79,9 +171,23 @@ export default function TabsLayout() {
     return () => {
       isActive = false;
     };
-  }, [dataModeResolved, isProfileRoute, router, shouldRequireProfileCompletion]);
+  }, [
+    dataModeResolved,
+    hostedMode,
+    isAuthenticated,
+    isProfileRoute,
+    pathname,
+    router,
+    shouldRequireProfileCompletion,
+    tourModeEnabled,
+  ]);
 
   if (!dataModeResolved || !isProfileGateReady) {
+    logRuntimeDiagnostic('profileGate.loadingShell.visible', {
+      dataModeResolved,
+      isProfileGateReady,
+      pathname,
+    });
     return <AppLoadingShell />;
   }
 

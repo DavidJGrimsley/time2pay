@@ -1,6 +1,9 @@
 import * as SQLite from 'expo-sqlite';
+import { logRuntimeDiagnostic } from '@/services/runtime-diagnostics';
+import { isTourMode } from '@/services/runtime-mode';
 
 const DB_NAME = 'time2pay.db';
+const IN_MEMORY_DB_NAME = ':memory:';
 const SCHEMA_VERSION = 11;
 export const USER_PROFILE_ID = 'me';
 
@@ -239,6 +242,7 @@ const MIGRATIONS: { version: number; upSql: string }[] = [
 ];
 
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
+let activeDbName: string | null = null;
 
 export function nowIso(): string {
   return new Date().toISOString();
@@ -346,6 +350,61 @@ export function assertDbInvoiceTotal(total: number): void {
   }
 }
 
+function isWebRuntime(): boolean {
+  return typeof window !== 'undefined';
+}
+
+function shouldUseInMemoryTourDatabase(): boolean {
+  return isWebRuntime() && isTourMode();
+}
+
+function isAccessHandleConflictError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const message = `${error.name} ${error.message}`.toLowerCase();
+  return (
+    message.includes('nomodificationallowederror') ||
+    message.includes('createsyncaccesshandle') ||
+    message.includes('access handles cannot be created')
+  );
+}
+
+async function openConfiguredDatabase(databaseName: string): Promise<SQLite.SQLiteDatabase> {
+  const db = await SQLite.openDatabaseAsync(databaseName);
+  await db.execAsync('PRAGMA foreign_keys = ON;');
+  await db.execAsync('PRAGMA journal_mode = WAL;');
+  activeDbName = databaseName;
+  return db;
+}
+
+async function openDatabaseWithFallback(): Promise<SQLite.SQLiteDatabase> {
+  const preferredDbName = shouldUseInMemoryTourDatabase() ? IN_MEMORY_DB_NAME : DB_NAME;
+
+  try {
+    return await openConfiguredDatabase(preferredDbName);
+  } catch (error) {
+    if (
+      isWebRuntime() &&
+      preferredDbName !== IN_MEMORY_DB_NAME &&
+      isAccessHandleConflictError(error)
+    ) {
+      logRuntimeDiagnostic(
+        'localDb.webAccessHandleConflict.fallbackToMemory',
+        {
+          preferredDbName,
+          message: error instanceof Error ? error.message : String(error),
+        },
+        { level: 'warn' },
+      );
+      return openConfiguredDatabase(IN_MEMORY_DB_NAME);
+    }
+
+    throw error;
+  }
+}
+
 async function getUserVersion(db: SQLite.SQLiteDatabase): Promise<number> {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version;');
   return row?.user_version ?? 0;
@@ -372,14 +431,15 @@ async function runMigrations(db: SQLite.SQLiteDatabase): Promise<number> {
 
 export async function getDb(): Promise<SQLite.SQLiteDatabase> {
   if (!dbPromise) {
-    dbPromise = (async () => {
-      const db = await SQLite.openDatabaseAsync(DB_NAME);
-      await db.execAsync('PRAGMA foreign_keys = ON;');
-      await db.execAsync('PRAGMA journal_mode = WAL;');
-      return db;
-    })();
+    dbPromise = openDatabaseWithFallback();
   }
-  return dbPromise;
+
+  try {
+    return await dbPromise;
+  } catch (error) {
+    dbPromise = null;
+    throw error;
+  }
 }
 
 export async function initializeDatabase(): Promise<void> {
@@ -398,6 +458,10 @@ export async function initializeDatabase(): Promise<void> {
 export async function getCurrentSchemaVersion(): Promise<number> {
   const db = await getDb();
   return getUserVersion(db);
+}
+
+export function getActiveDatabaseName(): string | null {
+  return activeDbName;
 }
 
 export async function ensureUserProfileRow(db: SQLite.SQLiteDatabase): Promise<void> {
