@@ -1,4 +1,5 @@
 import { Redirect, useRouter } from 'expo-router';
+import { useEffect } from 'react';
 import { HostedAuthGate } from '@/components/hosted-auth-gate';
 import { AppLoadingShell } from '@/components/app-loading-shell';
 import { useResolvedDataMode } from '@/hooks/use-resolved-data-mode';
@@ -10,22 +11,32 @@ export default function SignInRoute() {
   const { dataMode, hostedMode, resolved: dataModeResolved } = useResolvedDataMode();
   const startTour = useAuthUiStore((state) => state.startTour);
 
+  useEffect(() => {
+    if (!dataModeResolved) {
+      logRuntimeDiagnostic('signInRoute.loading.pendingDataMode', {
+        dataMode,
+      });
+    }
+  }, [dataModeResolved, dataMode]);
+
+  useEffect(() => {
+    if (dataModeResolved && !hostedMode) {
+      logRuntimeDiagnostic(
+        'signInRoute.localModeRedirect',
+        {
+          dataMode,
+          destination: '/dashboard',
+        },
+        { level: 'warn' },
+      );
+    }
+  }, [dataModeResolved, hostedMode, dataMode]);
+
   if (!dataModeResolved) {
-    logRuntimeDiagnostic('signInRoute.loading.pendingDataMode', {
-      dataMode,
-    });
     return <AppLoadingShell />;
   }
 
   if (!hostedMode) {
-    logRuntimeDiagnostic(
-      'signInRoute.localModeRedirect',
-      {
-        dataMode,
-        destination: '/dashboard',
-      },
-      { level: 'warn' },
-    );
     return <Redirect href="/dashboard" />;
   }
 

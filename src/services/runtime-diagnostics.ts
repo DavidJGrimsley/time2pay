@@ -2,6 +2,14 @@ const DEBUG_QUERY_PARAM = 'debugAuth';
 export const DEBUG_STORAGE_KEY = 'time2pay.debug.auth';
 const LOG_PREFIX = '[Time2PayDebug]';
 
+export function errorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return String(error);
+}
+
 type DiagnosticLevel = 'info' | 'warn' | 'error';
 
 type DiagnosticPayload = Record<string, unknown>;
@@ -203,11 +211,11 @@ export function logRuntimeDiagnostic(
 
   const level = options?.level ?? 'info';
   const data = {
+    ...normalizePayload(payload),
     event,
     timestamp: new Date().toISOString(),
     route: getCurrentRoute(),
     initialized: diagnosticsInitialized,
-    ...normalizePayload(payload),
   };
 
   if (level === 'error') {

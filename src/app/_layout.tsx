@@ -5,7 +5,7 @@ import { Uniwind } from 'uniwind';
 import { AppLoadingShell } from '@/components/app-loading-shell';
 import { LandingSeoHead } from '@/components/landing/landing-seo-head';
 import { NoIndexSeoHead } from '@/components/no-index-seo-head';
-import { bootstrapRuntimeDiagnostics, logRuntimeDiagnostic } from '@/services/runtime-diagnostics';
+import { bootstrapRuntimeDiagnostics, errorMessage, logRuntimeDiagnostic } from '@/services/runtime-diagnostics';
 import { isHostedMode, resolveAppAccessMode } from '@/services/runtime-mode';
 import { getSupabaseSession, onSupabaseAuthStateChange } from '@/services/supabase-client';
 import { ensureTourDemoData } from '@/services/tour-demo';
@@ -22,14 +22,6 @@ if (Platform.OS === 'web' && typeof window !== 'undefined') {
   } catch {
     // no-op
   }
-}
-
-function errorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return String(error);
 }
 
 export default function RootLayout() {
@@ -228,18 +220,23 @@ export default function RootLayout() {
     tourModeHydrated,
   ]);
 
-  if (
+  const isLoadingShellVisible =
     hostedMode &&
-    (!tourModeHydrated || !authReady || (appAccessMode === 'tour' && !isTourSeedReady))
-  ) {
-    logRuntimeDiagnostic('root.loadingShell.visible', {
-      hostedMode,
-      tourModeHydrated,
-      authReady,
-      appAccessMode,
-      isTourSeedReady,
-    });
+    (!tourModeHydrated || !authReady || (appAccessMode === 'tour' && !isTourSeedReady));
 
+  useEffect(() => {
+    if (isLoadingShellVisible) {
+      logRuntimeDiagnostic('root.loadingShell.visible', {
+        hostedMode,
+        tourModeHydrated,
+        authReady,
+        appAccessMode,
+        isTourSeedReady,
+      });
+    }
+  }, [isLoadingShellVisible, hostedMode, tourModeHydrated, authReady, appAccessMode, isTourSeedReady]);
+
+  if (isLoadingShellVisible) {
     return (
       <>
         {isLandingEntry ? <LandingSeoHead /> : <NoIndexSeoHead />}
