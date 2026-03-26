@@ -3,20 +3,12 @@ import { useEffect, useState } from 'react';
 import { useColorScheme } from 'react-native';
 import { AppLoadingShell } from '@/components/app-loading-shell';
 import { useResolvedDataMode } from '@/hooks/use-resolved-data-mode';
-import { logRuntimeDiagnostic } from '@/services/runtime-diagnostics';
+import { errorMessage, logRuntimeDiagnostic } from '@/services/runtime-diagnostics';
 import { isProfileComplete } from '@/services/profile-completion';
 import { useAuthUiStore } from '@/stores/auth-ui-store';
 
 const MIN_PROFILE_CHECK_MS = 220;
 const PROFILE_GATE_TIMEOUT_MS = 7000;
-
-function errorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return String(error);
-}
 
 export default function TabsLayout() {
   const router = useRouter();
@@ -66,12 +58,15 @@ export default function TabsLayout() {
 
     setIsProfileGateReady(false);
 
+    let minimumDelayTimer: ReturnType<typeof setTimeout> | undefined;
+    let profileGateTimeoutTimer: ReturnType<typeof setTimeout> | undefined;
+
     const checkProfileGate = async () => {
       const minimumDelay = new Promise((resolve) => {
-        setTimeout(resolve, MIN_PROFILE_CHECK_MS);
+        minimumDelayTimer = setTimeout(resolve, MIN_PROFILE_CHECK_MS);
       });
       const profileGateTimeout = new Promise<{ status: 'timeout' }>((resolve) => {
-        setTimeout(() => resolve({ status: 'timeout' }), PROFILE_GATE_TIMEOUT_MS);
+        profileGateTimeoutTimer = setTimeout(() => resolve({ status: 'timeout' }), PROFILE_GATE_TIMEOUT_MS);
       });
       const profileGateCheck = isProfileComplete()
         .then((complete) => ({ status: 'resolved' as const, complete }))
@@ -170,6 +165,8 @@ export default function TabsLayout() {
 
     return () => {
       isActive = false;
+      clearTimeout(minimumDelayTimer);
+      clearTimeout(profileGateTimeoutTimer);
     };
   }, [
     dataModeResolved,
@@ -182,12 +179,17 @@ export default function TabsLayout() {
     tourModeEnabled,
   ]);
 
+  useEffect(() => {
+    if (!dataModeResolved || !isProfileGateReady) {
+      logRuntimeDiagnostic('profileGate.loadingShell.visible', {
+        dataModeResolved,
+        isProfileGateReady,
+        pathname,
+      });
+    }
+  }, [dataModeResolved, isProfileGateReady, pathname]);
+
   if (!dataModeResolved || !isProfileGateReady) {
-    logRuntimeDiagnostic('profileGate.loadingShell.visible', {
-      dataModeResolved,
-      isProfileGateReady,
-      pathname,
-    });
     return <AppLoadingShell />;
   }
 
