@@ -35,6 +35,7 @@ import {
   useSectionRevealStyle,
 } from './landing-motion';
 import { useResolvedDataMode } from '@/hooks/use-resolved-data-mode';
+import { logRuntimeDiagnostic } from '@/services/runtime-diagnostics';
 import { useStableWindowDimensions } from '@/hooks/use-stable-window-dimensions';
 import { LandingSection } from './landing-section';
 import { SemanticText } from './semantic-elements';
@@ -197,7 +198,7 @@ function CtaButtons({
 
 export function LandingPage() {
   const router = useRouter();
-  const { hostedMode, resolved: dataModeResolved } = useResolvedDataMode();
+  const { dataMode, hostedMode, resolved: dataModeResolved } = useResolvedDataMode();
   const isAuthenticated = useAuthUiStore((state) => state.isAuthenticated);
   const startTour = useAuthUiStore((state) => state.startTour);
   const scrollRef = useAnimatedRef<ScrollView>();
@@ -287,28 +288,50 @@ export function LandingPage() {
 
   const handleSignIn = useCallback(() => {
     if (!dataModeResolved) {
+      logRuntimeDiagnostic('landing.signIn.blocked.dataModePending');
       return;
     }
 
     if (!hostedMode) {
+      logRuntimeDiagnostic(
+        'landing.signIn.localModeFallback',
+        {
+          dataMode,
+          destination: '/dashboard',
+          reason: 'hosted-auth-unavailable-in-local-build',
+        },
+        { level: 'warn' },
+      );
       router.push('/dashboard' as never);
       return;
     }
 
+    logRuntimeDiagnostic('landing.signIn.redirectToHostedAuth', {
+      dataMode,
+      destination: '/sign-in',
+    });
     router.push('/sign-in' as never);
-  }, [dataModeResolved, hostedMode, router]);
+  }, [dataMode, dataModeResolved, hostedMode, router]);
 
   const handleTourExperience = useCallback(() => {
     if (!dataModeResolved) {
+      logRuntimeDiagnostic('landing.tour.blocked.dataModePending');
       return;
     }
+
+    const startsTourMode = hostedMode && !isAuthenticated;
+    logRuntimeDiagnostic('landing.tour.start', {
+      dataMode,
+      destination: '/dashboard',
+      startsTourMode,
+    });
 
     if (hostedMode && !isAuthenticated) {
       startTour();
     }
 
     router.push('/dashboard' as never);
-  }, [dataModeResolved, hostedMode, isAuthenticated, router, startTour]);
+  }, [dataMode, dataModeResolved, hostedMode, isAuthenticated, router, startTour]);
 
   const heroCopyStyle = useHeroPieceStyle(heroCopyProgress, 40);
   const heroGlowPrimaryStyle = useParallaxStyle(scrollY, sectionLayouts[heroSection.id], viewportHeight, 32);

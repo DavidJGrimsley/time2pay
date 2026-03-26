@@ -2,6 +2,7 @@ import { Octicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { InlineNotice, type NoticeTone } from '@/components/inline-notice';
+import { logRuntimeDiagnostic } from '@/services/runtime-diagnostics';
 import { signInWithGitHubOAuth, signInWithMagicLink } from '@/services/supabase-client';
 
 type StatusNotice = {
@@ -22,14 +23,25 @@ export function HostedAuthGate({ onTourExperience }: HostedAuthGateProps) {
   async function handleMagicLinkSignIn(): Promise<void> {
     setIsSendingMagicLink(true);
     setStatus(null);
+    logRuntimeDiagnostic('hostedAuth.magicLink.start', {
+      hasEmailInput: Boolean(email.trim()),
+    });
 
     try {
       await signInWithMagicLink(email);
+      logRuntimeDiagnostic('hostedAuth.magicLink.success');
       setStatus({
         tone: 'success',
         message: 'Magic link sent. Check your inbox and open the link to continue.',
       });
     } catch (error: unknown) {
+      logRuntimeDiagnostic(
+        'hostedAuth.magicLink.error',
+        {
+          error,
+        },
+        { level: 'error' },
+      );
       setStatus({
         tone: 'error',
         message: error instanceof Error ? error.message : 'Failed to send magic link.',
@@ -42,10 +54,18 @@ export function HostedAuthGate({ onTourExperience }: HostedAuthGateProps) {
   async function handleGitHubSignIn(): Promise<void> {
     setIsGitHubRedirecting(true);
     setStatus(null);
+    logRuntimeDiagnostic('hostedAuth.github.start');
 
     try {
       await signInWithGitHubOAuth();
     } catch (error: unknown) {
+      logRuntimeDiagnostic(
+        'hostedAuth.github.error',
+        {
+          error,
+        },
+        { level: 'error' },
+      );
       setStatus({
         tone: 'error',
         message: error instanceof Error ? error.message : 'Failed to start GitHub OAuth.',
@@ -73,19 +93,19 @@ export function HostedAuthGate({ onTourExperience }: HostedAuthGateProps) {
         />
 
         <Pressable
-          className="rounded-md bg-secondary px-4 py-2"
+          className="self-center rounded-full bg-secondary px-6 py-2"
           onPress={() => {
             handleMagicLinkSignIn().catch(() => undefined);
           }}
           disabled={isSendingMagicLink || isGitHubRedirecting}
         >
           <Text className="text-center font-semibold text-white">
-            {isSendingMagicLink ? 'Sending magic link...' : 'Send magic link'}
+            {isSendingMagicLink ? 'Sending magic sign-in link...' : 'Send magic sign-in link'}
           </Text>
         </Pressable>
 
         <Pressable
-          className="self-start rounded-full border px-4 py-2"
+          className="self-center rounded-full border px-4 py-2"
           style={{ borderColor: '#ffffff', backgroundColor: '#24292f' }}
           onPress={() => {
             handleGitHubSignIn().catch(() => undefined);

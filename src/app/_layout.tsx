@@ -5,6 +5,7 @@ import { Uniwind } from 'uniwind';
 import { AppLoadingShell } from '@/components/app-loading-shell';
 import { LandingSeoHead } from '@/components/landing/landing-seo-head';
 import { NoIndexSeoHead } from '@/components/no-index-seo-head';
+import { bootstrapRuntimeDiagnostics, errorMessage, logRuntimeDiagnostic } from '@/services/runtime-diagnostics';
 import { isHostedMode, resolveAppAccessMode } from '@/services/runtime-mode';
 import { getSupabaseSession, onSupabaseAuthStateChange } from '@/services/supabase-client';
 import { ensureTourDemoData } from '@/services/tour-demo';
@@ -43,20 +44,34 @@ export default function RootLayout() {
   const appAccessMode = resolveAppAccessMode(hostedMode ? 'hosted' : 'local', tourModeEnabled);
 
   useEffect(() => {
+    bootstrapRuntimeDiagnostics();
+    logRuntimeDiagnostic('root.layout.mounted', {
+      hostedMode,
+      pathname,
+      segments,
+    });
+  }, [hostedMode, pathname, segments]);
+
+  useEffect(() => {
     Uniwind.setTheme('system');
   }, []);
 
   useEffect(() => {
+    logRuntimeDiagnostic('auth.tourMode.hydrate.start');
     hydrateTourMode();
   }, [hydrateTourMode]);
 
   useEffect(() => {
     if (!hostedMode) {
+      logRuntimeDiagnostic('auth.bootstrap.localMode.reset');
       resetForLocalMode();
       return;
     }
 
     let isActive = true;
+    logRuntimeDiagnostic('auth.bootstrap.session.read.start', {
+      hostedMode,
+    });
 
     getSupabaseSession()
       .then((session) => {
@@ -64,27 +79,41 @@ export default function RootLayout() {
           return;
         }
 
+        logRuntimeDiagnostic('auth.bootstrap.session.read.success', {
+          hasSessionUser: Boolean(session?.user),
+        });
         syncHostedAuth({
           ready: true,
           authenticated: Boolean(session?.user),
         });
       })
-      .catch(() => {
+      .catch((error) => {
         if (!isActive) {
           return;
         }
 
+        logRuntimeDiagnostic(
+          'auth.bootstrap.session.read.error',
+          {
+            message: errorMessage(error),
+          },
+          { level: 'error' },
+        );
         syncHostedAuth({
           ready: true,
           authenticated: false,
         });
       });
 
-    const unsubscribe = onSupabaseAuthStateChange((_, session) => {
+    const unsubscribe = onSupabaseAuthStateChange((event, session) => {
       if (!isActive) {
         return;
       }
 
+      logRuntimeDiagnostic('auth.bootstrap.state.changed', {
+        event,
+        hasSessionUser: Boolean(session?.user),
+      });
       syncHostedAuth({
         ready: true,
         authenticated: Boolean(session?.user),
@@ -93,6 +122,7 @@ export default function RootLayout() {
 
     return () => {
       isActive = false;
+      logRuntimeDiagnostic('auth.bootstrap.cleanup');
       unsubscribe();
     };
   }, [hostedMode, resetForLocalMode, syncHostedAuth]);
@@ -102,19 +132,34 @@ export default function RootLayout() {
 
     if (!hostedMode || appAccessMode !== 'tour') {
       setIsTourSeedReady(true);
+      logRuntimeDiagnostic('tour.seed.skipped', {
+        hostedMode,
+        appAccessMode,
+      });
       return () => {
         isActive = false;
       };
     }
 
     setIsTourSeedReady(false);
+    logRuntimeDiagnostic('tour.seed.start', {
+      appAccessMode,
+    });
 
     ensureTourDemoData()
       .catch((error) => {
+        logRuntimeDiagnostic(
+          'tour.seed.error',
+          {
+            message: errorMessage(error),
+          },
+          { level: 'error' },
+        );
         console.error('Failed to seed tour demo data:', error);
       })
       .finally(() => {
         if (isActive) {
+          logRuntimeDiagnostic('tour.seed.ready');
           setIsTourSeedReady(true);
         }
       });
@@ -129,15 +174,38 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (!hostedMode || !tourModeHydrated || !authReady) {
+      logRuntimeDiagnostic('auth.redirect.check.skipped', {
+        hostedMode,
+        tourModeHydrated,
+        authReady,
+      });
       return;
     }
 
+    logRuntimeDiagnostic('auth.redirect.check', {
+      canAccessTabs,
+      isInsideTabsGroup,
+      isAuthenticated,
+      pathname,
+      tourModeEnabled,
+    });
+
     if (!canAccessTabs && isInsideTabsGroup) {
+      logRuntimeDiagnostic(
+        'auth.redirect.to.signIn',
+        {
+          reason: 'tabs-guard-blocked',
+        },
+        { level: 'warn' },
+      );
       router.replace('/sign-in');
       return;
     }
 
     if (isAuthenticated && pathname === '/sign-in') {
+      logRuntimeDiagnostic('auth.redirect.to.dashboard', {
+        reason: 'already-authenticated',
+      });
       router.replace('/dashboard');
     }
   }, [
@@ -148,13 +216,27 @@ export default function RootLayout() {
     isInsideTabsGroup,
     pathname,
     router,
+    tourModeEnabled,
     tourModeHydrated,
   ]);
 
-  if (
+  const isLoadingShellVisible =
     hostedMode &&
-    (!tourModeHydrated || !authReady || (appAccessMode === 'tour' && !isTourSeedReady))
-  ) {
+    (!tourModeHydrated || !authReady || (appAccessMode === 'tour' && !isTourSeedReady));
+
+  useEffect(() => {
+    if (isLoadingShellVisible) {
+      logRuntimeDiagnostic('root.loadingShell.visible', {
+        hostedMode,
+        tourModeHydrated,
+        authReady,
+        appAccessMode,
+        isTourSeedReady,
+      });
+    }
+  }, [isLoadingShellVisible, hostedMode, tourModeHydrated, authReady, appAccessMode, isTourSeedReady]);
+
+  if (isLoadingShellVisible) {
     return (
       <>
         {isLandingEntry ? <LandingSeoHead /> : <NoIndexSeoHead />}

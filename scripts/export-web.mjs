@@ -1,9 +1,55 @@
 import { spawn } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import dotenv from 'dotenv';
 import { clientBuildDir, repoRoot, serverBuildDir } from './web-output-utils.mjs';
 
 const WINDOWS_ACCESS_VIOLATION_EXIT_CODES = new Set([3221225477, -1073741819]);
+const STRICT_LOCAL_MODE_BUILD_FLAG = 'TIME2PAY_FAIL_BUILD_IF_LOCAL';
+const HOSTED_MODE_VALUE = 'hosted';
+
+function isTruthy(value) {
+  return /^(1|true|yes|on)$/i.test(value.trim());
+}
+
+async function resolveBuildEnvironment() {
+  const envFilePath = path.join(repoRoot, '.env');
+  const envFileExists = await fs
+    .access(envFilePath)
+    .then(() => true)
+    .catch(() => false);
+
+  const envFromFile = envFileExists
+    ? dotenv.parse(await fs.readFile(envFilePath, 'utf8'))
+    : {};
+
+  const resolvedEnv = {
+    ...envFromFile,
+    ...process.env,
+  };
+
+  const rawMode = resolvedEnv.EXPO_PUBLIC_TIME2PAY_DATA_MODE?.trim().toLowerCase() ?? '';
+  const resolvedMode = rawMode === HOSTED_MODE_VALUE ? HOSTED_MODE_VALUE : 'local';
+  const modeSource = process.env.EXPO_PUBLIC_TIME2PAY_DATA_MODE?.trim()
+    ? 'process.env'
+    : envFromFile.EXPO_PUBLIC_TIME2PAY_DATA_MODE?.trim()
+      ? '.env'
+      : 'default(local)';
+
+  console.log(
+    `[export-web] Resolved EXPO_PUBLIC_TIME2PAY_DATA_MODE=${resolvedMode} (source: ${modeSource})`,
+  );
+
+  const strictModeEnabled = isTruthy(resolvedEnv[STRICT_LOCAL_MODE_BUILD_FLAG]?.trim() ?? '');
+  if (strictModeEnabled && resolvedMode !== HOSTED_MODE_VALUE) {
+    throw new Error(
+      `[export-web] ${STRICT_LOCAL_MODE_BUILD_FLAG}=1 blocks local-mode web exports. ` +
+        'Set EXPO_PUBLIC_TIME2PAY_DATA_MODE=hosted before building deployment artifacts.',
+    );
+  }
+
+  return resolvedEnv;
+}
 
 async function exportArtifactsLookValid() {
   const requiredPaths = [
@@ -23,12 +69,14 @@ async function exportArtifactsLookValid() {
 }
 
 async function main() {
+  const resolvedEnv = await resolveBuildEnvironment();
   const isWindows = process.platform === 'win32';
   const command = isWindows ? 'cmd.exe' : 'npx';
   const args = isWindows ? ['/d', '/s', '/c', 'npx expo export -p web'] : ['expo', 'export', '-p', 'web'];
 
   const child = spawn(command, args, {
     cwd: repoRoot,
+    env: resolvedEnv,
     stdio: 'inherit',
     shell: false,
   });
