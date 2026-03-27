@@ -1,5 +1,3 @@
-const appJson = require('./app.json');
-
 const DEFAULT_SITE_ORIGIN = 'https://time2pay.app';
 
 function resolveSiteOrigin() {
@@ -19,10 +17,7 @@ function withExpoRouterOrigin(plugins, origin) {
   });
 }
 
-module.exports = {
-  ...appJson,
-  expo: {
-    ...appJson.expo,
-    plugins: withExpoRouterOrigin(appJson.expo?.plugins, resolveSiteOrigin()),
-  },
-};
+module.exports = ({ config }) => ({
+  ...config,
+  plugins: withExpoRouterOrigin(config.plugins, resolveSiteOrigin()),
+});
