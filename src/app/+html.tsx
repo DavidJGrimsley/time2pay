@@ -1,6 +1,20 @@
 import { ScrollViewStyleReset } from 'expo-router/html';
 import type { PropsWithChildren } from 'react';
 
+const PWA_BOOTSTRAP_SCRIPT = `
+(function bootstrapTime2PayPwa() {
+  var hostname = window.location.hostname || '';
+  if (/\\.plesk\\.page$/i.test(hostname)) {
+    return;
+  }
+
+  var manifestLink = document.createElement('link');
+  manifestLink.rel = 'manifest';
+  manifestLink.href = '/manifest.json';
+  document.head.appendChild(manifestLink);
+})();
+`;
+
 export default function RootHtml({ children }: PropsWithChildren) {
   return (
     <html lang="en">
@@ -13,7 +27,8 @@ export default function RootHtml({ children }: PropsWithChildren) {
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="Time2Pay" />
-        <link rel="manifest" href="/manifest.json" />
+        <script src="/__time2pay_runtime_config__" />
+        <script dangerouslySetInnerHTML={{ __html: PWA_BOOTSTRAP_SCRIPT }} />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <link rel="icon" type="image/x-icon" href="/favicon.ico" />
         <ScrollViewStyleReset />

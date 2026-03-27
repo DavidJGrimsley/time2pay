@@ -5,7 +5,6 @@ const compression = require('compression');
 const express = require('express');
 const morgan = require('morgan');
 const { createRequestHandler } = require('expo-server/adapter/express');
-const { register } = require('tsx/cjs/api');
 
 const envFilePath = path.join(__dirname, '.env');
 if (fs.existsSync(envFilePath)) {
@@ -18,18 +17,37 @@ if (fs.existsSync(envFilePath)) {
 }
 
 process.env.NODE_ENV = process.env.NODE_ENV || 'production';
-register({ namespace: 'time2pay-prod-server' });
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
 const clientBuildDir = path.join(__dirname, 'dist', 'client');
 const serverBuildDir = path.join(__dirname, 'dist', 'server');
 const routesManifestPath = path.join(serverBuildDir, '_expo', 'routes.json');
+const publicRuntimeEnvKeys = [
+  'EXPO_PUBLIC_GITHUB_CLIENT_ID',
+  'EXPO_PUBLIC_HOSTED_API_BASE_URL',
+  'EXPO_PUBLIC_MERCURY_PROXY_PATH',
+  'EXPO_PUBLIC_SUPABASE_ANON_KEY',
+  'EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_PATH',
+  'EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_URL',
+  'EXPO_PUBLIC_SUPABASE_URL',
+  'EXPO_PUBLIC_TIME2PAY_DATA_MODE',
+];
 
 function assertBuildArtifact(filePath, description) {
   if (!fs.existsSync(filePath)) {
     throw new Error(`${description} not found at ${filePath}. Run "npm run build:web:deploy" first.`);
   }
+}
+
+function buildPublicRuntimeConfig() {
+  return publicRuntimeEnvKeys.reduce((config, key) => {
+    if (typeof process.env[key] === 'string') {
+      config[key] = process.env[key];
+    }
+
+    return config;
+  }, {});
 }
 
 assertBuildArtifact(clientBuildDir, 'Client build directory');
@@ -45,6 +63,14 @@ app.use((req, res, next) => {
   res.setHeader('Cross-Origin-Embedder-Policy', 'credentialless');
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
   next();
+});
+
+app.get('/__time2pay_runtime_config__', (_req, res) => {
+  res.type('application/javascript');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.send(
+    `window.__TIME2PAY_RUNTIME_CONFIG__ = Object.freeze(${JSON.stringify(buildPublicRuntimeConfig())});\n`,
+  );
 });
 
 app.use(

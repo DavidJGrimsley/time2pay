@@ -7,6 +7,7 @@ import type {
   MercurySendMoneyInput,
   MercuryTransaction,
 } from '@mr.dj2u/mercury';
+import { readPublicRuntimeConfigValue } from '@/services/runtime-config';
 
 export type MercuryConfig = {
   proxyPath: string;
@@ -49,7 +50,7 @@ type MercuryActionResponseMap = {
 
 function getMercuryConfig(): MercuryConfig {
   return {
-    proxyPath: process.env.EXPO_PUBLIC_MERCURY_PROXY_PATH ?? '/api/mercury',
+    proxyPath: readPublicRuntimeConfigValue('EXPO_PUBLIC_MERCURY_PROXY_PATH') || '/api/mercury',
   };
 }
 

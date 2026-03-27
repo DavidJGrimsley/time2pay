@@ -3,34 +3,15 @@ import path from 'node:path';
 import {
   discoverApiRouteSources,
   discoverExportedHtmlPages,
-  loadExpoRouterPluginConfig,
   serverBuildDir,
   toPosixPath,
-  toRelativeImportPath,
+  loadExpoRouterPluginConfig,
 } from './web-output-utils.mjs';
 
-const generatedFunctionsDir = path.join(serverBuildDir, '_expo', 'functions-generated');
 const routesManifestPath = path.join(serverBuildDir, '_expo', 'routes.json');
 
-function toGeneratedWrapperRelativePath(pagePath) {
-  return toPosixPath(path.join('_expo', 'functions-generated', `${pagePath}.cjs`));
-}
-
-async function writeApiWrapper(route) {
-  const wrapperRelativePath = toGeneratedWrapperRelativePath(route.pagePath);
-  const wrapperPath = path.join(serverBuildDir, wrapperRelativePath);
-  const sourceImportPath = toRelativeImportPath(
-    path.relative(path.dirname(wrapperPath), route.sourcePath),
-  );
-
-  await fs.mkdir(path.dirname(wrapperPath), { recursive: true });
-  await fs.writeFile(
-    wrapperPath,
-    `'use strict';\nmodule.exports = require(${JSON.stringify(sourceImportPath)});\n`,
-    'utf-8',
-  );
-
-  return wrapperRelativePath;
+function toBuiltApiFunctionRelativePath(pagePath) {
+  return toPosixPath(path.join('_expo', 'functions', `${pagePath}+api.js`));
 }
 
 async function main() {
@@ -38,7 +19,6 @@ async function main() {
   const apiRouteSources = await discoverApiRouteSources();
   const expoRouterConfig = await loadExpoRouterPluginConfig();
 
-  await fs.rm(generatedFunctionsDir, { recursive: true, force: true });
   await fs.mkdir(path.dirname(routesManifestPath), { recursive: true });
 
   const htmlRoutes = exportedHtmlPages
@@ -64,9 +44,19 @@ async function main() {
 
   const apiRoutes = [];
   for (const apiRoute of apiRouteSources) {
-    const wrapperRelativePath = await writeApiWrapper(apiRoute);
+    const builtFunctionRelativePath = toBuiltApiFunctionRelativePath(apiRoute.pagePath);
+    const builtFunctionPath = path.join(serverBuildDir, builtFunctionRelativePath);
+    const builtFunctionExists = await fs
+      .access(builtFunctionPath)
+      .then(() => true)
+      .catch(() => false);
+
+    if (!builtFunctionExists) {
+      throw new Error(`Expected Expo API function output at ${builtFunctionPath}.`);
+    }
+
     apiRoutes.push({
-      file: wrapperRelativePath,
+      file: builtFunctionRelativePath,
       page: apiRoute.pagePath,
       namedRegex: apiRoute.namedRegex,
       routeKeys: apiRoute.routeKeys,

@@ -1,10 +1,11 @@
 import { useAuthUiStore } from '@/stores/auth-ui-store';
+import { readTrimmedPublicRuntimeConfigValue } from '@/services/runtime-config';
 
 export type Time2PayDataMode = 'local' | 'hosted';
 export type AppAccessMode = 'local' | 'hosted' | 'tour';
 
 export function getDataMode(): Time2PayDataMode {
-  const mode = process.env.EXPO_PUBLIC_TIME2PAY_DATA_MODE?.trim().toLowerCase();
+  const mode = readTrimmedPublicRuntimeConfigValue('EXPO_PUBLIC_TIME2PAY_DATA_MODE').toLowerCase();
   return mode === 'hosted' ? 'hosted' : 'local';
 }
 
@@ -41,11 +42,11 @@ export function assertHostedModeConfigured(): void {
   }
 
   const missing: string[] = [];
-  if (!process.env.EXPO_PUBLIC_SUPABASE_URL?.trim()) {
+  if (!readTrimmedPublicRuntimeConfigValue('EXPO_PUBLIC_SUPABASE_URL')) {
     missing.push('EXPO_PUBLIC_SUPABASE_URL');
   }
 
-  const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? '';
+  const supabaseAnonKey = readTrimmedPublicRuntimeConfigValue('EXPO_PUBLIC_SUPABASE_ANON_KEY');
   if (!supabaseAnonKey) {
     missing.push('EXPO_PUBLIC_SUPABASE_ANON_KEY');
   }

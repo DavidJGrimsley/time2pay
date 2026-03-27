@@ -1,5 +1,6 @@
 import { getSupabaseClient, getSupabaseUser, requireSupabaseUserId } from '@/services/supabase-client';
 import type { UserProfile } from '@/database/hosted/types';
+import { readTrimmedPublicRuntimeConfigValue } from '@/services/runtime-config';
 
 export function nowIso(): string {
   return new Date().toISOString();
@@ -95,7 +96,7 @@ export function byId<T extends { id: string }>(rows: T[]): Map<string, T> {
 
 function resolveHostedWriteUrl(path: string): string {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  const explicitBaseUrl = process.env.EXPO_PUBLIC_HOSTED_API_BASE_URL?.trim() ?? '';
+  const explicitBaseUrl = readTrimmedPublicRuntimeConfigValue('EXPO_PUBLIC_HOSTED_API_BASE_URL');
   if (explicitBaseUrl) {
     return new URL(normalizedPath, explicitBaseUrl).toString();
   }
