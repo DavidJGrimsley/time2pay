@@ -170,7 +170,7 @@ export default function RootLayout() {
   }, [appAccessMode, hostedMode]);
 
   const canAccessTabs = !hostedMode || isAuthenticated || tourModeEnabled;
-  const isInsideTabsGroup = segments[0] === '(tabs)';
+  const isInsideTabsGroup = pathname !== '/' && pathname !== '/sign-in';
 
   useEffect(() => {
     if (!hostedMode || !tourModeHydrated || !authReady) {
@@ -198,7 +198,7 @@ export default function RootLayout() {
         },
         { level: 'warn' },
       );
-      router.replace('/sign-in');
+      router.replace('/sign-in' as never);
       return;
     }
 

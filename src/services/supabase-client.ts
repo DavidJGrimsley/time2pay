@@ -6,6 +6,7 @@ import {
   type User,
 } from '@supabase/supabase-js';
 import { assertHostedModeConfigured } from '@/services/runtime-mode';
+import { readTrimmedPublicRuntimeConfigValue } from '@/services/runtime-config';
 
 let supabaseClient: SupabaseClient | null = null;
 const DEFAULT_AUTH_REDIRECT_PATH = '/dashboard';
@@ -29,8 +30,8 @@ function normalizeSupabaseAuthMessage(
 function getSupabaseConfig(): { url: string; anonKey: string } {
   assertHostedModeConfigured();
 
-  const url = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() ?? '';
-  const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? '';
+  const url = readTrimmedPublicRuntimeConfigValue('EXPO_PUBLIC_SUPABASE_URL');
+  const anonKey = readTrimmedPublicRuntimeConfigValue('EXPO_PUBLIC_SUPABASE_ANON_KEY');
 
   if (!url || !anonKey) {
     throw new Error('Supabase is not configured for hosted mode.');
@@ -131,7 +132,7 @@ export async function signInWithGitHubOAuth(): Promise<void> {
 }
 
 export function resolveSupabaseAuthRedirectUrl(): string | undefined {
-  const explicitUrl = process.env.EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_URL?.trim() ?? '';
+  const explicitUrl = readTrimmedPublicRuntimeConfigValue('EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_URL');
   if (explicitUrl) {
     return explicitUrl;
   }
@@ -140,7 +141,9 @@ export function resolveSupabaseAuthRedirectUrl(): string | undefined {
     return undefined;
   }
 
-  const redirectPath = process.env.EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_PATH?.trim() || DEFAULT_AUTH_REDIRECT_PATH;
+  const redirectPath =
+    readTrimmedPublicRuntimeConfigValue('EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_PATH') ||
+    DEFAULT_AUTH_REDIRECT_PATH;
   return `${window.location.origin}${redirectPath.startsWith('/') ? redirectPath : `/${redirectPath}`}`;
 }
 

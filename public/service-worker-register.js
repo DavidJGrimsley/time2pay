@@ -3,6 +3,10 @@
     return;
   }
 
+  if (/\.plesk\.page$/i.test(window.location.hostname || '')) {
+    return;
+  }
+
   // During local Expo dev server sessions there is usually no generated /sw.js.
   if (window.location.hostname === 'localhost' && window.location.port === '8081') {
     return;

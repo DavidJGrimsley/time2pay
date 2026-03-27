@@ -19,6 +19,7 @@ import {
   restoreBackup,
 } from '@/services/data-backup';
 import { InlineNotice, type NoticeTone } from '@/components/inline-notice';
+import { readTrimmedPublicRuntimeConfigValue } from '@/services/runtime-config';
 import { showActionErrorAlert, showSystemConfirm, showValidationAlert } from '@/services/system-alert';
 
 const FILE_PICKER_CANCELED_MESSAGE = 'Backup import canceled.';
@@ -157,7 +158,7 @@ export function ProfileOverview() {
   const [showPatInfoModal, setShowPatInfoModal] = useState(false);
   const [isSigningInWithGitHub, setIsSigningInWithGitHub] = useState(false);
 
-  const githubClientId = process.env.EXPO_PUBLIC_GITHUB_CLIENT_ID?.trim() ?? '';
+  const githubClientId = readTrimmedPublicRuntimeConfigValue('EXPO_PUBLIC_GITHUB_CLIENT_ID');
   const isGitHubOAuthEnabled = process.env.EXPO_OS === 'web' && Boolean(githubClientId);
 
   const showStatus = useCallback((section: ProfileStatusSection, notice: StatusNotice): void => {

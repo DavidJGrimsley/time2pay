@@ -34,7 +34,7 @@ export function RouteNav() {
               ? 'Tour mode active. Sign in to save data to your hosted account.'
               : 'Sign in to unlock hosted account sync.'}
           </Text>
-          <Link href="/sign-in" asChild>
+          <Link href={'/sign-in' as Href} asChild>
             <Pressable className="rounded-full bg-secondary px-3 py-1.5">
               <Text className="text-xs font-semibold text-white">Sign In</Text>
             </Pressable>

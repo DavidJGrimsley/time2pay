@@ -21,7 +21,11 @@ export default function TabsLayout() {
   const isAuthenticated = useAuthUiStore((state) => state.isAuthenticated);
   const tourModeEnabled = useAuthUiStore((state) => state.tourModeEnabled);
 
-  const shouldRequireProfileCompletion = dataModeResolved && !tourModeEnabled && (!hostedMode || isAuthenticated);
+  const shouldRequireProfileCompletion =
+    dataModeResolved &&
+    !isProfileRoute &&
+    !tourModeEnabled &&
+    (!hostedMode || isAuthenticated);
   const [isProfileGateReady, setIsProfileGateReady] = useState(!dataModeResolved || !shouldRequireProfileCompletion);
 
   useEffect(() => {
