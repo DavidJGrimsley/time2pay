@@ -53,6 +53,7 @@ Set these in `.env`:
 - `GITHUB_CLIENT_SECRET` (optional): server-side GitHub OAuth app client secret
 - `EXPO_PUBLIC_GITHUB_CLIENT_ID` (optional): client-visible GitHub OAuth id used to show the Sign in with GitHub button
 - `EXPO_PUBLIC_TIME2PAY_DATA_MODE` (optional): `local` (default) or `hosted`
+- `EXPO_PUBLIC_SITE_ORIGIN` (optional): canonical site origin and Expo Router web origin. Set this per environment, for example `https://time2pay.app` for production or your `*.plesk.page` staging URL for `test`
 - `TIME2PAY_FAIL_BUILD_IF_LOCAL` (optional): when truthy (`1/true/yes/on`), blocks web export if data mode resolves to `local`
 - `EXPO_PUBLIC_SUPABASE_URL` (required in hosted mode)
 - `EXPO_PUBLIC_SUPABASE_ANON_KEY` (required in hosted mode)
@@ -200,16 +201,19 @@ Notes:
 
 Use Plesk as the deployment target, but deploy the repository into the Node app root, not into `dist/client`.
 
-1. Connect the GitHub repository in **Plesk -> Git** and keep branch `main`.
-2. Set the Git deployment target to the **Application Root**:
-   - `/lucid-lewin.108-175-12-95.plesk.page`
-   - Do not deploy to `/lucid-lewin.108-175-12-95.plesk.page/dist/client`
-3. Keep the Node.js app settings aligned with `server.js`:
-   - Application Root: `/lucid-lewin.108-175-12-95.plesk.page`
-   - Document Root: `/lucid-lewin.108-175-12-95.plesk.page/dist/client`
+1. Create two separate Plesk Git deployments:
+   - Staging/temp domain tracks branch `test`
+   - Production domain tracks branch `main`
+2. For each environment, set the Git deployment target to the **Application Root** and do not deploy directly into `dist/client`.
+3. Keep each Node.js app aligned with `server.js`:
+   - Application Root: the site root for that domain
+   - Document Root: `<application-root>/dist/client`
    - Startup File: `server.js`
-4. Configure env vars in Plesk (`MERCURY_API_KEY`, optional `MERCURY_BASE_URL`, optional `PORT`).
-5. In the Git repository settings, enable **Additional deployment actions** and use:
+4. Configure env vars in each Plesk app:
+   - required app/server vars such as `MERCURY_API_KEY`
+   - optional runtime vars such as `MERCURY_BASE_URL` and `PORT`
+   - `EXPO_PUBLIC_SITE_ORIGIN` set to the matching domain for that environment
+5. In each Plesk Git repository settings page, enable **Additional deployment actions** and use:
 
 ```sh
 sh ./scripts/plesk-post-deploy.sh
@@ -217,13 +221,19 @@ sh ./scripts/plesk-post-deploy.sh
 
 This runs `npm ci --include=dev`, builds `dist/client` + `dist/server`, and touches `../tmp/restart.txt` so the Node app restarts.
 
-6. In GitHub repository secrets, add `PLESK_DEPLOY_WEBHOOK_URL` with the webhook URL from the Plesk Git repository screen.
-7. Pushes to `main` now flow like this:
-   - GitHub Actions runs lint, typecheck, tests, Expo doctor, and `npm run build:web:deploy`
-   - If those all pass, Actions `POST`s the Plesk webhook URL
-   - Plesk pulls the new commit, runs the post-deploy script, rebuilds the app, and restarts it
+6. In GitHub repository `Settings -> Secrets and variables -> Actions`, add:
+   - `PLESK_STAGING_WEBHOOK_URL`
+   - `PLESK_PRODUCTION_WEBHOOK_URL`
+7. Pushes now flow like this:
+   - PRs into `test` or `main` run the `Quality` check
+   - pushes to `test` that pass `Quality` trigger `Deploy Staging`
+   - pushes to `main` that pass `Quality` trigger `Deploy Production`
+   - PRs into `main` also run `Require Main PR Source`, which only allows `test` or `hotfix/*`
 8. Keep HTTPS enabled for full PWA install/service-worker behavior.
-9. For hosted mode, ensure Supabase auth redirects include `https://time2pay.app/dashboard`.
+9. For hosted mode, ensure Supabase auth redirects include the correct callback URL for each environment, especially `https://time2pay.app/dashboard` for production.
+10. Recommended GitHub rulesets after the new checks appear:
+   - `test`: require pull request, require `Quality`, require up-to-date branch, block force pushes, restrict deletions
+   - `main`: require pull request, require `Quality` and `Require Main PR Source`, require up-to-date branch, block force pushes, restrict deletions
 
 Notes:
 

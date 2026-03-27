@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - test
   workflow_dispatch:
 
 permissions:
@@ -16,7 +17,7 @@ concurrency:
 
 jobs:
   quality:
-    name: Lint, Typecheck, Test, Doctor, Build
+    name: Quality
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -48,21 +49,40 @@ jobs:
       - name: Run deploy build
         run: npm run build:web:deploy
 
-  deploy_plesk:
-    name: Trigger Plesk Deploy
+  deploy_staging:
+    name: Deploy Staging
+    needs: quality
+    if: github.event_name == 'push' && github.ref == 'refs/heads/test'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Trigger Plesk staging webhook
+        env:
+          PLESK_STAGING_WEBHOOK_URL: ${{ secrets.PLESK_STAGING_WEBHOOK_URL }}
+        run: |
+          if [ -z "$PLESK_STAGING_WEBHOOK_URL" ]; then
+            echo "Missing PLESK_STAGING_WEBHOOK_URL secret." >&2
+            exit 1
+          fi
+
+          curl --fail --silent --show-error --request POST "$PLESK_STAGING_WEBHOOK_URL"
+
+  deploy_production:
+    name: Deploy Production
     needs: quality
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
     steps:
-      - name: Trigger Plesk webhook
+      - name: Trigger Plesk production webhook
         env:
-          PLESK_DEPLOY_WEBHOOK_URL: ${{ secrets.PLESK_DEPLOY_WEBHOOK_URL }}
+          PLESK_PRODUCTION_WEBHOOK_URL: ${{ secrets.PLESK_PRODUCTION_WEBHOOK_URL }}
         run: |
-          if [ -z "$PLESK_DEPLOY_WEBHOOK_URL" ]; then
-            echo "Missing PLESK_DEPLOY_WEBHOOK_URL secret." >&2
+          if [ -z "$PLESK_PRODUCTION_WEBHOOK_URL" ]; then
+            echo "Missing PLESK_PRODUCTION_WEBHOOK_URL secret." >&2
             exit 1
           fi
 
-          curl --fail --silent --show-error --request POST "$PLESK_DEPLOY_WEBHOOK_URL"
+          curl --fail --silent --show-error --request POST "$PLESK_PRODUCTION_WEBHOOK_URL"

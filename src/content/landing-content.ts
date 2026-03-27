@@ -31,7 +31,6 @@ export type LandingSection = {
   ctas?: LandingCta[];
 };
 
-export const SITE_ORIGIN = 'https://lucid-lewin.108-175-12-95.plesk.page';
 export const TIME2PAY_GITHUB_URL = 'https://github.com/DavidJGrimsley/time2pay';
 export const DAVID_GRIMSLEY_PORTFOLIO_URL = 'https://DavidJGrimsley.com';
 
