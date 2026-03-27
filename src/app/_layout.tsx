@@ -6,7 +6,12 @@ import { AppLoadingShell } from '@/components/app-loading-shell';
 import { LandingSeoHead } from '@/components/landing/landing-seo-head';
 import { NoIndexSeoHead } from '@/components/no-index-seo-head';
 import { bootstrapRuntimeDiagnostics, errorMessage, logRuntimeDiagnostic } from '@/services/runtime-diagnostics';
-import { isHostedMode, resolveAppAccessMode } from '@/services/runtime-mode';
+import {
+  getMissingHostedModePublicEnvKeys,
+  HOSTED_MODE_REQUIRED_PUBLIC_ENV_KEYS,
+  isHostedMode,
+  resolveAppAccessMode,
+} from '@/services/runtime-mode';
 import { getSupabaseSession, onSupabaseAuthStateChange } from '@/services/supabase-client';
 import { ensureTourDemoData } from '@/services/tour-demo';
 import { useAuthUiStore } from '@/stores/auth-ui-store';
@@ -51,6 +56,29 @@ export default function RootLayout() {
       segments,
     });
   }, [hostedMode, pathname, segments]);
+
+  useEffect(() => {
+    if (!hostedMode) {
+      return;
+    }
+
+    const missingEnvKeys = getMissingHostedModePublicEnvKeys();
+    if (missingEnvKeys.length > 0) {
+      logRuntimeDiagnostic(
+        'hosted.config.missingEnv',
+        {
+          missingEnvKeys,
+          requiredEnvKeys: HOSTED_MODE_REQUIRED_PUBLIC_ENV_KEYS,
+        },
+        { level: 'error' },
+      );
+      return;
+    }
+
+    logRuntimeDiagnostic('hosted.config.ready', {
+      requiredEnvKeys: HOSTED_MODE_REQUIRED_PUBLIC_ENV_KEYS,
+    });
+  }, [hostedMode]);
 
   useEffect(() => {
     Uniwind.setTheme('system');
@@ -169,7 +197,11 @@ export default function RootLayout() {
     };
   }, [appAccessMode, hostedMode]);
 
-  const canAccessTabs = !hostedMode || isAuthenticated || tourModeEnabled;
+  // Keep tabs reachable while hosted auth/tour state is still bootstrapping so
+  // first-click tour navigation can land on the loading shell instead of
+  // bouncing back to the public landing route.
+  const hostedAccessResolved = tourModeHydrated && authReady;
+  const canAccessTabs = !hostedMode || !hostedAccessResolved || isAuthenticated || tourModeEnabled;
   const isInsideTabsGroup = pathname !== '/' && pathname !== '/sign-in';
 
   useEffect(() => {
@@ -184,6 +216,7 @@ export default function RootLayout() {
 
     logRuntimeDiagnostic('auth.redirect.check', {
       canAccessTabs,
+      hostedAccessResolved,
       isInsideTabsGroup,
       isAuthenticated,
       pathname,
@@ -211,6 +244,7 @@ export default function RootLayout() {
   }, [
     authReady,
     canAccessTabs,
+    hostedAccessResolved,
     hostedMode,
     isAuthenticated,
     isInsideTabsGroup,
@@ -228,13 +262,14 @@ export default function RootLayout() {
     if (isLoadingShellVisible) {
       logRuntimeDiagnostic('root.loadingShell.visible', {
         hostedMode,
+        hostedAccessResolved,
         tourModeHydrated,
         authReady,
         appAccessMode,
         isTourSeedReady,
       });
     }
-  }, [isLoadingShellVisible, hostedMode, tourModeHydrated, authReady, appAccessMode, isTourSeedReady]);
+  }, [isLoadingShellVisible, hostedMode, hostedAccessResolved, tourModeHydrated, authReady, appAccessMode, isTourSeedReady]);
 
   if (isLoadingShellVisible) {
     return (

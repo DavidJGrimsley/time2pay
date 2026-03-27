@@ -15,6 +15,7 @@ Core principles:
 - `local` mode: Expo Router app + `expo-sqlite` provider
 - `hosted` mode: Supabase Auth + Postgres (Drizzle) provider
 - App-facing DB contract remains stable across both modes via `src/database/db.ts`
+- Runtime mode selection is env-driven via `EXPO_PUBLIC_TIME2PAY_DATA_MODE` (`local` or `hosted`)
 
 ### Hosted architecture
 - Auth: Supabase email magic-link + GitHub OAuth
@@ -23,6 +24,17 @@ Core principles:
 - Validation: route-level zod payload parsing + typed route status handling
 - Schema: domain files in `src/database/hosted/**/schema.ts`
 - Migrations: Drizzle migrations in `drizzle/migrations`
+
+### Hosted access contract (2026-03-27)
+- Unauthenticated hosted users: landing + sign-in only, unless they explicitly start tour mode
+- Tour mode users: can use demo app flow without profile-completion lock UI
+- Authenticated hosted users: remain profile-first and are redirected to `/profile` until required fields are complete
+- Root stack protection keeps direct unauthenticated tab access blocked and routes to `/sign-in` after hosted auth bootstrap resolves
+
+### Hosted deployment env contract
+- Required in hosted mode: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`
+- Required mode toggle on Plesk: `EXPO_PUBLIC_TIME2PAY_DATA_MODE=hosted`
+- Startup diagnostics now log mode/env mismatches in both client runtime diagnostics and Node server startup logs
 
 ### Migration state
 - Supabase schema is applied

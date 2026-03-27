@@ -34,6 +34,10 @@ const publicRuntimeEnvKeys = [
   'EXPO_PUBLIC_SUPABASE_URL',
   'EXPO_PUBLIC_TIME2PAY_DATA_MODE',
 ];
+const hostedRuntimeRequiredPublicEnvKeys = [
+  'EXPO_PUBLIC_SUPABASE_URL',
+  'EXPO_PUBLIC_SUPABASE_ANON_KEY',
+];
 
 function assertBuildArtifact(filePath, description) {
   if (!fs.existsSync(filePath)) {
@@ -51,9 +55,30 @@ function buildPublicRuntimeConfig() {
   }, {});
 }
 
+function logHostedRuntimeEnvHealth() {
+  const dataMode = (process.env.EXPO_PUBLIC_TIME2PAY_DATA_MODE || 'local').trim().toLowerCase();
+  if (dataMode !== 'hosted') {
+    console.log(`[startup] Data mode is "${dataMode || 'local'}". Hosted auth is disabled.`);
+    return;
+  }
+
+  const missingKeys = hostedRuntimeRequiredPublicEnvKeys.filter(
+    (key) => !String(process.env[key] || '').trim(),
+  );
+  if (missingKeys.length > 0) {
+    console.warn(
+      `[startup] Hosted mode is enabled but required env vars are missing: ${missingKeys.join(', ')}`,
+    );
+    return;
+  }
+
+  console.log('[startup] Hosted mode env looks configured (required Supabase public vars present).');
+}
+
 assertBuildArtifact(clientBuildDir, 'Client build directory');
 assertBuildArtifact(serverBuildDir, 'Server build directory');
 assertBuildArtifact(routesManifestPath, 'Generated Expo routes manifest');
+logHostedRuntimeEnvHealth();
 
 app.disable('x-powered-by');
 app.use(compression());

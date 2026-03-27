@@ -66,6 +66,10 @@ Set these in `.env`:
 - `DRIZZLE_DATABASE_URL` (optional): explicit override used by Drizzle CLI (`db:migrate`, `db:check`, etc.)
 - `PORT` (optional): defaults to `3000`
 
+Plesk note:
+- Set `EXPO_PUBLIC_TIME2PAY_DATA_MODE=hosted` in your Plesk Node app environment for hosted deployments.
+- If this is missing or set to `local`, hosted auth/data flows are intentionally disabled.
+
 If `MERCURY_API_KEY` is missing, `/api/mercury` returns `400`.
 If GitHub OAuth env vars are missing, `/api/github` returns `501` and the Sign in with GitHub button is hidden.
 If hosted env vars are missing while `EXPO_PUBLIC_TIME2PAY_DATA_MODE=hosted`, auth/data flows fail at startup.
@@ -80,6 +84,11 @@ Hosted mode includes:
 - User-scoped profile + data reads from Supabase
 - API-routed hosted writes (`/api/db/<domain>/<action>`)
 - Strict write payload validation with typed API error statuses (`401/403/404/409/422/500`)
+
+Hosted mode guardrails:
+- Unauthenticated hosted users can access landing/sign-in and can opt into tour mode.
+- Authenticated hosted users stay profile-gated until required profile fields are complete.
+- Tour mode bypasses profile completion lock UI so the demo flow is usable immediately.
 
 Supabase callback setup:
 1. In Supabase Auth settings, add redirect URLs for:
@@ -103,6 +112,10 @@ Use this when production auth/routing behavior is unclear:
 - Debug mode persists via localStorage key `time2pay.debug.auth`.
 - Disable diagnostics with `?debugAuth=0`.
 
+Server startup diagnostics:
+- `server.js` logs whether data mode resolves to `local` or `hosted`.
+- In hosted mode, it logs missing required Supabase public env keys at startup so Plesk env issues are obvious early.
+
 ## Run Modes
 
 ### Production-style local server (recommended)
@@ -113,6 +126,10 @@ npm run serve:prod:env
 ```
 
 This serves `dist/client`, runs `dist/server`, and enables API routes + PWA behavior.
+
+Windows note:
+- If Expo export crashes with a Windows access violation code, `build:web:deploy` now retries once automatically.
+- For most stable behavior, use Node 20 LTS for local build/serve workflows.
 
 ### Dev mode
 

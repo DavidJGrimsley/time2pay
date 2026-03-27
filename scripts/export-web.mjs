@@ -2,7 +2,13 @@ import { spawn } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import dotenv from 'dotenv';
-import { clientBuildDir, repoRoot, serverBuildDir } from './web-output-utils.mjs';
+import {
+  clientBuildDir,
+  discoverApiRouteSources,
+  repoRoot,
+  serverBuildDir,
+  toPosixPath,
+} from './web-output-utils.mjs';
 
 const WINDOWS_ACCESS_VIOLATION_EXIT_CODES = new Set([3221225477, -1073741819]);
 const STRICT_LOCAL_MODE_BUILD_FLAG = 'TIME2PAY_FAIL_BUILD_IF_LOCAL';
@@ -65,11 +71,22 @@ async function exportArtifactsLookValid() {
     }
   }
 
+  const apiRouteSources = await discoverApiRouteSources();
+  for (const apiRoute of apiRouteSources) {
+    const relativeFunctionPath = toPosixPath(
+      path.join('_expo', 'functions', `${apiRoute.pagePath}+api.js`),
+    );
+    const builtFunctionPath = path.join(serverBuildDir, relativeFunctionPath);
+    const functionStat = await fs.stat(builtFunctionPath).catch(() => null);
+    if (!functionStat) {
+      return false;
+    }
+  }
+
   return true;
 }
 
-async function main() {
-  const resolvedEnv = await resolveBuildEnvironment();
+async function runExpoExport(resolvedEnv) {
   const isWindows = process.platform === 'win32';
   const command = isWindows ? 'cmd.exe' : 'npx';
   const args = isWindows ? ['/d', '/s', '/c', 'npx expo export -p web'] : ['expo', 'export', '-p', 'web'];
@@ -85,6 +102,26 @@ async function main() {
     child.once('error', reject);
     child.once('exit', (code) => resolve(code ?? 0));
   });
+
+  return { exitCode, isWindows };
+}
+
+async function main() {
+  const resolvedEnv = await resolveBuildEnvironment();
+  const firstAttempt = await runExpoExport(resolvedEnv);
+  const { isWindows } = firstAttempt;
+  let exitCode = firstAttempt.exitCode;
+
+  if (exitCode !== 0 && isWindows && WINDOWS_ACCESS_VIOLATION_EXIT_CODES.has(exitCode)) {
+    const artifactsLookValid = await exportArtifactsLookValid();
+    if (!artifactsLookValid) {
+      console.warn(
+        'Expo export exited with a Windows access violation and left incomplete server artifacts. Retrying once...',
+      );
+      const retryAttempt = await runExpoExport(resolvedEnv);
+      exitCode = retryAttempt.exitCode;
+    }
+  }
 
   if (exitCode === 0) {
     return;

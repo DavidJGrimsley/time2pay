@@ -1,8 +1,18 @@
 # Time2Pay — TODO
 
 ## Current Status
-- Branch: `feature/mercury-api-npm`
-- Phase focus: Phase 1 (Web, local-first)
+- Branch: `bug/tour-mode-auth`
+- Phase focus: Hosted auth/tour stabilization + referral-first OSS rollout
+
+## Hosted Auth/Tour Cleanup (2026-03-27)
+- [x] Confirm branch baseline follows repo rule (`bug/tour-mode-auth` from `test`, not `main`)
+- [x] Apply hosted first-click tour routing guard in root stack protection
+- [x] Keep hosted unauthenticated access limited to landing/sign-in unless tour is explicitly started
+- [x] Keep authenticated hosted users profile-first (redirect to `/profile` until complete)
+- [x] Bypass profile lock UI while user is in hosted tour mode
+- [x] Ensure landing profile CTAs route unauthenticated hosted users to `/sign-in` first
+- [x] Add startup diagnostics for hosted env mismatches (client + server logs)
+- [ ] Run hosted smoke checks on staging domain after deploy (landing, sign-in, tour-first-click, profile gate)
 
 ## Immediate Next Actions
 
@@ -114,10 +124,10 @@ Milestone Payments:
 
 ## Business Model: OSS + Hosted SaaS
 
-### Pricing (Agreed Starter)
-- [ ] `Free`: self-host, unlimited projects/clients, basic invoices
-- [ ] `Pro $5/mo`: hosted, backups, recurring invoices, templates
-- [ ] `Team $20/mo`: includes 2 users; +$5 per additional user; multi-user roles, approvals, export/reporting
+### Monetization Direction (Current)
+- [x] Referral-first OSS model (free core app + Mercury referral focus)
+- [x] Keep hosted mode available as convenience/distribution advantage, not immediate paid gate
+- [ ] Re-evaluate paid hosted tiers only after hosted auth/tour stability and referral conversion data
 
 ### Mercury API Key Security (Hosted SaaS)
 - [ ] Keep Mercury API keys server-side only (never in client JS, never in local profile UI)
