@@ -146,4 +146,6 @@ export const footerBrand = {
 export const footerLinks: LandingFooterLink[] = [
   { label: 'DavidJGrimsley.com', href: DAVID_GRIMSLEY_PORTFOLIO_URL },
   { label: 'Time2Pay on GitHub', href: TIME2PAY_GITHUB_URL },
+  { label: 'Terms of Service', href: '/terms' },
+  { label: 'Privacy Policy', href: '/privacy' },
 ];
