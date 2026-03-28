@@ -14,6 +14,7 @@ Core principles:
 ### Runtime modes
 - `local` mode: Expo Router app + `expo-sqlite` provider
 - `hosted` mode: Supabase Auth + Postgres (Drizzle) provider
+- `tour` access mode (hosted unauthenticated): in-memory demo provider (no SQLite dependency)
 - App-facing DB contract remains stable across both modes via `src/database/db.ts`
 - Runtime mode selection is env-driven via `EXPO_PUBLIC_TIME2PAY_DATA_MODE` (`local` or `hosted`)
 
@@ -28,6 +29,7 @@ Core principles:
 ### Hosted access contract (2026-03-28)
 - Unauthenticated hosted users: landing + sign-in only, unless they explicitly start tour mode
 - Tour mode users: can use demo app flow without profile-completion lock UI
+- Tour mode data path: in-memory provider with reset action (`Reset Tour`), avoiding filesystem-backed SQLite in hosted tour flows
 - Authenticated hosted users: remain profile-first and are redirected to `/profile` until required fields are complete
 - Root stack protection keeps direct unauthenticated tab access blocked and routes to `/sign-in` after hosted auth bootstrap resolves
 - Tour-mode Profile integration auth actions route to `/sign-in` instead of launching external OAuth/PAT flows
