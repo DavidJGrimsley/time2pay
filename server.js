@@ -45,7 +45,11 @@ const hostedRuntimeDeprecatedEnvKeys = [
 
 function assertBuildArtifact(filePath, description) {
   if (!fs.existsSync(filePath)) {
-    throw new Error(`${description} not found at ${filePath}. Run "npm run build:web:deploy" first.`);
+    throw new Error(
+      `${description} not found at ${filePath}. ` +
+        'Run "npm run build:web:deploy" (or "npm run serve:prod:fresh") first. ' +
+        'Note: dist artifacts are generated at build time and are not committed to git.',
+    );
   }
 }
 
@@ -165,6 +169,12 @@ app.use((error, _req, res, _next) => {
   res.status(500).type('text/plain').send('Internal server error');
 });
 
-app.listen(port, () => {
+const server = app.listen(port, () => {
   console.log(`Time2Pay server listening on http://localhost:${port}`);
 });
+
+// Some hosting/dev shells can leave the HTTP listener unreferenced.
+// Force a strong reference so the Node process stays alive after startup.
+if (typeof server.ref === 'function') {
+  server.ref();
+}
