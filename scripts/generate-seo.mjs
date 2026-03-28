@@ -1,9 +1,15 @@
 import { promises as fs } from 'node:fs';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { config as loadEnvFile } from 'dotenv';
 import { loadExpoRouterPluginConfig, publicDir } from './web-output-utils.mjs';
 
-loadEnvFile();
+for (const envFileName of ['.env.build', '.env']) {
+  const envPath = path.resolve(process.cwd(), envFileName);
+  if (existsSync(envPath)) {
+    loadEnvFile({ path: envPath, override: false });
+  }
+}
 
 const INDEXED_PUBLIC_ROUTES = ['/'];
 const PRIVATE_ROUTE_BLOCKLIST = ['/api/', '/_sitemap'];

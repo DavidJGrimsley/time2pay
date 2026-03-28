@@ -6,6 +6,10 @@ public/robots.txt
 public/sitemap.xml
 .env
 .env.*
+# Explicit local environment variants
+.env.build
+.env.test
+.env.production
 !.env.example
 !.env*.example
 

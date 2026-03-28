@@ -18,16 +18,35 @@ function isTruthy(value) {
   return /^(1|true|yes|on)$/i.test(value.trim());
 }
 
-async function resolveBuildEnvironment() {
-  const envFilePath = path.join(repoRoot, '.env');
-  const envFileExists = await fs
-    .access(envFilePath)
-    .then(() => true)
-    .catch(() => false);
+async function loadPreferredBuildEnvFile() {
+  const candidateFiles = ['.env.build', '.env'];
+  const existingCandidates = [];
 
-  const envFromFile = envFileExists
-    ? dotenv.parse(await fs.readFile(envFilePath, 'utf8'))
-    : {};
+  for (const fileName of candidateFiles) {
+    const filePath = path.join(repoRoot, fileName);
+    const exists = await fs
+      .access(filePath)
+      .then(() => true)
+      .catch(() => false);
+    if (exists) {
+      existingCandidates.push({ fileName, filePath });
+    }
+  }
+
+  if (existingCandidates.length === 0) {
+    return { envFromFile: {}, sourceFile: null };
+  }
+
+  const envFromFile = {};
+  for (const candidate of [...existingCandidates].reverse()) {
+    Object.assign(envFromFile, dotenv.parse(await fs.readFile(candidate.filePath, 'utf8')));
+  }
+
+  return { envFromFile, sourceFile: existingCandidates[0].fileName };
+}
+
+async function resolveBuildEnvironment() {
+  const { envFromFile, sourceFile } = await loadPreferredBuildEnvFile();
 
   const resolvedEnv = {
     ...envFromFile,
@@ -39,7 +58,7 @@ async function resolveBuildEnvironment() {
   const modeSource = process.env.EXPO_PUBLIC_TIME2PAY_DATA_MODE?.trim()
     ? 'process.env'
     : envFromFile.EXPO_PUBLIC_TIME2PAY_DATA_MODE?.trim()
-      ? '.env'
+      ? sourceFile ?? '.env'
       : 'default(local)';
 
   console.log(

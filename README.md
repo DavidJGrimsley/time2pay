@@ -49,9 +49,8 @@ Set these in `.env`:
 
 - `MERCURY_API_KEY` (required to use your bank account): your Mercury API key
 - `MERCURY_BASE_URL` (optional): defaults to `https://api.mercury.com/api/v1`
-- `GITHUB_CLIENT_ID` (optional): server-side GitHub OAuth app client id
 - `GITHUB_CLIENT_SECRET` (optional): server-side GitHub OAuth app client secret
-- `EXPO_PUBLIC_GITHUB_CLIENT_ID` (optional): client-visible GitHub OAuth id used to show the Sign in with GitHub button
+- `EXPO_PUBLIC_GITHUB_CLIENT_ID` (optional): GitHub OAuth app client id used by the client UI and server token exchange
 - `EXPO_PUBLIC_TIME2PAY_DATA_MODE` (optional): `local` (default) or `hosted`
 - `EXPO_PUBLIC_SITE_ORIGIN` (required in hosted mode): canonical site origin used for hosted auth redirects and hosted API writes. Set this per environment, for example `https://time2pay.app` for production or your `*.plesk.page` staging URL for `test`
 - `TIME2PAY_FAIL_BUILD_IF_LOCAL` (optional): when truthy (`1/true/yes/on`), blocks web export if data mode resolves to `local`
@@ -62,6 +61,10 @@ Set these in `.env`:
 - `DATABASE_DIRECT_URL` (optional direct database host/port, usually `5432`, only if your network supports direct connectivity)
 - `DRIZZLE_DATABASE_URL` (optional): explicit override used by Drizzle CLI (`db:migrate`, `db:check`, etc.)
 - `PORT` (optional): defaults to `3000`
+
+Environment file convention:
+- Build scripts now prefer `.env.build` and fall back to `.env`.
+- Keep `.env.test` and `.env.production` as minimal key reference files for Plesk values.
 
 Plesk note:
 - Set `EXPO_PUBLIC_TIME2PAY_DATA_MODE=hosted` in your Plesk Node app environment for hosted deployments.
@@ -164,9 +167,8 @@ To enable **Sign in with GitHub**:
    - Local: `http://localhost:3000/profile`
    - Hosted: `https://yourdomain.com/profile`
 3. Add env vars:
-   - `GITHUB_CLIENT_ID`
    - `GITHUB_CLIENT_SECRET`
-   - `EXPO_PUBLIC_GITHUB_CLIENT_ID` (same value as `GITHUB_CLIENT_ID`)
+   - `EXPO_PUBLIC_GITHUB_CLIENT_ID`
 4. Rebuild and restart:
    - `npm run build:web`
    - `npm run serve:prod:env`
