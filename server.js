@@ -23,6 +23,7 @@ const port = Number(process.env.PORT || 3000);
 const clientBuildDir = path.join(__dirname, 'dist', 'client');
 const serverBuildDir = path.join(__dirname, 'dist', 'server');
 const routesManifestPath = path.join(serverBuildDir, '_expo', 'routes.json');
+const buildCommitMarkerPath = path.join(clientBuildDir, '__time2pay_build.txt');
 const publicRuntimeEnvKeys = [
   'EXPO_PUBLIC_GITHUB_CLIENT_ID',
   'EXPO_PUBLIC_SITE_ORIGIN',
@@ -115,6 +116,7 @@ function assertHostedRuntimeEnvHealth() {
 assertBuildArtifact(clientBuildDir, 'Client build directory');
 assertBuildArtifact(serverBuildDir, 'Server build directory');
 assertBuildArtifact(routesManifestPath, 'Generated Expo routes manifest');
+assertBuildArtifact(buildCommitMarkerPath, 'Build commit marker');
 assertHostedRuntimeEnvHealth();
 
 app.disable('x-powered-by');
@@ -134,6 +136,12 @@ app.get('/__time2pay_runtime_config__', (_req, res) => {
   res.send(
     `window.__TIME2PAY_RUNTIME_CONFIG__ = Object.freeze(${JSON.stringify(buildPublicRuntimeConfig())});\n`,
   );
+});
+
+app.get('/__time2pay_build.txt', (_req, res) => {
+  res.type('text/plain');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.sendFile(buildCommitMarkerPath);
 });
 
 app.use(

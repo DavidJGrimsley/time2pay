@@ -14,7 +14,7 @@
     "db:studio": "drizzle-kit studio",
     "db:check": "drizzle-kit check",
     "icons:sync": "node scripts/copy-icons.mjs",
-    "build:web:deploy": "node scripts/generate-seo.mjs && node scripts/export-web.mjs && node scripts/prepare-server-output.mjs && node scripts/generate-sw.mjs",
+    "build:web:deploy": "node scripts/generate-seo.mjs && node scripts/export-web.mjs && node scripts/prepare-server-output.mjs && node scripts/generate-build-meta.mjs && node scripts/generate-sw.mjs",
     "build:web": "npm run icons:sync && npm run build:web:deploy",
     "serve:prod": "node server.js",
     "serve:prod:fresh": "npm run build:web:deploy && node server.js",
