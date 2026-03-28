@@ -53,13 +53,10 @@ Set these in `.env`:
 - `GITHUB_CLIENT_SECRET` (optional): server-side GitHub OAuth app client secret
 - `EXPO_PUBLIC_GITHUB_CLIENT_ID` (optional): client-visible GitHub OAuth id used to show the Sign in with GitHub button
 - `EXPO_PUBLIC_TIME2PAY_DATA_MODE` (optional): `local` (default) or `hosted`
-- `EXPO_PUBLIC_SITE_ORIGIN` (optional): canonical site origin and Expo Router web origin. Set this per environment, for example `https://time2pay.app` for production or your `*.plesk.page` staging URL for `test`
+- `EXPO_PUBLIC_SITE_ORIGIN` (required in hosted mode): canonical site origin used for hosted auth redirects and hosted API writes. Set this per environment, for example `https://time2pay.app` for production or your `*.plesk.page` staging URL for `test`
 - `TIME2PAY_FAIL_BUILD_IF_LOCAL` (optional): when truthy (`1/true/yes/on`), blocks web export if data mode resolves to `local`
 - `EXPO_PUBLIC_SUPABASE_URL` (required in hosted mode)
 - `EXPO_PUBLIC_SUPABASE_ANON_KEY` (required in hosted mode)
-- `EXPO_PUBLIC_HOSTED_API_BASE_URL` (required for hosted writes in non-web runtime; example: `https://time2pay.app`)
-- `EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_URL` (optional): full OAuth/magic-link callback URL
-- `EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_PATH` (optional): path fallback for callback URL, defaults to `/dashboard`
 - `SUPABASE_SERVICE_ROLE_KEY` (required for server-side admin operations)
 - `DATABASE_URL` (recommended for Drizzle migrations and runtime SQL clients; Supabase pooler, usually `6543`)
 - `DATABASE_DIRECT_URL` (optional direct database host/port, usually `5432`, only if your network supports direct connectivity)
@@ -72,7 +69,8 @@ Plesk note:
 
 If `MERCURY_API_KEY` is missing, `/api/mercury` returns `400`.
 If GitHub OAuth env vars are missing, `/api/github` returns `501` and the Sign in with GitHub button is hidden.
-If hosted env vars are missing while `EXPO_PUBLIC_TIME2PAY_DATA_MODE=hosted`, auth/data flows fail at startup.
+If hosted env vars are missing while `EXPO_PUBLIC_TIME2PAY_DATA_MODE=hosted`, startup fails fast.
+If deprecated hosted env vars are present in hosted mode (`EXPO_PUBLIC_HOSTED_API_BASE_URL`, `EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_URL`, `EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_PATH`, `EXPO_PUBLIC_MERCURY_PROXY_PATH`, `SITE_ORIGIN`), startup fails fast.
 If `TIME2PAY_FAIL_BUILD_IF_LOCAL` is truthy, deployment builds fail fast unless mode resolves to `hosted`.
 
 ## Hosted Mode (Supabase + Multi-User)
@@ -94,9 +92,7 @@ Supabase callback setup:
 1. In Supabase Auth settings, add redirect URLs for:
    - `http://localhost:3000/dashboard`
    - `https://time2pay.app/dashboard`
-2. In `.env`, set either:
-   - `EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_URL=https://time2pay.app/dashboard` (production), or
-   - `EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_PATH=/dashboard` (origin-relative fallback).
+2. In `.env`, set `EXPO_PUBLIC_SITE_ORIGIN` to the exact deployed origin for that environment.
 
 Drizzle migration connection note:
 - `drizzle.config.ts` precedence is `DRIZZLE_DATABASE_URL -> DATABASE_URL -> DATABASE_DIRECT_URL`.
@@ -114,7 +110,7 @@ Use this when production auth/routing behavior is unclear:
 
 Server startup diagnostics:
 - `server.js` logs whether data mode resolves to `local` or `hosted`.
-- In hosted mode, it logs missing required Supabase public env keys at startup so Plesk env issues are obvious early.
+- In hosted mode, it enforces the strict env contract and fails startup when required vars are missing or deprecated vars are present.
 
 ## Run Modes
 

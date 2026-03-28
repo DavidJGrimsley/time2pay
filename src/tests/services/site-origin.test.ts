@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { resolveSiteOrigin } from '@/services/site-origin';
+import { requireConfiguredSiteOrigin, resolveSiteOrigin } from '@/services/site-origin';
 
 const ORIGINAL_ENV = {
   EXPO_PUBLIC_SITE_ORIGIN: process.env.EXPO_PUBLIC_SITE_ORIGIN,
@@ -33,5 +33,21 @@ describe('site-origin', () => {
     process.env.EXPO_PUBLIC_SITE_ORIGIN = '';
 
     expect(resolveSiteOrigin()).toBe('https://time2pay.app');
+  });
+
+  it('throws when required site origin is missing', () => {
+    process.env.EXPO_PUBLIC_SITE_ORIGIN = '';
+
+    expect(() => requireConfiguredSiteOrigin()).toThrow(
+      'Hosted mode requires EXPO_PUBLIC_SITE_ORIGIN.',
+    );
+  });
+
+  it('throws when required site origin is invalid', () => {
+    process.env.EXPO_PUBLIC_SITE_ORIGIN = 'not-a-url';
+
+    expect(() => requireConfiguredSiteOrigin()).toThrow(
+      'EXPO_PUBLIC_SITE_ORIGIN must be a valid absolute URL.',
+    );
   });
 });

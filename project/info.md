@@ -25,16 +25,18 @@ Core principles:
 - Schema: domain files in `src/database/hosted/**/schema.ts`
 - Migrations: Drizzle migrations in `drizzle/migrations`
 
-### Hosted access contract (2026-03-27)
+### Hosted access contract (2026-03-28)
 - Unauthenticated hosted users: landing + sign-in only, unless they explicitly start tour mode
 - Tour mode users: can use demo app flow without profile-completion lock UI
 - Authenticated hosted users: remain profile-first and are redirected to `/profile` until required fields are complete
 - Root stack protection keeps direct unauthenticated tab access blocked and routes to `/sign-in` after hosted auth bootstrap resolves
+- Tour-mode Profile integration auth actions route to `/sign-in` instead of launching external OAuth/PAT flows
 
 ### Hosted deployment env contract
-- Required in hosted mode: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`
+- Required in hosted mode: `EXPO_PUBLIC_SITE_ORIGIN`, `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`
 - Required mode toggle on Plesk: `EXPO_PUBLIC_TIME2PAY_DATA_MODE=hosted`
-- Startup diagnostics now log mode/env mismatches in both client runtime diagnostics and Node server startup logs
+- Hosted auth redirect targets are derived from `EXPO_PUBLIC_SITE_ORIGIN` (`/dashboard` for Supabase sign-in, `/profile` for profile GitHub OAuth)
+- Startup/runtime checks now fail fast on missing required hosted vars and fail fast when deprecated hosted vars are present (`EXPO_PUBLIC_HOSTED_API_BASE_URL`, `EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_URL`, `EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_PATH`, `EXPO_PUBLIC_MERCURY_PROXY_PATH`, `SITE_ORIGIN`)
 
 ### Migration state
 - Supabase schema is applied

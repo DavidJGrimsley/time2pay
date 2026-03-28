@@ -13,8 +13,7 @@ function normalizeSiteOrigin(rawOrigin) {
 }
 
 async function resolveSiteOrigin() {
-  const configuredOrigin =
-    process.env.SITE_ORIGIN?.trim() || process.env.EXPO_PUBLIC_SITE_ORIGIN?.trim();
+  const configuredOrigin = process.env.EXPO_PUBLIC_SITE_ORIGIN?.trim();
   if (configuredOrigin) {
     return normalizeSiteOrigin(configuredOrigin);
   }
@@ -25,7 +24,7 @@ async function resolveSiteOrigin() {
   }
 
   throw new Error(
-    'SITE_ORIGIN is not configured. Set SITE_ORIGIN or EXPO_PUBLIC_SITE_ORIGIN before building the web export.',
+    'EXPO_PUBLIC_SITE_ORIGIN is not configured. Set EXPO_PUBLIC_SITE_ORIGIN before building the web export.',
   );
 }
 

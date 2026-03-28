@@ -1,6 +1,6 @@
 import { getSupabaseClient, getSupabaseUser, requireSupabaseUserId } from '@/services/supabase-client';
 import type { UserProfile } from '@/database/hosted/types';
-import { readTrimmedPublicRuntimeConfigValue } from '@/services/runtime-config';
+import { requireConfiguredSiteOrigin } from '@/services/site-origin';
 
 export function nowIso(): string {
   return new Date().toISOString();
@@ -96,18 +96,7 @@ export function byId<T extends { id: string }>(rows: T[]): Map<string, T> {
 
 function resolveHostedWriteUrl(path: string): string {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  const explicitBaseUrl = readTrimmedPublicRuntimeConfigValue('EXPO_PUBLIC_HOSTED_API_BASE_URL');
-  if (explicitBaseUrl) {
-    return new URL(normalizedPath, explicitBaseUrl).toString();
-  }
-
-  if (typeof window !== 'undefined') {
-    return normalizedPath;
-  }
-
-  throw new Error(
-    'Hosted writes on non-web runtime require EXPO_PUBLIC_HOSTED_API_BASE_URL.',
-  );
+  return new URL(normalizedPath, requireConfiguredSiteOrigin()).toString();
 }
 
 export async function callHostedWriteRoute(

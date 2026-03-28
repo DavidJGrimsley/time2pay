@@ -4,12 +4,27 @@ import { readTrimmedPublicRuntimeConfigValue } from '@/services/runtime-config';
 export type Time2PayDataMode = 'local' | 'hosted';
 export type AppAccessMode = 'local' | 'hosted' | 'tour';
 export type HostedModeRequiredPublicEnvKey =
+  | 'EXPO_PUBLIC_SITE_ORIGIN'
   | 'EXPO_PUBLIC_SUPABASE_URL'
   | 'EXPO_PUBLIC_SUPABASE_ANON_KEY';
+export type HostedModeDeprecatedPublicEnvKey =
+  | 'EXPO_PUBLIC_HOSTED_API_BASE_URL'
+  | 'EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_URL'
+  | 'EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_PATH'
+  | 'EXPO_PUBLIC_MERCURY_PROXY_PATH'
+  | 'SITE_ORIGIN';
 
 export const HOSTED_MODE_REQUIRED_PUBLIC_ENV_KEYS: readonly HostedModeRequiredPublicEnvKey[] = [
+  'EXPO_PUBLIC_SITE_ORIGIN',
   'EXPO_PUBLIC_SUPABASE_URL',
   'EXPO_PUBLIC_SUPABASE_ANON_KEY',
+];
+export const HOSTED_MODE_DEPRECATED_PUBLIC_ENV_KEYS: readonly HostedModeDeprecatedPublicEnvKey[] = [
+  'EXPO_PUBLIC_HOSTED_API_BASE_URL',
+  'EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_URL',
+  'EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_PATH',
+  'EXPO_PUBLIC_MERCURY_PROXY_PATH',
+  'SITE_ORIGIN',
 ];
 
 export function getDataMode(): Time2PayDataMode {
@@ -54,10 +69,47 @@ export function getMissingHostedModePublicEnvKeys(): HostedModeRequiredPublicEnv
   );
 }
 
+export function getPresentHostedModeDeprecatedPublicEnvKeys(): HostedModeDeprecatedPublicEnvKey[] {
+  if (!isHostedMode()) {
+    return [];
+  }
+
+  return HOSTED_MODE_DEPRECATED_PUBLIC_ENV_KEYS.filter(
+    (key) => Boolean(process.env[key]?.trim()),
+  );
+}
+
+function assertValidHostedSiteOrigin(): void {
+  const siteOrigin = readTrimmedPublicRuntimeConfigValue('EXPO_PUBLIC_SITE_ORIGIN');
+  if (!siteOrigin) {
+    return;
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(siteOrigin);
+  } catch {
+    throw new Error('Hosted mode requires EXPO_PUBLIC_SITE_ORIGIN to be a valid absolute URL.');
+  }
+
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    throw new Error('Hosted mode requires EXPO_PUBLIC_SITE_ORIGIN to use http:// or https://.');
+  }
+}
+
 export function assertHostedModeConfigured(): void {
   const missing = getMissingHostedModePublicEnvKeys();
 
   if (missing.length > 0) {
     throw new Error(`Hosted mode requires environment variables: ${missing.join(', ')}`);
   }
+
+  const deprecated = getPresentHostedModeDeprecatedPublicEnvKeys();
+  if (deprecated.length > 0) {
+    throw new Error(
+      `Hosted mode no longer supports deprecated environment variables: ${deprecated.join(', ')}`,
+    );
+  }
+
+  assertValidHostedSiteOrigin();
 }

@@ -5,8 +5,9 @@ import {
   type SupabaseClient,
   type User,
 } from '@supabase/supabase-js';
-import { assertHostedModeConfigured } from '@/services/runtime-mode';
+import { assertHostedModeConfigured, isHostedMode } from '@/services/runtime-mode';
 import { readTrimmedPublicRuntimeConfigValue } from '@/services/runtime-config';
+import { requireConfiguredSiteOrigin } from '@/services/site-origin';
 
 let supabaseClient: SupabaseClient | null = null;
 const DEFAULT_AUTH_REDIRECT_PATH = '/dashboard';
@@ -132,19 +133,16 @@ export async function signInWithGitHubOAuth(): Promise<void> {
 }
 
 export function resolveSupabaseAuthRedirectUrl(): string | undefined {
-  const explicitUrl = readTrimmedPublicRuntimeConfigValue('EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_URL');
-  if (explicitUrl) {
-    return explicitUrl;
+  if (isHostedMode()) {
+    assertHostedModeConfigured();
+    return new URL(DEFAULT_AUTH_REDIRECT_PATH, requireConfiguredSiteOrigin()).toString();
   }
 
   if (typeof window === 'undefined') {
     return undefined;
   }
 
-  const redirectPath =
-    readTrimmedPublicRuntimeConfigValue('EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_PATH') ||
-    DEFAULT_AUTH_REDIRECT_PATH;
-  return `${window.location.origin}${redirectPath.startsWith('/') ? redirectPath : `/${redirectPath}`}`;
+  return new URL(DEFAULT_AUTH_REDIRECT_PATH, window.location.origin).toString();
 }
 
 export async function signOutSupabase(): Promise<void> {

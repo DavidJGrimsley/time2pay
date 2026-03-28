@@ -1,8 +1,19 @@
 # Time2Pay — TODO
 
 ## Current Status
-- Branch: `bug/tour-mode-auth`
+- Branch: `bug/strict-env-tour-auth-ui`
 - Phase focus: Hosted auth/tour stabilization + referral-first OSS rollout
+
+## Strict Env Contract + Tour/Auth UX Cleanup (2026-03-28)
+- [x] Create fresh branch from `origin/test` (`bug/strict-env-tour-auth-ui`)
+- [x] Remove legacy hosted URL env support in app/runtime/server paths
+- [x] Enforce hosted-mode strict env contract (`EXPO_PUBLIC_TIME2PAY_DATA_MODE`, `EXPO_PUBLIC_SITE_ORIGIN`, `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`)
+- [x] Fail fast in hosted mode when deprecated env vars are present
+- [x] Route tour-mode profile auth actions (GitHub/PAT buttons) to `/sign-in`
+- [x] Rewire hosted auth redirects to derive from `EXPO_PUBLIC_SITE_ORIGIN` only
+- [x] Fix project milestones overlap with responsive wrapping + spacing updates
+- [ ] Verify hosted staging sign-in redirect stays on hosted origin (no localhost callback)
+- [ ] Run full regression suite (`typecheck`, `lint`, `test`, `build:web:deploy`)
 
 ## Hosted Auth/Tour Cleanup (2026-03-27)
 - [x] Confirm branch baseline follows repo rule (`bug/tour-mode-auth` from `test`, not `main`)
@@ -80,7 +91,7 @@ Milestone Payments:
 ## Multi-user support
 - [x] Rebased `feature/multi-user-support` onto latest `origin/main` and resolved conflicts
 - [x] Added hosted auth route structure with public landing + protected tabs + dedicated sign-in route
-- [x] Added callback redirect env support for Supabase auth (`EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_URL/PATH`)
+- [x] Replaced callback redirect env overrides with strict origin-derived redirects from `EXPO_PUBLIC_SITE_ORIGIN`
 - [x] Removed hosted-mode fallback to local SQLite for reads/writes (hosted path now fails fast on hosted errors)
 - [x] Switched provider selection so hosted mode always uses hosted repository
 - [x] Added hosted-focused tests for redirect config and no-fallback behavior
