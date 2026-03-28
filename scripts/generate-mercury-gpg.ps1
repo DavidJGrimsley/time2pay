@@ -51,6 +51,29 @@ if (-not (Test-Path $keyDir)) {
 
 if (-not (Test-Path $SecureOutputDir)) {
   New-Item -ItemType Directory -Path $SecureOutputDir -Force | Out-Null
+
+  # Lock down the directory to the current user only
+  $directorySecurity = New-Object System.Security.AccessControl.DirectorySecurity
+
+  $currentUser = New-Object System.Security.Principal.NTAccount([System.Security.Principal.WindowsIdentity]::GetCurrent().Name)
+  $fileSystemRights = [System.Security.AccessControl.FileSystemRights]::FullControl
+  $inheritanceFlags = [System.Security.AccessControl.InheritanceFlags]'ContainerInherit, ObjectInherit'
+  $propagationFlags = [System.Security.AccessControl.PropagationFlags]::None
+  $accessControlType = [System.Security.AccessControl.AccessControlType]::Allow
+
+  $accessRule = New-Object System.Security.AccessControl.FileSystemAccessRule(
+    $currentUser,
+    $fileSystemRights,
+    $inheritanceFlags,
+    $propagationFlags,
+    $accessControlType
+  )
+
+  # Remove inherited permissions and apply only this rule
+  $directorySecurity.SetAccessRuleProtection($true, $false)
+  $directorySecurity.SetAccessRule($accessRule)
+
+  Set-Acl -Path $SecureOutputDir -AclObject $directorySecurity
 }
 
 function Get-LatestPrimaryFingerprint {
@@ -59,7 +82,7 @@ function Get-LatestPrimaryFingerprint {
     [string]$Identifier
   )
 
-  $lines = & $gpgExe --list-secret-keys --with-colons $Identifier
+  $lines = & $gpgExe --list-secret-keys --with-colons -- $Identifier
   $records = @()
   $capturePrimaryFpr = $false
   $createdAt = 0
@@ -128,7 +151,7 @@ try {
   Set-Content -Path $fingerprintPath -Value $fingerprint -Encoding ascii
   Set-Content -Path $privateFingerprintPath -Value $fingerprint -Encoding ascii
 
-  & $gpgExe --batch --yes --pinentry-mode loopback --passphrase $Passphrase --armor --export-secret-keys $fingerprint |
+  $Passphrase | & $gpgExe --batch --yes --pinentry-mode loopback --passphrase-fd 0 --armor --export-secret-keys $fingerprint |
     Set-Content -Path $privateKeyPath -Encoding ascii
 
   if (Test-Path $defaultRevocationPath) {

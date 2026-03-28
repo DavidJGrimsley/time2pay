@@ -23,8 +23,8 @@ export function PublicLegalDocument({ title, lastUpdated, sections }: PublicLega
           <View key={section.heading} className="gap-3 rounded-3xl border border-border bg-card p-5 md:p-6">
             <Text className="text-xl font-semibold text-heading">{section.heading}</Text>
             <View className="gap-3">
-              {section.body.map((paragraph) => (
-                <Text key={paragraph} className="text-base leading-7 text-foreground">
+              {section.body.map((paragraph, index) => (
+                <Text key={`${section.heading}-${index}`} className="text-base leading-7 text-foreground">
                   {paragraph}
                 </Text>
               ))}
