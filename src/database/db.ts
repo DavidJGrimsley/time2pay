@@ -1,13 +1,18 @@
 import * as hosted from '@/database/db.hosted';
 import * as local from '@/database/db.local';
 import type { DbProvider } from '@/database/provider';
-import { usesHostedData } from '@/services/runtime-mode';
+import { tourProvider } from '@/database/tour/provider';
+import { getAppAccessMode } from '@/services/runtime-mode';
 
 const localProvider: DbProvider = local;
 const hostedProvider: DbProvider = hosted;
 
 function provider(): DbProvider {
-  return usesHostedData() ? hostedProvider : localProvider;
+  const accessMode = getAppAccessMode();
+  if (accessMode === 'tour') {
+    return tourProvider;
+  }
+  return accessMode === 'hosted' ? hostedProvider : localProvider;
 }
 
 export type {

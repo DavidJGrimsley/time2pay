@@ -42,6 +42,7 @@ export default function RootLayout() {
   const isAuthenticated = useAuthUiStore((state) => state.isAuthenticated);
   const tourModeEnabled = useAuthUiStore((state) => state.tourModeEnabled);
   const tourModeHydrated = useAuthUiStore((state) => state.tourModeHydrated);
+  const setTourInitError = useAuthUiStore((state) => state.setTourInitError);
   const hydrateTourMode = useAuthUiStore((state) => state.hydrateTourMode);
   const syncHostedAuth = useAuthUiStore((state) => state.syncHostedAuth);
   const resetForLocalMode = useAuthUiStore((state) => state.resetForLocalMode);
@@ -56,6 +57,18 @@ export default function RootLayout() {
       segments,
     });
   }, [hostedMode, pathname, segments]);
+
+  useEffect(() => {
+    logRuntimeDiagnostic('data.provider.selected', {
+      appAccessMode,
+      provider:
+        appAccessMode === 'tour'
+          ? 'tour-memory'
+          : appAccessMode === 'hosted'
+            ? 'hosted-supabase'
+            : 'local-sqlite',
+    });
+  }, [appAccessMode]);
 
   useEffect(() => {
     if (!hostedMode) {
@@ -160,6 +173,7 @@ export default function RootLayout() {
 
     if (!hostedMode || appAccessMode !== 'tour') {
       setIsTourSeedReady(true);
+      setTourInitError(null);
       logRuntimeDiagnostic('tour.seed.skipped', {
         hostedMode,
         appAccessMode,
@@ -170,6 +184,7 @@ export default function RootLayout() {
     }
 
     setIsTourSeedReady(false);
+    setTourInitError(null);
     logRuntimeDiagnostic('tour.seed.start', {
       appAccessMode,
     });
@@ -184,6 +199,7 @@ export default function RootLayout() {
           { level: 'error' },
         );
         console.error('Failed to seed tour demo data:', error);
+        setTourInitError('Tour data failed to initialize. Try "Reset Tour" or refresh the page.');
       })
       .finally(() => {
         if (isActive) {
@@ -195,7 +211,7 @@ export default function RootLayout() {
     return () => {
       isActive = false;
     };
-  }, [appAccessMode, hostedMode]);
+  }, [appAccessMode, hostedMode, setTourInitError]);
 
   // Keep tabs reachable while hosted auth/tour state is still bootstrapping so
   // first-click tour navigation can land on the loading shell instead of

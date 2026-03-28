@@ -1,8 +1,18 @@
 # Time2Pay — TODO
 
 ## Current Status
-- Branch: `bug/strict-env-tour-auth-ui`
-- Phase focus: Hosted auth/tour stabilization + referral-first OSS rollout
+- Branch: `bug/hosted-tour-stabilization`
+- Phase focus: Hosted/tour stabilization on one long-lived PR branch
+
+## Hosted/Tour Stabilization (2026-03-28)
+- [x] Create long-lived stabilization branch from `origin/test` (`bug/hosted-tour-stabilization`)
+- [x] Route tour mode to in-memory provider (no local SQLite file handle path)
+- [x] Replace SQL tour seeding with in-memory tour initialization/reset flow
+- [x] Add tour init diagnostics (`data.provider.selected`) and user-facing tour init fallback banner
+- [x] Add explicit `Reset Tour` action in nav banner
+- [x] Harden Projects split layout so Milestones stays separated from Project Pricing controls even without error banners
+- [ ] Deploy stabilization branch to temp domain and run hosted tour smoke pass
+- [ ] Confirm no `Invalid VFS state` / `createSyncAccessHandle` errors while navigating Dashboard/Sessions/Projects/Invoices/Profile in tour mode
 
 ## Strict Env Contract + Tour/Auth UX Cleanup (2026-03-28)
 - [x] Create fresh branch from `origin/test` (`bug/strict-env-tour-auth-ui`)
