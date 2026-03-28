@@ -54,7 +54,7 @@ jobs:
     needs: quality
     if: github.event_name == 'push' && github.ref == 'refs/heads/test'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
 
     steps:
       - name: Trigger Plesk staging webhook
@@ -68,12 +68,47 @@ jobs:
 
           curl --fail --silent --show-error --request POST "$PLESK_STAGING_WEBHOOK_URL"
 
+      - name: Verify staging is serving this commit
+        env:
+          EXPECTED_COMMIT_SHA: ${{ github.sha }}
+          PLESK_STAGING_SITE_ORIGIN: ${{ secrets.PLESK_STAGING_SITE_ORIGIN }}
+        run: |
+          if [ -z "$PLESK_STAGING_SITE_ORIGIN" ]; then
+            echo "Missing PLESK_STAGING_SITE_ORIGIN secret." >&2
+            exit 1
+          fi
+
+          VERIFY_URL="${PLESK_STAGING_SITE_ORIGIN%/}/__time2pay_build.txt"
+          echo "Waiting for staging deploy to serve ${EXPECTED_COMMIT_SHA}..."
+
+          ATTEMPTS=30
+          SLEEP_SECONDS=10
+          for attempt in $(seq 1 "$ATTEMPTS"); do
+            live_commit="$(curl --silent --show-error --fail "${VERIFY_URL}?t=$(date +%s)" | tr -d '\r\n' || true)"
+
+            if [ "$live_commit" = "$EXPECTED_COMMIT_SHA" ]; then
+              echo "Staging deploy verified on attempt ${attempt}/${ATTEMPTS}."
+              exit 0
+            fi
+
+            if [ -n "$live_commit" ]; then
+              echo "Attempt ${attempt}/${ATTEMPTS}: staging still on ${live_commit}"
+            else
+              echo "Attempt ${attempt}/${ATTEMPTS}: build marker not reachable yet."
+            fi
+
+            sleep "$SLEEP_SECONDS"
+          done
+
+          echo "Staging did not serve commit ${EXPECTED_COMMIT_SHA} within $((ATTEMPTS * SLEEP_SECONDS)) seconds." >&2
+          exit 1
+
   deploy_production:
     name: Deploy Production
     needs: quality
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
 
     steps:
       - name: Trigger Plesk production webhook
@@ -86,3 +121,38 @@ jobs:
           fi
 
           curl --fail --silent --show-error --request POST "$PLESK_PRODUCTION_WEBHOOK_URL"
+
+      - name: Verify production is serving this commit
+        env:
+          EXPECTED_COMMIT_SHA: ${{ github.sha }}
+          PLESK_PRODUCTION_SITE_ORIGIN: ${{ secrets.PLESK_PRODUCTION_SITE_ORIGIN }}
+        run: |
+          if [ -z "$PLESK_PRODUCTION_SITE_ORIGIN" ]; then
+            echo "Missing PLESK_PRODUCTION_SITE_ORIGIN secret." >&2
+            exit 1
+          fi
+
+          VERIFY_URL="${PLESK_PRODUCTION_SITE_ORIGIN%/}/__time2pay_build.txt"
+          echo "Waiting for production deploy to serve ${EXPECTED_COMMIT_SHA}..."
+
+          ATTEMPTS=30
+          SLEEP_SECONDS=10
+          for attempt in $(seq 1 "$ATTEMPTS"); do
+            live_commit="$(curl --silent --show-error --fail "${VERIFY_URL}?t=$(date +%s)" | tr -d '\r\n' || true)"
+
+            if [ "$live_commit" = "$EXPECTED_COMMIT_SHA" ]; then
+              echo "Production deploy verified on attempt ${attempt}/${ATTEMPTS}."
+              exit 0
+            fi
+
+            if [ -n "$live_commit" ]; then
+              echo "Attempt ${attempt}/${ATTEMPTS}: production still on ${live_commit}"
+            else
+              echo "Attempt ${attempt}/${ATTEMPTS}: build marker not reachable yet."
+            fi
+
+            sleep "$SLEEP_SECONDS"
+          done
+
+          echo "Production did not serve commit ${EXPECTED_COMMIT_SHA} within $((ATTEMPTS * SLEEP_SECONDS)) seconds." >&2
+          exit 1
