@@ -218,7 +218,13 @@ export default function RootLayout() {
   // bouncing back to the public landing route.
   const hostedAccessResolved = tourModeHydrated && authReady;
   const canAccessTabs = !hostedMode || !hostedAccessResolved || isAuthenticated || tourModeEnabled;
-  const isInsideTabsGroup = pathname !== '/' && pathname !== '/sign-in';
+  const normalizedPathname = pathname !== '/' ? pathname.replace(/\/+$/, '') : pathname;
+  const isPublicRoute =
+    normalizedPathname === '/' ||
+    normalizedPathname === '/sign-in' ||
+    normalizedPathname === '/privacy' ||
+    normalizedPathname === '/terms';
+  const isInsideTabsGroup = !isPublicRoute;
 
   useEffect(() => {
     if (!hostedMode || !tourModeHydrated || !authReady) {
@@ -308,6 +314,8 @@ export default function RootLayout() {
         }}
       >
         <Stack.Screen name="index" options={{ title: 'Time2Pay' }} />
+        <Stack.Screen name="privacy" options={{ title: 'Privacy Policy' }} />
+        <Stack.Screen name="terms" options={{ title: 'Terms of Service' }} />
         <Stack.Screen name="sign-in" options={{ title: 'Sign In' }} />
         <Stack.Protected guard={canAccessTabs}>
           <Stack.Screen name="(tabs)" options={{ title: 'Time2Pay' }} />
