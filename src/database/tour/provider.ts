@@ -1,4 +1,3 @@
-import * as local from '@/database/db.local';
 import type { DbProvider } from '@/database/provider';
 import type {
   Client,
@@ -157,22 +156,69 @@ export async function resetTourProviderData(): Promise<void> {
   state = createInitialState();
 }
 
-function createFallbackProvider(): DbProvider {
-  const entries = Object.keys(local).map((name) => [
-    name,
-    async () => {
-      throw new Error(`Tour mode operation "${name}" is not available.`);
-    },
-  ]);
-  return Object.fromEntries(entries) as unknown as DbProvider;
-}
-
-const fallbackProvider = createFallbackProvider();
-
 function sessionBreaksFor(sessionId: string): SessionBreak[] {
   return getState().sessionBreaks
     .filter((item) => item.session_id === sessionId && item.deleted_at === null)
     .sort((left, right) => (left.start_time < right.start_time ? -1 : 1));
+}
+
+function computeBreakDurationSeconds(input: {
+  sessionStartIso: string;
+  sessionEndIso: string;
+  breaks: Pick<SessionBreak, 'start_time' | 'end_time'>[];
+}): number {
+  const sessionStartMs = parseIso(input.sessionStartIso, 'start_time');
+  const sessionEndMs = parseIso(input.sessionEndIso, 'end_time');
+
+  if (sessionEndMs <= sessionStartMs) {
+    return 0;
+  }
+
+  const clampedIntervals = input.breaks
+    .map((sessionBreak) => {
+      if (!sessionBreak.end_time) {
+        return null;
+      }
+
+      const breakStartMs = parseIso(sessionBreak.start_time, 'break.start_time');
+      const breakEndMs = parseIso(sessionBreak.end_time, 'break.end_time');
+      if (breakEndMs < breakStartMs) {
+        throw new Error('Invalid break interval: end_time must be after start_time');
+      }
+
+      const clampedStart = Math.max(sessionStartMs, breakStartMs);
+      const clampedEnd = Math.min(sessionEndMs, breakEndMs);
+      if (clampedEnd <= clampedStart) {
+        return null;
+      }
+
+      return [clampedStart, clampedEnd] as const;
+    })
+    .filter((interval): interval is readonly [number, number] => interval !== null)
+    .sort((left, right) => left[0] - right[0]);
+
+  if (clampedIntervals.length === 0) {
+    return 0;
+  }
+
+  let mergedStart = clampedIntervals[0][0];
+  let mergedEnd = clampedIntervals[0][1];
+  let totalMs = 0;
+
+  for (let index = 1; index < clampedIntervals.length; index += 1) {
+    const [currentStart, currentEnd] = clampedIntervals[index];
+    if (currentStart <= mergedEnd) {
+      mergedEnd = Math.max(mergedEnd, currentEnd);
+      continue;
+    }
+
+    totalMs += mergedEnd - mergedStart;
+    mergedStart = currentStart;
+    mergedEnd = currentEnd;
+  }
+
+  totalMs += mergedEnd - mergedStart;
+  return Math.round(totalMs / 1000);
 }
 
 function decorateSession(session: Session): Session {
@@ -196,7 +242,6 @@ function decorateSession(session: Session): Session {
 }
 
 export const tourProvider: DbProvider = {
-  ...fallbackProvider,
   async getDb() {
     throw new Error('Tour mode uses in-memory data and does not expose a SQLite handle.');
   },
@@ -367,12 +412,21 @@ export const tourProvider: DbProvider = {
     return milestone ? clone(milestone) : null;
   },
   async updateProjectMilestone(input) {
+    if (input.amount_type !== 'percent' && input.amount_type !== 'fixed') {
+      throw new Error('Invalid milestone amount type.');
+    }
+    if (input.completion_mode !== 'toggle' && input.completion_mode !== 'checklist') {
+      throw new Error('Invalid milestone completion mode.');
+    }
+    nonNegative(input.amount_value, 'Milestone amount');
+
     const current = getState();
     const index = current.milestones.findIndex((item) => item.id === input.id && item.deleted_at === null);
     if (index < 0) {
       throw new Error('Milestone not found');
     }
-    current.milestones[index] = { ...current.milestones[index], title: input.title, amount_type: input.amount_type, amount_value: input.amount_value, completion_mode: input.completion_mode, due_note: input.due_note ?? null, sort_order: Math.trunc(input.sort_order), updated_at: nowIso() };
+    const sortOrder = Number.isFinite(input.sort_order) ? Math.trunc(input.sort_order) : 0;
+    current.milestones[index] = { ...current.milestones[index], title: input.title, amount_type: input.amount_type, amount_value: input.amount_value, completion_mode: input.completion_mode, due_note: input.due_note ?? null, sort_order: sortOrder, updated_at: nowIso() };
   },
   async deleteProjectMilestone(milestoneId) {
     const timestamp = nowIso();
@@ -458,9 +512,18 @@ export const tourProvider: DbProvider = {
     parseIso(endTime, 'end_time');
     const openBreak = current.sessionBreaks.find((item) => item.session_id === input.id && item.deleted_at === null && item.end_time === null);
     if (openBreak) {
+      if (parseIso(endTime, 'end_time') < parseIso(openBreak.start_time, 'break.start_time')) {
+        throw new Error('Session end_time cannot be before an active break start_time');
+      }
       current.sessionBreaks = current.sessionBreaks.map((item) => item.id === openBreak.id ? { ...item, end_time: endTime, updated_at: nowIso() } : item);
     }
-    const duration = durationSeconds(session.start_time, endTime);
+    const rawDuration = durationSeconds(session.start_time, endTime);
+    const breakDuration = computeBreakDurationSeconds({
+      sessionStartIso: session.start_time,
+      sessionEndIso: endTime,
+      breaks: sessionBreaksFor(input.id),
+    });
+    const duration = Math.max(0, rawDuration - breakDuration);
     current.sessions[index] = { ...session, end_time: endTime, duration, updated_at: nowIso() };
   },
   async addManualSession(input) {
@@ -505,12 +568,13 @@ export const tourProvider: DbProvider = {
       throw new Error('Invalid task selection for the selected project.');
     }
     const breaks = sessionBreaksFor(input.id);
-    const withBreakDuration = Math.max(0, durationSeconds(input.start_time, input.end_time) - breaks.reduce((sum, item) => {
-      if (!item.end_time) {
-        return sum;
-      }
-      return sum + Math.max(0, Math.round((parseIso(item.end_time, 'break.end_time') - parseIso(item.start_time, 'break.start_time')) / 1000));
-    }, 0));
+    const rawDuration = durationSeconds(input.start_time, input.end_time);
+    const breakDuration = computeBreakDurationSeconds({
+      sessionStartIso: input.start_time,
+      sessionEndIso: input.end_time,
+      breaks,
+    });
+    const withBreakDuration = Math.max(0, rawDuration - breakDuration);
     current.sessions[index] = { ...existing, client: client.name, client_id: input.client_id, project_id: input.project_id, task_id: input.task_id, start_time: input.start_time, end_time: input.end_time, duration: withBreakDuration, notes: input.notes ?? null, updated_at: nowIso() };
   },
   async listSessions() {
