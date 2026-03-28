@@ -281,9 +281,19 @@ export function LandingPage() {
         return;
       }
 
+      if (href === '/profile' && hostedMode && !isAuthenticated) {
+        logRuntimeDiagnostic('landing.profileCta.redirectToHostedAuth', {
+          dataMode,
+          destination: '/sign-in',
+          reason: 'hosted-unauthenticated',
+        });
+        router.push('/sign-in' as never);
+        return;
+      }
+
       router.push(href as never);
     },
-    [router],
+    [dataMode, hostedMode, isAuthenticated, router],
   );
 
   const handleSignIn = useCallback(() => {

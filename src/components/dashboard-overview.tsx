@@ -9,11 +9,16 @@ import {
 import { InlineNotice } from '@/components/inline-notice';
 import { GitHubStartModal, type GitHubStartSelection } from './GitHubStartModal';
 import { Timer, type TimerSelectionHandoff } from './Timer';
+import { useResolvedDataMode } from '@/hooks/use-resolved-data-mode';
+import { useAuthUiStore } from '@/stores/auth-ui-store';
 
 type DashboardGateStatus = 'loading' | 'locked' | 'unlocked';
 
 export function DashboardOverview() {
   const router = useRouter();
+  const { hostedMode, resolved: dataModeResolved } = useResolvedDataMode();
+  const tourModeEnabled = useAuthUiStore((state) => state.tourModeEnabled);
+  const shouldBypassProfileGate = dataModeResolved && hostedMode && tourModeEnabled;
   const [gateStatus, setGateStatus] = useState<DashboardGateStatus>('loading');
   const [missingFields, setMissingFields] = useState<RequiredProfileField[]>([]);
   const [gateStatusMessage, setGateStatusMessage] = useState<string | null>(null);
@@ -23,6 +28,13 @@ export function DashboardOverview() {
   );
 
   const refreshGate = useCallback(async (): Promise<void> => {
+    if (shouldBypassProfileGate) {
+      setMissingFields([]);
+      setGateStatus('unlocked');
+      setGateStatusMessage(null);
+      return;
+    }
+
     setGateStatus('loading');
     setGateStatusMessage(null);
 
@@ -37,7 +49,7 @@ export function DashboardOverview() {
         error instanceof Error ? error.message : 'Failed to load profile requirements.',
       );
     }
-  }, []);
+  }, [shouldBypassProfileGate]);
 
   useEffect(() => {
     refreshGate().catch(() => undefined);
@@ -49,7 +61,7 @@ export function DashboardOverview() {
     }, [refreshGate]),
   );
 
-  const locked = gateStatus !== 'unlocked';
+  const locked = !shouldBypassProfileGate && gateStatus !== 'unlocked';
   const missingFieldSummary = useMemo(() => {
     if (missingFields.length === 0) {
       return 'Complete your business profile before using dashboard actions.';
@@ -73,7 +85,7 @@ export function DashboardOverview() {
       <Text className="text-3xl font-extrabold text-heading">Dashboard</Text>
       <Text className="text-muted">Clock-in and out or create work sessions manually.</Text>
 
-      {gateStatus === 'loading' ? (
+      {!shouldBypassProfileGate && gateStatus === 'loading' ? (
         <View className="gap-2 rounded-xl border border-border bg-background p-4">
           <Text className="text-sm font-semibold text-heading">Checking profile requirements...</Text>
         </View>
