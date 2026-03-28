@@ -25,18 +25,22 @@ const serverBuildDir = path.join(__dirname, 'dist', 'server');
 const routesManifestPath = path.join(serverBuildDir, '_expo', 'routes.json');
 const publicRuntimeEnvKeys = [
   'EXPO_PUBLIC_GITHUB_CLIENT_ID',
-  'EXPO_PUBLIC_HOSTED_API_BASE_URL',
-  'EXPO_PUBLIC_MERCURY_PROXY_PATH',
   'EXPO_PUBLIC_SITE_ORIGIN',
   'EXPO_PUBLIC_SUPABASE_ANON_KEY',
-  'EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_PATH',
-  'EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_URL',
   'EXPO_PUBLIC_SUPABASE_URL',
   'EXPO_PUBLIC_TIME2PAY_DATA_MODE',
 ];
 const hostedRuntimeRequiredPublicEnvKeys = [
+  'EXPO_PUBLIC_SITE_ORIGIN',
   'EXPO_PUBLIC_SUPABASE_URL',
   'EXPO_PUBLIC_SUPABASE_ANON_KEY',
+];
+const hostedRuntimeDeprecatedEnvKeys = [
+  'EXPO_PUBLIC_HOSTED_API_BASE_URL',
+  'EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_URL',
+  'EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_PATH',
+  'EXPO_PUBLIC_MERCURY_PROXY_PATH',
+  'SITE_ORIGIN',
 ];
 
 function assertBuildArtifact(filePath, description) {
@@ -55,7 +59,27 @@ function buildPublicRuntimeConfig() {
   }, {});
 }
 
-function logHostedRuntimeEnvHealth() {
+function parseSiteOriginOrThrow(rawSiteOrigin) {
+  let parsed;
+  try {
+    parsed = new URL(rawSiteOrigin);
+  } catch {
+    throw new Error('[startup] EXPO_PUBLIC_SITE_ORIGIN must be a valid absolute URL.');
+  }
+
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    throw new Error('[startup] EXPO_PUBLIC_SITE_ORIGIN must use http:// or https://.');
+  }
+
+  const hasNonRootPath = parsed.pathname !== '/' && parsed.pathname !== '';
+  if (hasNonRootPath || parsed.search || parsed.hash) {
+    throw new Error(
+      '[startup] EXPO_PUBLIC_SITE_ORIGIN must be an origin without path, query, or hash (for example: "https://example.com").',
+    );
+  }
+}
+
+function assertHostedRuntimeEnvHealth() {
   const dataMode = (process.env.EXPO_PUBLIC_TIME2PAY_DATA_MODE || 'local').trim().toLowerCase();
   if (dataMode !== 'hosted') {
     console.log(`[startup] Data mode is "${dataMode || 'local'}". Hosted auth is disabled.`);
@@ -66,19 +90,28 @@ function logHostedRuntimeEnvHealth() {
     (key) => !String(process.env[key] || '').trim(),
   );
   if (missingKeys.length > 0) {
-    console.warn(
-      `[startup] Hosted mode is enabled but required env vars are missing: ${missingKeys.join(', ')}`,
+    throw new Error(
+      `[startup] Hosted mode requires environment variables: ${missingKeys.join(', ')}`,
     );
-    return;
   }
 
-  console.log('[startup] Hosted mode env looks configured (required Supabase public vars present).');
+  const deprecatedKeys = hostedRuntimeDeprecatedEnvKeys.filter((key) =>
+    Boolean(String(process.env[key] || '').trim()),
+  );
+  if (deprecatedKeys.length > 0) {
+    throw new Error(
+      `[startup] Hosted mode no longer supports deprecated environment variables: ${deprecatedKeys.join(', ')}`,
+    );
+  }
+
+  parseSiteOriginOrThrow(process.env.EXPO_PUBLIC_SITE_ORIGIN.trim());
+  console.log('[startup] Hosted mode env looks configured (strict contract passed).');
 }
 
 assertBuildArtifact(clientBuildDir, 'Client build directory');
 assertBuildArtifact(serverBuildDir, 'Server build directory');
 assertBuildArtifact(routesManifestPath, 'Generated Expo routes manifest');
-logHostedRuntimeEnvHealth();
+assertHostedRuntimeEnvHealth();
 
 app.disable('x-powered-by');
 app.use(compression());

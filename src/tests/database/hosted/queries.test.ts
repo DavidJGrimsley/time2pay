@@ -11,8 +11,12 @@ vi.mock('@/services/supabase-client', () => ({
 
 const getSupabaseClientMock = vi.mocked(getSupabaseClient);
 const requireSupabaseUserIdMock = vi.mocked(requireSupabaseUserId);
+const ORIGINAL_ENV = {
+  EXPO_PUBLIC_SITE_ORIGIN: process.env.EXPO_PUBLIC_SITE_ORIGIN,
+};
 
 afterEach(() => {
+  process.env.EXPO_PUBLIC_SITE_ORIGIN = ORIGINAL_ENV.EXPO_PUBLIC_SITE_ORIGIN;
   Reflect.deleteProperty(globalThis, 'window');
   vi.clearAllMocks();
 });
@@ -51,11 +55,12 @@ describe('hosted clients/projects queries', () => {
   });
 
   it('does not fall back to local writes when API write route cannot run', async () => {
+    process.env.EXPO_PUBLIC_SITE_ORIGIN = '';
     await expect(
       createClient({
         id: 'client_1',
         name: 'Acme',
       }),
-    ).rejects.toThrow('Hosted writes on non-web runtime require EXPO_PUBLIC_HOSTED_API_BASE_URL.');
+    ).rejects.toThrow('Hosted mode requires EXPO_PUBLIC_SITE_ORIGIN.');
   });
 });

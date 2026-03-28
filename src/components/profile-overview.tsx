@@ -1,4 +1,5 @@
 import { Octicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Linking, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import {
@@ -20,7 +21,10 @@ import {
 } from '@/services/data-backup';
 import { InlineNotice, type NoticeTone } from '@/components/inline-notice';
 import { readTrimmedPublicRuntimeConfigValue } from '@/services/runtime-config';
+import { isHostedMode } from '@/services/runtime-mode';
+import { requireConfiguredSiteOrigin } from '@/services/site-origin';
 import { showActionErrorAlert, showSystemConfirm, showValidationAlert } from '@/services/system-alert';
+import { useAuthUiStore } from '@/stores/auth-ui-store';
 
 const FILE_PICKER_CANCELED_MESSAGE = 'Backup import canceled.';
 const GITHUB_PAT_CREATE_URL = 'https://github.com/settings/personal-access-tokens/new';
@@ -131,6 +135,7 @@ async function pickBackupJsonFile(): Promise<PickedBackupFile> {
 }
 
 export function ProfileOverview() {
+  const router = useRouter();
   const { width } = useStableWindowDimensions();
   const isLargeScreen = width >= 1200;
   const isTablet = width >= 768 && width < 1200;
@@ -157,6 +162,8 @@ export function ProfileOverview() {
   const [showIntegrations, setShowIntegrations] = useState(true);
   const [showPatInfoModal, setShowPatInfoModal] = useState(false);
   const [isSigningInWithGitHub, setIsSigningInWithGitHub] = useState(false);
+  const tourModeEnabled = useAuthUiStore((state) => state.tourModeEnabled);
+  const shouldRouteAuthIntegrationsToSignIn = isHostedMode() && tourModeEnabled;
 
   const githubClientId = readTrimmedPublicRuntimeConfigValue('EXPO_PUBLIC_GITHUB_CLIENT_ID');
   const isGitHubOAuthEnabled = process.env.EXPO_OS === 'web' && Boolean(githubClientId);
@@ -167,6 +174,36 @@ export function ProfileOverview() {
 
   const clearSectionStatus = useCallback((section: ProfileStatusSection): void => {
     setSectionStatus((current) => (current?.section === section ? null : current));
+  }, []);
+
+  const routeAuthIntegrationsToSignIn = useCallback((): void => {
+    showStatus('integrations', {
+      tone: 'neutral',
+      message: 'Sign in to connect GitHub integrations.',
+    });
+    router.push('/sign-in' as never);
+  }, [router, showStatus]);
+
+  const resolveGitHubOAuthRedirectUri = useCallback((): string | null => {
+    if (isHostedMode()) {
+      try {
+        return new URL('/profile', requireConfiguredSiteOrigin()).toString();
+      } catch (error) {
+        if (typeof console !== 'undefined' && typeof console.error === 'function') {
+          console.error(
+            'Failed to resolve GitHub OAuth redirect URI from EXPO_PUBLIC_SITE_ORIGIN:',
+            error,
+          );
+        }
+        return null;
+      }
+    }
+
+    if (typeof window === 'undefined') {
+      return null;
+    }
+
+    return new URL('/profile', window.location.origin).toString();
   }, []);
 
   const loadProfileData = useCallback(async (): Promise<void> => {
@@ -211,6 +248,12 @@ export function ProfileOverview() {
       window.history.replaceState({}, document.title, url.toString());
     };
 
+    if (shouldRouteAuthIntegrationsToSignIn) {
+      clearOAuthQueryParams();
+      routeAuthIntegrationsToSignIn();
+      return;
+    }
+
     if (oauthError) {
       const errorDescription = url.searchParams.get('error_description')?.trim();
       showStatus('integrations', {
@@ -233,7 +276,16 @@ export function ProfileOverview() {
     }
 
     window.sessionStorage.removeItem(GITHUB_OAUTH_STATE_KEY);
-    const redirectUri = `${window.location.origin}/profile`;
+    const redirectUri = resolveGitHubOAuthRedirectUri();
+    if (!redirectUri) {
+      showStatus('integrations', {
+        tone: 'error',
+        message: 'GitHub OAuth failed: no valid redirect URL is available.',
+      });
+      clearOAuthQueryParams();
+      return;
+    }
+
     let cancelled = false;
     setIsSigningInWithGitHub(true);
     showStatus('integrations', { tone: 'neutral', message: 'Completing GitHub sign-in...' });
@@ -300,7 +352,14 @@ export function ProfileOverview() {
     return () => {
       cancelled = true;
     };
-  }, [isGitHubOAuthEnabled, loadProfileData, showStatus]);
+  }, [
+    isGitHubOAuthEnabled,
+    loadProfileData,
+    resolveGitHubOAuthRedirectUri,
+    routeAuthIntegrationsToSignIn,
+    shouldRouteAuthIntegrationsToSignIn,
+    showStatus,
+  ]);
 
   async function handleSaveBusiness(): Promise<void> {
     clearSectionStatus('business');
@@ -362,7 +421,12 @@ export function ProfileOverview() {
     }
   }
 
-  function openExternalUrl(url: string): void {
+  function openExternalUrl(url: string, options?: { authRelated?: boolean }): void {
+    if (options?.authRelated && shouldRouteAuthIntegrationsToSignIn) {
+      routeAuthIntegrationsToSignIn();
+      return;
+    }
+
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       window.open(url, '_blank', 'noopener,noreferrer');
       return;
@@ -372,13 +436,25 @@ export function ProfileOverview() {
   }
 
   function startGitHubOAuth(): void {
+    if (shouldRouteAuthIntegrationsToSignIn) {
+      routeAuthIntegrationsToSignIn();
+      return;
+    }
+
     if (!isGitHubOAuthEnabled || typeof window === 'undefined') {
       return;
     }
 
     const oauthState = `gh_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
     window.sessionStorage.setItem(GITHUB_OAUTH_STATE_KEY, oauthState);
-    const redirectUri = `${window.location.origin}/profile`;
+    const redirectUri = resolveGitHubOAuthRedirectUri();
+    if (!redirectUri) {
+      showStatus('integrations', {
+        tone: 'error',
+        message: 'GitHub OAuth is unavailable: no valid redirect URL is configured.',
+      });
+      return;
+    }
 
     const authorizeUrl = new URL(GITHUB_OAUTH_AUTHORIZE_URL);
     authorizeUrl.searchParams.set('client_id', githubClientId);
@@ -585,7 +661,7 @@ export function ProfileOverview() {
             <Pressable
               className="self-start rounded-full border px-4 py-2"
               style={{ borderColor: '#d0d7de', backgroundColor: '#f6f8fa' }}
-              onPress={() => openExternalUrl(GITHUB_PAT_CREATE_URL)}
+              onPress={() => openExternalUrl(GITHUB_PAT_CREATE_URL, { authRelated: true })}
             >
               <View className="flex-row items-center gap-2">
                 <Octicons name="mark-github" size={16} color="#24292f" />
@@ -720,13 +796,13 @@ export function ProfileOverview() {
             <View className="mt-3 gap-2">
               <Pressable
                 className="rounded-md bg-secondary px-3 py-2"
-                onPress={() => openExternalUrl(GITHUB_PAT_CREATE_URL)}
+                onPress={() => openExternalUrl(GITHUB_PAT_CREATE_URL, { authRelated: true })}
               >
                 <Text className="text-center font-semibold text-white">Open PAT Creation Page</Text>
               </Pressable>
               <Pressable
                 className="rounded-md border border-border px-3 py-2"
-                onPress={() => openExternalUrl(GITHUB_PAT_DOCS_URL)}
+                onPress={() => openExternalUrl(GITHUB_PAT_DOCS_URL, { authRelated: true })}
               >
                 <Text className="text-center font-semibold text-heading">Open PAT Docs</Text>
               </Pressable>

@@ -1,9 +1,15 @@
 import { promises as fs } from 'node:fs';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { config as loadEnvFile } from 'dotenv';
 import { loadExpoRouterPluginConfig, publicDir } from './web-output-utils.mjs';
 
-loadEnvFile();
+for (const envFileName of ['.env.build', '.env']) {
+  const envPath = path.resolve(process.cwd(), envFileName);
+  if (existsSync(envPath)) {
+    loadEnvFile({ path: envPath, override: false });
+  }
+}
 
 const INDEXED_PUBLIC_ROUTES = ['/'];
 const PRIVATE_ROUTE_BLOCKLIST = ['/api/', '/_sitemap'];
@@ -13,8 +19,7 @@ function normalizeSiteOrigin(rawOrigin) {
 }
 
 async function resolveSiteOrigin() {
-  const configuredOrigin =
-    process.env.SITE_ORIGIN?.trim() || process.env.EXPO_PUBLIC_SITE_ORIGIN?.trim();
+  const configuredOrigin = process.env.EXPO_PUBLIC_SITE_ORIGIN?.trim();
   if (configuredOrigin) {
     return normalizeSiteOrigin(configuredOrigin);
   }
@@ -25,7 +30,7 @@ async function resolveSiteOrigin() {
   }
 
   throw new Error(
-    'SITE_ORIGIN is not configured. Set SITE_ORIGIN or EXPO_PUBLIC_SITE_ORIGIN before building the web export.',
+    'EXPO_PUBLIC_SITE_ORIGIN is not configured. Set EXPO_PUBLIC_SITE_ORIGIN before building the web export.',
   );
 }
 

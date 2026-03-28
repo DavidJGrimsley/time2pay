@@ -862,8 +862,8 @@ export function ProjectsOverview() {
       <View className="items-center">
         <View className="w-full gap-3" style={contentWidthStyle}>
           <Animated.View className={sectionCardClassName} layout={smoothLayout}>
-            <View className={isLarge ? 'flex-row gap-4' : 'gap-4'}>
-              <View className="flex-1 gap-3">
+            <View className={isLarge ? 'flex-row items-start gap-4' : 'gap-4'}>
+              <View className="flex-1 min-w-0 gap-3">
                 <Text className={sectionTitleClassName}>Project Info</Text>
 
             <View style={fullFieldStyle}>
@@ -1078,7 +1078,7 @@ export function ProjectsOverview() {
                       : `Hourly pricing${hourlyRate ? ` - $${hourlyRate}/hr` : ''}`}
                   </Text>
                 )}
-                <View className="flex-row gap-2">
+                <View className="flex-row flex-wrap items-center gap-2 pb-1">
                   <Pressable
                     className="rounded-md bg-secondary px-3 py-2"
                     onPress={() => {
@@ -1116,8 +1116,8 @@ export function ProjectsOverview() {
             ) : null}
               </View>
 
-              <View className="flex-1 gap-2">
-                <View className="flex-row items-center justify-between">
+              <View className={isLarge ? 'flex-1 min-w-0 gap-2 pt-3' : 'flex-1 min-w-0 gap-2 pt-2'}>
+                <View className="flex-row items-center justify-between gap-2">
                   <Text className={subsectionTitleClassName}>Milestones</Text>
                   {selectedProject ? (
                     <Pressable
@@ -1184,7 +1184,7 @@ export function ProjectsOverview() {
                           containerStyle={fullFieldStyle}
                           onValueChange={(value) => setEditMilestoneCompletionMode(value as MilestoneCompletionMode)}
                         />
-                        <View className="flex-row gap-2">
+                        <View className="flex-row flex-wrap justify-end gap-2">
                           <Pressable
                             className="rounded-md bg-secondary px-3 py-2"
                             onPress={() => handleSaveMilestone(milestone)}
