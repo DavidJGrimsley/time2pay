@@ -1,5 +1,6 @@
 import { useAuthUiStore } from '@/stores/auth-ui-store';
 import { readTrimmedPublicRuntimeConfigValue } from '@/services/runtime-config';
+import { requireConfiguredSiteOrigin } from '@/services/site-origin';
 
 export type Time2PayDataMode = 'local' | 'hosted';
 export type AppAccessMode = 'local' | 'hosted' | 'tour';
@@ -79,24 +80,6 @@ export function getPresentHostedModeDeprecatedPublicEnvKeys(): HostedModeDepreca
   );
 }
 
-function assertValidHostedSiteOrigin(): void {
-  const siteOrigin = readTrimmedPublicRuntimeConfigValue('EXPO_PUBLIC_SITE_ORIGIN');
-  if (!siteOrigin) {
-    return;
-  }
-
-  let parsed: URL;
-  try {
-    parsed = new URL(siteOrigin);
-  } catch {
-    throw new Error('Hosted mode requires EXPO_PUBLIC_SITE_ORIGIN to be a valid absolute URL.');
-  }
-
-  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
-    throw new Error('Hosted mode requires EXPO_PUBLIC_SITE_ORIGIN to use http:// or https://.');
-  }
-}
-
 export function assertHostedModeConfigured(): void {
   const missing = getMissingHostedModePublicEnvKeys();
 
@@ -111,5 +94,5 @@ export function assertHostedModeConfigured(): void {
     );
   }
 
-  assertValidHostedSiteOrigin();
+  requireConfiguredSiteOrigin();
 }

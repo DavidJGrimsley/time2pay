@@ -186,7 +186,17 @@ export function ProfileOverview() {
 
   const resolveGitHubOAuthRedirectUri = useCallback((): string | null => {
     if (isHostedMode()) {
-      return new URL('/profile', requireConfiguredSiteOrigin()).toString();
+      try {
+        return new URL('/profile', requireConfiguredSiteOrigin()).toString();
+      } catch (error) {
+        if (typeof console !== 'undefined' && typeof console.error === 'function') {
+          console.error(
+            'Failed to resolve GitHub OAuth redirect URI from EXPO_PUBLIC_SITE_ORIGIN:',
+            error,
+          );
+        }
+        return null;
+      }
     }
 
     if (typeof window === 'undefined') {

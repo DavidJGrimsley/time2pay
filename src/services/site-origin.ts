@@ -18,6 +18,13 @@ function parseAbsoluteSiteOrigin(rawOrigin: string): string {
     throw new Error('EXPO_PUBLIC_SITE_ORIGIN must use http:// or https://.');
   }
 
+  const hasNonRootPath = parsed.pathname !== '/' && parsed.pathname !== '';
+  if (hasNonRootPath || parsed.search || parsed.hash) {
+    throw new Error(
+      'EXPO_PUBLIC_SITE_ORIGIN must not include a path, query, or fragment. Use only the origin, for example: "https://example.com".',
+    );
+  }
+
   return trimTrailingSlash(parsed.origin);
 }
 

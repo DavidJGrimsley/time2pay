@@ -70,6 +70,13 @@ function parseSiteOriginOrThrow(rawSiteOrigin) {
   if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
     throw new Error('[startup] EXPO_PUBLIC_SITE_ORIGIN must use http:// or https://.');
   }
+
+  const hasNonRootPath = parsed.pathname !== '/' && parsed.pathname !== '';
+  if (hasNonRootPath || parsed.search || parsed.hash) {
+    throw new Error(
+      '[startup] EXPO_PUBLIC_SITE_ORIGIN must be an origin without path, query, or hash (for example: "https://example.com").',
+    );
+  }
 }
 
 function assertHostedRuntimeEnvHealth() {
