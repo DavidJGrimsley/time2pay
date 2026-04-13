@@ -254,6 +254,7 @@ Notes:
 
 - `build:web:deploy` skips `icons:sync`, which is intentional for CI and Plesk because the repo already tracks the built public icons while the source `time2pay_icons/` folder is local-only.
 - `build:web:deploy` generates `dist/client/__time2pay_build.txt` and `dist/client/__time2pay_build.json` for deploy diagnostics and manual readiness checks.
+- CI currently uses Node 22 plus npm 11 to keep `npm ci` stable against this repo's Expo/React Native dependency graph.
 - If you change the active Node version in Plesk, re-verify `.github/workflows/ci.yml` against the supported Expo/npm toolchain and update it if needed.
 
 ## Available Scripts
