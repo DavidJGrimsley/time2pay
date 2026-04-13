@@ -1,8 +1,39 @@
 # Time2Pay — TODO
 
 ## Current Status
-- Branch: `feature/mercury-api-npm`
-- Phase focus: Phase 1 (Web, local-first)
+- Branch: `bug/hosted-tour-stabilization`
+- Phase focus: Hosted/tour stabilization on one long-lived PR branch
+
+## Hosted/Tour Stabilization (2026-03-28)
+- [x] Create long-lived stabilization branch from `origin/test` (`bug/hosted-tour-stabilization`)
+- [x] Route tour mode to in-memory provider (no local SQLite file handle path)
+- [x] Replace SQL tour seeding with in-memory tour initialization/reset flow
+- [x] Add tour init diagnostics (`data.provider.selected`) and user-facing tour init fallback banner
+- [x] Add explicit `Reset Tour` action in nav banner
+- [x] Harden Projects split layout so Milestones stays separated from Project Pricing controls even without error banners
+- [ ] Deploy stabilization branch to temp domain and run hosted tour smoke pass
+- [ ] Confirm no `Invalid VFS state` / `createSyncAccessHandle` errors while navigating Dashboard/Sessions/Projects/Invoices/Profile in tour mode
+
+## Strict Env Contract + Tour/Auth UX Cleanup (2026-03-28)
+- [x] Create fresh branch from `origin/test` (`bug/strict-env-tour-auth-ui`)
+- [x] Remove legacy hosted URL env support in app/runtime/server paths
+- [x] Enforce hosted-mode strict env contract (`EXPO_PUBLIC_TIME2PAY_DATA_MODE`, `EXPO_PUBLIC_SITE_ORIGIN`, `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`)
+- [x] Fail fast in hosted mode when deprecated env vars are present
+- [x] Route tour-mode profile auth actions (GitHub/PAT buttons) to `/sign-in`
+- [x] Rewire hosted auth redirects to derive from `EXPO_PUBLIC_SITE_ORIGIN` only
+- [x] Fix project milestones overlap with responsive wrapping + spacing updates
+- [ ] Verify hosted staging sign-in redirect stays on hosted origin (no localhost callback)
+- [ ] Run full regression suite (`typecheck`, `lint`, `test`, `build:web:deploy`)
+
+## Hosted Auth/Tour Cleanup (2026-03-27)
+- [x] Confirm branch baseline follows repo rule (`bug/tour-mode-auth` from `test`, not `main`)
+- [x] Apply hosted first-click tour routing guard in root stack protection
+- [x] Keep hosted unauthenticated access limited to landing/sign-in unless tour is explicitly started
+- [x] Keep authenticated hosted users profile-first (redirect to `/profile` until complete)
+- [x] Bypass profile lock UI while user is in hosted tour mode
+- [x] Ensure landing profile CTAs route unauthenticated hosted users to `/sign-in` first
+- [x] Add startup diagnostics for hosted env mismatches (client + server logs)
+- [ ] Run hosted smoke checks on staging domain after deploy (landing, sign-in, tour-first-click, profile gate)
 
 ## Immediate Next Actions
 
@@ -70,7 +101,7 @@ Milestone Payments:
 ## Multi-user support
 - [x] Rebased `feature/multi-user-support` onto latest `origin/main` and resolved conflicts
 - [x] Added hosted auth route structure with public landing + protected tabs + dedicated sign-in route
-- [x] Added callback redirect env support for Supabase auth (`EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_URL/PATH`)
+- [x] Replaced callback redirect env overrides with strict origin-derived redirects from `EXPO_PUBLIC_SITE_ORIGIN`
 - [x] Removed hosted-mode fallback to local SQLite for reads/writes (hosted path now fails fast on hosted errors)
 - [x] Switched provider selection so hosted mode always uses hosted repository
 - [x] Added hosted-focused tests for redirect config and no-fallback behavior
@@ -114,10 +145,10 @@ Milestone Payments:
 
 ## Business Model: OSS + Hosted SaaS
 
-### Pricing (Agreed Starter)
-- [ ] `Free`: self-host, unlimited projects/clients, basic invoices
-- [ ] `Pro $5/mo`: hosted, backups, recurring invoices, templates
-- [ ] `Team $20/mo`: includes 2 users; +$5 per additional user; multi-user roles, approvals, export/reporting
+### Monetization Direction (Current)
+- [x] Referral-first OSS model (free core app + Mercury referral focus)
+- [x] Keep hosted mode available as convenience/distribution advantage, not immediate paid gate
+- [ ] Re-evaluate paid hosted tiers only after hosted auth/tour stability and referral conversion data
 
 ### Mercury API Key Security (Hosted SaaS)
 - [ ] Keep Mercury API keys server-side only (never in client JS, never in local profile UI)

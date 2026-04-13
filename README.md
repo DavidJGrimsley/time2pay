@@ -49,25 +49,31 @@ Set these in `.env`:
 
 - `MERCURY_API_KEY` (required to use your bank account): your Mercury API key
 - `MERCURY_BASE_URL` (optional): defaults to `https://api.mercury.com/api/v1`
-- `GITHUB_CLIENT_ID` (optional): server-side GitHub OAuth app client id
 - `GITHUB_CLIENT_SECRET` (optional): server-side GitHub OAuth app client secret
-- `EXPO_PUBLIC_GITHUB_CLIENT_ID` (optional): client-visible GitHub OAuth id used to show the Sign in with GitHub button
+- `EXPO_PUBLIC_GITHUB_CLIENT_ID` (optional): GitHub OAuth app client id used by the client UI and server token exchange
 - `EXPO_PUBLIC_TIME2PAY_DATA_MODE` (optional): `local` (default) or `hosted`
+- `EXPO_PUBLIC_SITE_ORIGIN` (required in hosted mode): canonical site origin used for hosted auth redirects and hosted API writes. Set this per environment, for example `https://time2pay.app` for production or your `*.plesk.page` staging URL for `test`
 - `TIME2PAY_FAIL_BUILD_IF_LOCAL` (optional): when truthy (`1/true/yes/on`), blocks web export if data mode resolves to `local`
 - `EXPO_PUBLIC_SUPABASE_URL` (required in hosted mode)
 - `EXPO_PUBLIC_SUPABASE_ANON_KEY` (required in hosted mode)
-- `EXPO_PUBLIC_HOSTED_API_BASE_URL` (required for hosted writes in non-web runtime; example: `https://time2pay.app`)
-- `EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_URL` (optional): full OAuth/magic-link callback URL
-- `EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_PATH` (optional): path fallback for callback URL, defaults to `/dashboard`
 - `SUPABASE_SERVICE_ROLE_KEY` (required for server-side admin operations)
 - `DATABASE_URL` (recommended for Drizzle migrations and runtime SQL clients; Supabase pooler, usually `6543`)
 - `DATABASE_DIRECT_URL` (optional direct database host/port, usually `5432`, only if your network supports direct connectivity)
 - `DRIZZLE_DATABASE_URL` (optional): explicit override used by Drizzle CLI (`db:migrate`, `db:check`, etc.)
 - `PORT` (optional): defaults to `3000`
 
+Environment file convention:
+- Build scripts now prefer `.env.build` and fall back to `.env`.
+- Keep `.env.test` and `.env.production` as minimal key reference files for Plesk values.
+
+Plesk note:
+- Set `EXPO_PUBLIC_TIME2PAY_DATA_MODE=hosted` in your Plesk Node app environment for hosted deployments.
+- If this is missing or set to `local`, hosted auth/data flows are intentionally disabled.
+
 If `MERCURY_API_KEY` is missing, `/api/mercury` returns `400`.
 If GitHub OAuth env vars are missing, `/api/github` returns `501` and the Sign in with GitHub button is hidden.
-If hosted env vars are missing while `EXPO_PUBLIC_TIME2PAY_DATA_MODE=hosted`, auth/data flows fail at startup.
+If hosted env vars are missing while `EXPO_PUBLIC_TIME2PAY_DATA_MODE=hosted`, startup fails fast.
+If deprecated hosted env vars are present in hosted mode (`EXPO_PUBLIC_HOSTED_API_BASE_URL`, `EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_URL`, `EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_PATH`, `EXPO_PUBLIC_MERCURY_PROXY_PATH`, `SITE_ORIGIN`), startup fails fast.
 If `TIME2PAY_FAIL_BUILD_IF_LOCAL` is truthy, deployment builds fail fast unless mode resolves to `hosted`.
 
 ## Hosted Mode (Supabase + Multi-User)
@@ -80,13 +86,16 @@ Hosted mode includes:
 - API-routed hosted writes (`/api/db/<domain>/<action>`)
 - Strict write payload validation with typed API error statuses (`401/403/404/409/422/500`)
 
+Hosted mode guardrails:
+- Unauthenticated hosted users can access landing/sign-in and can opt into tour mode.
+- Authenticated hosted users stay profile-gated until required profile fields are complete.
+- Tour mode bypasses profile completion lock UI so the demo flow is usable immediately.
+
 Supabase callback setup:
 1. In Supabase Auth settings, add redirect URLs for:
    - `http://localhost:3000/dashboard`
    - `https://time2pay.app/dashboard`
-2. In `.env`, set either:
-   - `EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_URL=https://time2pay.app/dashboard` (production), or
-   - `EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_PATH=/dashboard` (origin-relative fallback).
+2. In `.env`, set `EXPO_PUBLIC_SITE_ORIGIN` to the exact deployed origin for that environment.
 
 Drizzle migration connection note:
 - `drizzle.config.ts` precedence is `DRIZZLE_DATABASE_URL -> DATABASE_URL -> DATABASE_DIRECT_URL`.
@@ -102,6 +111,10 @@ Use this when production auth/routing behavior is unclear:
 - Debug mode persists via localStorage key `time2pay.debug.auth`.
 - Disable diagnostics with `?debugAuth=0`.
 
+Server startup diagnostics:
+- `server.js` logs whether data mode resolves to `local` or `hosted`.
+- In hosted mode, it enforces the strict env contract and fails startup when required vars are missing or deprecated vars are present.
+
 ## Run Modes
 
 ### Production-style local server (recommended)
@@ -112,6 +125,10 @@ npm run serve:prod:env
 ```
 
 This serves `dist/client`, runs `dist/server`, and enables API routes + PWA behavior.
+
+Windows note:
+- If Expo export crashes with a Windows access violation code, `build:web:deploy` now retries once automatically.
+- For most stable behavior, use Node 20 LTS for local build/serve workflows.
 
 ### Dev mode
 
@@ -150,9 +167,8 @@ To enable **Sign in with GitHub**:
    - Local: `http://localhost:3000/profile`
    - Hosted: `https://yourdomain.com/profile`
 3. Add env vars:
-   - `GITHUB_CLIENT_ID`
    - `GITHUB_CLIENT_SECRET`
-   - `EXPO_PUBLIC_GITHUB_CLIENT_ID` (same value as `GITHUB_CLIENT_ID`)
+   - `EXPO_PUBLIC_GITHUB_CLIENT_ID`
 4. Rebuild and restart:
    - `npm run build:web`
    - `npm run serve:prod:env`
@@ -200,16 +216,19 @@ Notes:
 
 Use Plesk as the deployment target, but deploy the repository into the Node app root, not into `dist/client`.
 
-1. Connect the GitHub repository in **Plesk -> Git** and keep branch `main`.
-2. Set the Git deployment target to the **Application Root**:
-   - `/lucid-lewin.108-175-12-95.plesk.page`
-   - Do not deploy to `/lucid-lewin.108-175-12-95.plesk.page/dist/client`
-3. Keep the Node.js app settings aligned with `server.js`:
-   - Application Root: `/lucid-lewin.108-175-12-95.plesk.page`
-   - Document Root: `/lucid-lewin.108-175-12-95.plesk.page/dist/client`
+1. Create two separate Plesk Git deployments:
+   - Staging/temp domain tracks branch `test`
+   - Production domain tracks branch `main`
+2. For each environment, set the Git deployment target to the **Application Root** and do not deploy directly into `dist/client`.
+3. Keep each Node.js app aligned with `server.js`:
+   - Application Root: the site root for that domain
+   - Document Root: `<application-root>/dist/client`
    - Startup File: `server.js`
-4. Configure env vars in Plesk (`MERCURY_API_KEY`, optional `MERCURY_BASE_URL`, optional `PORT`).
-5. In the Git repository settings, enable **Additional deployment actions** and use:
+4. Configure env vars in each Plesk app:
+   - required app/server vars such as `MERCURY_API_KEY`
+   - optional runtime vars such as `MERCURY_BASE_URL` and `PORT`
+   - `EXPO_PUBLIC_SITE_ORIGIN` set to the matching domain for that environment
+5. In each Plesk Git repository settings page, enable **Additional deployment actions** and use:
 
 ```sh
 sh ./scripts/plesk-post-deploy.sh
@@ -217,18 +236,26 @@ sh ./scripts/plesk-post-deploy.sh
 
 This runs `npm ci --include=dev`, builds `dist/client` + `dist/server`, and touches `../tmp/restart.txt` so the Node app restarts.
 
-6. In GitHub repository secrets, add `PLESK_DEPLOY_WEBHOOK_URL` with the webhook URL from the Plesk Git repository screen.
-7. Pushes to `main` now flow like this:
-   - GitHub Actions runs lint, typecheck, tests, Expo doctor, and `npm run build:web:deploy`
-   - If those all pass, Actions `POST`s the Plesk webhook URL
-   - Plesk pulls the new commit, runs the post-deploy script, rebuilds the app, and restarts it
+6. In GitHub repository `Settings -> Secrets and variables -> Actions`, add:
+    - `PLESK_STAGING_WEBHOOK_URL`
+    - `PLESK_PRODUCTION_WEBHOOK_URL`
+7. Pushes now flow like this:
+    - PRs into `test` or `main` run the `Quality` check
+    - pushes to `test` that pass `Quality` trigger `Deploy Staging`, which validates the webhook secret and then fires the staging Plesk webhook
+    - pushes to `main` that pass `Quality` trigger `Deploy Production`, which validates the webhook secret and then fires the production Plesk webhook
+    - PRs into `main` also run `Require Main PR Source`, which only allows `test` or `hotfix/*`
 8. Keep HTTPS enabled for full PWA install/service-worker behavior.
-9. For hosted mode, ensure Supabase auth redirects include `https://time2pay.app/dashboard`.
+9. For hosted mode, ensure Supabase auth redirects include the correct callback URL for each environment, especially `https://time2pay.app/dashboard` for production.
+10. Recommended GitHub rulesets after the new checks appear:
+   - `test`: require pull request, require `Quality`, require up-to-date branch, block force pushes, restrict deletions
+   - `main`: require pull request, require `Quality` and `Require Main PR Source`, require up-to-date branch, block force pushes, restrict deletions
 
 Notes:
 
 - `build:web:deploy` skips `icons:sync`, which is intentional for CI and Plesk because the repo already tracks the built public icons while the source `time2pay_icons/` folder is local-only.
-- If you change the active Node version in Plesk, update `.github/workflows/ci.yml` to match the same major version.
+- `build:web:deploy` generates `dist/client/__time2pay_build.txt` and `dist/client/__time2pay_build.json` for deploy diagnostics and manual readiness checks.
+- CI currently uses Node 22 plus npm 11 to keep `npm ci` stable against this repo's Expo/React Native dependency graph.
+- If you change the active Node version in Plesk, re-verify `.github/workflows/ci.yml` against the supported Expo/npm toolchain and update it if needed.
 
 ## Available Scripts
 

@@ -19,6 +19,7 @@ function FooterLinkButton({
   onOpenLink: (href: string) => void;
   isPrimary?: boolean;
 }) {
+  const isExternalHref = href.startsWith('http');
   const className = isPrimary
     ? 'inline-flex items-center justify-center rounded-full bg-white px-4 py-2 text-sm font-semibold text-heading no-underline'
     : 'inline-flex items-center justify-center rounded-full border border-white px-4 py-2 text-sm font-semibold text-white no-underline';
@@ -29,8 +30,8 @@ function FooterLinkButton({
       {
         className,
         href,
-        rel: 'noopener noreferrer',
-        target: '_blank',
+        rel: isExternalHref ? 'noopener noreferrer' : undefined,
+        target: isExternalHref ? '_blank' : undefined,
       },
       label,
     );

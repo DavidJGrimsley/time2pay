@@ -30,10 +30,12 @@ type AuthUiState = {
   isAuthenticated: boolean;
   tourModeEnabled: boolean;
   tourModeHydrated: boolean;
+  tourInitError: string | null;
   hydrateTourMode: () => void;
   setAuthReady: (ready: boolean) => void;
   setAuthenticated: (authenticated: boolean) => void;
   setTourModeEnabled: (enabled: boolean) => void;
+  setTourInitError: (message: string | null) => void;
   startTour: () => void;
   endTour: () => void;
   syncHostedAuth: (snapshot: HostedAuthSnapshot) => void;
@@ -45,6 +47,7 @@ export const useAuthUiStore = create<AuthUiState>((set) => ({
   isAuthenticated: false,
   tourModeEnabled: false,
   tourModeHydrated: false,
+  tourInitError: null,
   hydrateTourMode: () =>
     set((state) => {
       if (state.tourModeHydrated) {
@@ -70,17 +73,18 @@ export const useAuthUiStore = create<AuthUiState>((set) => ({
   setTourModeEnabled: (enabled) =>
     set(() => {
       persistTourMode(enabled);
-      return { tourModeEnabled: enabled, tourModeHydrated: true };
+      return { tourModeEnabled: enabled, tourModeHydrated: true, tourInitError: null };
     }),
+  setTourInitError: (message) => set({ tourInitError: message }),
   startTour: () =>
     set(() => {
       persistTourMode(true);
-      return { tourModeEnabled: true, tourModeHydrated: true };
+      return { tourModeEnabled: true, tourModeHydrated: true, tourInitError: null };
     }),
   endTour: () =>
     set(() => {
       persistTourMode(false);
-      return { tourModeEnabled: false, tourModeHydrated: true };
+      return { tourModeEnabled: false, tourModeHydrated: true, tourInitError: null };
     }),
   syncHostedAuth: ({ ready, authenticated }) =>
     set((state) => {
@@ -92,6 +96,7 @@ export const useAuthUiStore = create<AuthUiState>((set) => ({
         isAuthenticated: authenticated,
         tourModeEnabled: nextTourModeEnabled,
         tourModeHydrated: true,
+        tourInitError: authenticated ? null : state.tourInitError,
       };
     }),
   resetForLocalMode: () =>
@@ -102,6 +107,7 @@ export const useAuthUiStore = create<AuthUiState>((set) => ({
         isAuthenticated: true,
         tourModeEnabled: false,
         tourModeHydrated: true,
+        tourInitError: null,
       };
     }),
 }));

@@ -6,13 +6,13 @@ type GitHubTokenExchangePayload = {
 function getGitHubOAuthConfig():
   | { clientId: string; clientSecret: string }
   | { error: string } {
-  const clientId = process.env.GITHUB_CLIENT_ID?.trim();
+  const clientId = process.env.EXPO_PUBLIC_GITHUB_CLIENT_ID?.trim();
   const clientSecret = process.env.GITHUB_CLIENT_SECRET?.trim();
 
   if (!clientId || !clientSecret) {
     return {
       error:
-        'GitHub OAuth is not configured. Set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET on the server.',
+        'GitHub OAuth is not configured. Set EXPO_PUBLIC_GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET on the server.',
     };
   }
 

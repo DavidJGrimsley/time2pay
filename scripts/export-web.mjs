@@ -2,7 +2,13 @@ import { spawn } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import dotenv from 'dotenv';
-import { clientBuildDir, repoRoot, serverBuildDir } from './web-output-utils.mjs';
+import {
+  clientBuildDir,
+  discoverApiRouteSources,
+  repoRoot,
+  serverBuildDir,
+  toPosixPath,
+} from './web-output-utils.mjs';
 
 const WINDOWS_ACCESS_VIOLATION_EXIT_CODES = new Set([3221225477, -1073741819]);
 const STRICT_LOCAL_MODE_BUILD_FLAG = 'TIME2PAY_FAIL_BUILD_IF_LOCAL';
@@ -12,16 +18,35 @@ function isTruthy(value) {
   return /^(1|true|yes|on)$/i.test(value.trim());
 }
 
-async function resolveBuildEnvironment() {
-  const envFilePath = path.join(repoRoot, '.env');
-  const envFileExists = await fs
-    .access(envFilePath)
-    .then(() => true)
-    .catch(() => false);
+async function loadPreferredBuildEnvFile() {
+  const candidateFiles = ['.env.build', '.env'];
+  const existingCandidates = [];
 
-  const envFromFile = envFileExists
-    ? dotenv.parse(await fs.readFile(envFilePath, 'utf8'))
-    : {};
+  for (const fileName of candidateFiles) {
+    const filePath = path.join(repoRoot, fileName);
+    const exists = await fs
+      .access(filePath)
+      .then(() => true)
+      .catch(() => false);
+    if (exists) {
+      existingCandidates.push({ fileName, filePath });
+    }
+  }
+
+  if (existingCandidates.length === 0) {
+    return { envFromFile: {}, sourceFile: null };
+  }
+
+  const envFromFile = {};
+  for (const candidate of [...existingCandidates].reverse()) {
+    Object.assign(envFromFile, dotenv.parse(await fs.readFile(candidate.filePath, 'utf8')));
+  }
+
+  return { envFromFile, sourceFile: existingCandidates[0].fileName };
+}
+
+async function resolveBuildEnvironment() {
+  const { envFromFile, sourceFile } = await loadPreferredBuildEnvFile();
 
   const resolvedEnv = {
     ...envFromFile,
@@ -33,7 +58,7 @@ async function resolveBuildEnvironment() {
   const modeSource = process.env.EXPO_PUBLIC_TIME2PAY_DATA_MODE?.trim()
     ? 'process.env'
     : envFromFile.EXPO_PUBLIC_TIME2PAY_DATA_MODE?.trim()
-      ? '.env'
+      ? sourceFile ?? '.env'
       : 'default(local)';
 
   console.log(
@@ -65,11 +90,22 @@ async function exportArtifactsLookValid() {
     }
   }
 
+  const apiRouteSources = await discoverApiRouteSources();
+  for (const apiRoute of apiRouteSources) {
+    const relativeFunctionPath = toPosixPath(
+      path.join('_expo', 'functions', `${apiRoute.pagePath}+api.js`),
+    );
+    const builtFunctionPath = path.join(serverBuildDir, relativeFunctionPath);
+    const functionStat = await fs.stat(builtFunctionPath).catch(() => null);
+    if (!functionStat) {
+      return false;
+    }
+  }
+
   return true;
 }
 
-async function main() {
-  const resolvedEnv = await resolveBuildEnvironment();
+async function runExpoExport(resolvedEnv) {
   const isWindows = process.platform === 'win32';
   const command = isWindows ? 'cmd.exe' : 'npx';
   const args = isWindows ? ['/d', '/s', '/c', 'npx expo export -p web'] : ['expo', 'export', '-p', 'web'];
@@ -85,6 +121,26 @@ async function main() {
     child.once('error', reject);
     child.once('exit', (code) => resolve(code ?? 0));
   });
+
+  return { exitCode, isWindows };
+}
+
+async function main() {
+  const resolvedEnv = await resolveBuildEnvironment();
+  const firstAttempt = await runExpoExport(resolvedEnv);
+  const { isWindows } = firstAttempt;
+  let exitCode = firstAttempt.exitCode;
+
+  if (exitCode !== 0 && isWindows && WINDOWS_ACCESS_VIOLATION_EXIT_CODES.has(exitCode)) {
+    const artifactsLookValid = await exportArtifactsLookValid();
+    if (!artifactsLookValid) {
+      console.warn(
+        'Expo export exited with a Windows access violation and left incomplete server artifacts. Retrying once...',
+      );
+      const retryAttempt = await runExpoExport(resolvedEnv);
+      exitCode = retryAttempt.exitCode;
+    }
+  }
 
   if (exitCode === 0) {
     return;

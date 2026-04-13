@@ -6,7 +6,12 @@ import { AppLoadingShell } from '@/components/app-loading-shell';
 import { LandingSeoHead } from '@/components/landing/landing-seo-head';
 import { NoIndexSeoHead } from '@/components/no-index-seo-head';
 import { bootstrapRuntimeDiagnostics, errorMessage, logRuntimeDiagnostic } from '@/services/runtime-diagnostics';
-import { isHostedMode, resolveAppAccessMode } from '@/services/runtime-mode';
+import {
+  getMissingHostedModePublicEnvKeys,
+  HOSTED_MODE_REQUIRED_PUBLIC_ENV_KEYS,
+  isHostedMode,
+  resolveAppAccessMode,
+} from '@/services/runtime-mode';
 import { getSupabaseSession, onSupabaseAuthStateChange } from '@/services/supabase-client';
 import { ensureTourDemoData } from '@/services/tour-demo';
 import { useAuthUiStore } from '@/stores/auth-ui-store';
@@ -37,6 +42,7 @@ export default function RootLayout() {
   const isAuthenticated = useAuthUiStore((state) => state.isAuthenticated);
   const tourModeEnabled = useAuthUiStore((state) => state.tourModeEnabled);
   const tourModeHydrated = useAuthUiStore((state) => state.tourModeHydrated);
+  const setTourInitError = useAuthUiStore((state) => state.setTourInitError);
   const hydrateTourMode = useAuthUiStore((state) => state.hydrateTourMode);
   const syncHostedAuth = useAuthUiStore((state) => state.syncHostedAuth);
   const resetForLocalMode = useAuthUiStore((state) => state.resetForLocalMode);
@@ -51,6 +57,41 @@ export default function RootLayout() {
       segments,
     });
   }, [hostedMode, pathname, segments]);
+
+  useEffect(() => {
+    logRuntimeDiagnostic('data.provider.selected', {
+      appAccessMode,
+      provider:
+        appAccessMode === 'tour'
+          ? 'tour-memory'
+          : appAccessMode === 'hosted'
+            ? 'hosted-supabase'
+            : 'local-sqlite',
+    });
+  }, [appAccessMode]);
+
+  useEffect(() => {
+    if (!hostedMode) {
+      return;
+    }
+
+    const missingEnvKeys = getMissingHostedModePublicEnvKeys();
+    if (missingEnvKeys.length > 0) {
+      logRuntimeDiagnostic(
+        'hosted.config.missingEnv',
+        {
+          missingEnvKeys,
+          requiredEnvKeys: HOSTED_MODE_REQUIRED_PUBLIC_ENV_KEYS,
+        },
+        { level: 'error' },
+      );
+      return;
+    }
+
+    logRuntimeDiagnostic('hosted.config.ready', {
+      requiredEnvKeys: HOSTED_MODE_REQUIRED_PUBLIC_ENV_KEYS,
+    });
+  }, [hostedMode]);
 
   useEffect(() => {
     Uniwind.setTheme('system');
@@ -132,6 +173,7 @@ export default function RootLayout() {
 
     if (!hostedMode || appAccessMode !== 'tour') {
       setIsTourSeedReady(true);
+      setTourInitError(null);
       logRuntimeDiagnostic('tour.seed.skipped', {
         hostedMode,
         appAccessMode,
@@ -142,6 +184,7 @@ export default function RootLayout() {
     }
 
     setIsTourSeedReady(false);
+    setTourInitError(null);
     logRuntimeDiagnostic('tour.seed.start', {
       appAccessMode,
     });
@@ -156,6 +199,7 @@ export default function RootLayout() {
           { level: 'error' },
         );
         console.error('Failed to seed tour demo data:', error);
+        setTourInitError('Tour data failed to initialize. Try "Reset Tour" or refresh the page.');
       })
       .finally(() => {
         if (isActive) {
@@ -167,10 +211,20 @@ export default function RootLayout() {
     return () => {
       isActive = false;
     };
-  }, [appAccessMode, hostedMode]);
+  }, [appAccessMode, hostedMode, setTourInitError]);
 
-  const canAccessTabs = !hostedMode || isAuthenticated || tourModeEnabled;
-  const isInsideTabsGroup = pathname !== '/' && pathname !== '/sign-in';
+  // Keep tabs reachable while hosted auth/tour state is still bootstrapping so
+  // first-click tour navigation can land on the loading shell instead of
+  // bouncing back to the public landing route.
+  const hostedAccessResolved = tourModeHydrated && authReady;
+  const canAccessTabs = !hostedMode || !hostedAccessResolved || isAuthenticated || tourModeEnabled;
+  const normalizedPathname = pathname !== '/' ? pathname.replace(/\/+$/, '') : pathname;
+  const isPublicRoute =
+    normalizedPathname === '/' ||
+    normalizedPathname === '/sign-in' ||
+    normalizedPathname === '/privacy' ||
+    normalizedPathname === '/terms';
+  const isInsideTabsGroup = !isPublicRoute;
 
   useEffect(() => {
     if (!hostedMode || !tourModeHydrated || !authReady) {
@@ -184,6 +238,7 @@ export default function RootLayout() {
 
     logRuntimeDiagnostic('auth.redirect.check', {
       canAccessTabs,
+      hostedAccessResolved,
       isInsideTabsGroup,
       isAuthenticated,
       pathname,
@@ -211,6 +266,7 @@ export default function RootLayout() {
   }, [
     authReady,
     canAccessTabs,
+    hostedAccessResolved,
     hostedMode,
     isAuthenticated,
     isInsideTabsGroup,
@@ -228,13 +284,14 @@ export default function RootLayout() {
     if (isLoadingShellVisible) {
       logRuntimeDiagnostic('root.loadingShell.visible', {
         hostedMode,
+        hostedAccessResolved,
         tourModeHydrated,
         authReady,
         appAccessMode,
         isTourSeedReady,
       });
     }
-  }, [isLoadingShellVisible, hostedMode, tourModeHydrated, authReady, appAccessMode, isTourSeedReady]);
+  }, [isLoadingShellVisible, hostedMode, hostedAccessResolved, tourModeHydrated, authReady, appAccessMode, isTourSeedReady]);
 
   if (isLoadingShellVisible) {
     return (
@@ -257,6 +314,8 @@ export default function RootLayout() {
         }}
       >
         <Stack.Screen name="index" options={{ title: 'Time2Pay' }} />
+        <Stack.Screen name="privacy" options={{ title: 'Privacy Policy' }} />
+        <Stack.Screen name="terms" options={{ title: 'Terms of Service' }} />
         <Stack.Screen name="sign-in" options={{ title: 'Sign In' }} />
         <Stack.Protected guard={canAccessTabs}>
           <Stack.Screen name="(tabs)" options={{ title: 'Time2Pay' }} />

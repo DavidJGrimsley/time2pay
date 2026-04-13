@@ -127,6 +127,11 @@ export function ProjectsOverview() {
   const sectionCardClassName = isLarge ? 'gap-3 rounded-xl bg-card p-6' : 'gap-2 rounded-xl bg-card p-4';
   const sectionTitleClassName = isLarge ? 'text-3xl font-bold text-heading' : 'text-2xl font-bold text-heading';
   const subsectionTitleClassName = isLarge ? 'text-2xl font-bold text-heading' : 'text-xl font-bold text-heading';
+  const projectWorkspaceLayoutClassName = isLarge ? 'flex-row items-start gap-6' : 'flex-col gap-6';
+  const projectInfoPanelClassName = isLarge ? 'flex-1 min-w-0 gap-3' : 'w-full gap-3';
+  const milestonesPanelClassName = isLarge
+    ? 'flex-1 min-w-0 gap-3 pt-2'
+    : 'w-full gap-3 border-t border-border/50 pt-6';
   const fieldLabelClassName = isLarge ? 'text-sm uppercase tracking-wide text-muted' : 'text-xs uppercase tracking-wide text-muted';
   const formInputClassName = 'rounded-md border border-border bg-background px-3 text-base text-foreground';
   const fullFieldStyle = useMemo(() => ({ width: '100%' as const }), []);
@@ -862,8 +867,8 @@ export function ProjectsOverview() {
       <View className="items-center">
         <View className="w-full gap-3" style={contentWidthStyle}>
           <Animated.View className={sectionCardClassName} layout={smoothLayout}>
-            <View className={isLarge ? 'flex-row gap-4' : 'gap-4'}>
-              <View className="flex-1 gap-3">
+            <View className={projectWorkspaceLayoutClassName}>
+              <View className={projectInfoPanelClassName}>
                 <Text className={sectionTitleClassName}>Project Info</Text>
 
             <View style={fullFieldStyle}>
@@ -1078,7 +1083,7 @@ export function ProjectsOverview() {
                       : `Hourly pricing${hourlyRate ? ` - $${hourlyRate}/hr` : ''}`}
                   </Text>
                 )}
-                <View className="flex-row gap-2">
+                <View className="flex-row flex-wrap items-center gap-2 pb-1">
                   <Pressable
                     className="rounded-md bg-secondary px-3 py-2"
                     onPress={() => {
@@ -1116,8 +1121,8 @@ export function ProjectsOverview() {
             ) : null}
               </View>
 
-              <View className="flex-1 gap-2">
-                <View className="flex-row items-center justify-between">
+              <View className={milestonesPanelClassName}>
+                <View className="flex-row items-center justify-between gap-2 pt-1">
                   <Text className={subsectionTitleClassName}>Milestones</Text>
                   {selectedProject ? (
                     <Pressable
@@ -1184,7 +1189,7 @@ export function ProjectsOverview() {
                           containerStyle={fullFieldStyle}
                           onValueChange={(value) => setEditMilestoneCompletionMode(value as MilestoneCompletionMode)}
                         />
-                        <View className="flex-row gap-2">
+                        <View className="flex-row flex-wrap justify-end gap-2">
                           <Pressable
                             className="rounded-md bg-secondary px-3 py-2"
                             onPress={() => handleSaveMilestone(milestone)}

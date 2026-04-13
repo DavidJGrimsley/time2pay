@@ -14,7 +14,9 @@ Core principles:
 ### Runtime modes
 - `local` mode: Expo Router app + `expo-sqlite` provider
 - `hosted` mode: Supabase Auth + Postgres (Drizzle) provider
+- `tour` access mode (hosted unauthenticated): in-memory demo provider (no SQLite dependency)
 - App-facing DB contract remains stable across both modes via `src/database/db.ts`
+- Runtime mode selection is env-driven via `EXPO_PUBLIC_TIME2PAY_DATA_MODE` (`local` or `hosted`)
 
 ### Hosted architecture
 - Auth: Supabase email magic-link + GitHub OAuth
@@ -23,6 +25,20 @@ Core principles:
 - Validation: route-level zod payload parsing + typed route status handling
 - Schema: domain files in `src/database/hosted/**/schema.ts`
 - Migrations: Drizzle migrations in `drizzle/migrations`
+
+### Hosted access contract (2026-03-28)
+- Unauthenticated hosted users: landing + sign-in only, unless they explicitly start tour mode
+- Tour mode users: can use demo app flow without profile-completion lock UI
+- Tour mode data path: in-memory provider with reset action (`Reset Tour`), avoiding filesystem-backed SQLite in hosted tour flows
+- Authenticated hosted users: remain profile-first and are redirected to `/profile` until required fields are complete
+- Root stack protection keeps direct unauthenticated tab access blocked and routes to `/sign-in` after hosted auth bootstrap resolves
+- Tour-mode Profile integration auth actions route to `/sign-in` instead of launching external OAuth/PAT flows
+
+### Hosted deployment env contract
+- Required in hosted mode: `EXPO_PUBLIC_SITE_ORIGIN`, `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`
+- Required mode toggle on Plesk: `EXPO_PUBLIC_TIME2PAY_DATA_MODE=hosted`
+- Hosted auth redirect targets are derived from `EXPO_PUBLIC_SITE_ORIGIN` (`/dashboard` for Supabase sign-in, `/profile` for profile GitHub OAuth)
+- Startup/runtime checks now fail fast on missing required hosted vars and fail fast when deprecated hosted vars are present (`EXPO_PUBLIC_HOSTED_API_BASE_URL`, `EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_URL`, `EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_PATH`, `EXPO_PUBLIC_MERCURY_PROXY_PATH`, `SITE_ORIGIN`)
 
 ### Migration state
 - Supabase schema is applied

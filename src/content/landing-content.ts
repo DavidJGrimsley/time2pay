@@ -31,7 +31,6 @@ export type LandingSection = {
   ctas?: LandingCta[];
 };
 
-export const SITE_ORIGIN = 'https://lucid-lewin.108-175-12-95.plesk.page';
 export const TIME2PAY_GITHUB_URL = 'https://github.com/DavidJGrimsley/time2pay';
 export const DAVID_GRIMSLEY_PORTFOLIO_URL = 'https://DavidJGrimsley.com';
 
@@ -147,4 +146,6 @@ export const footerBrand = {
 export const footerLinks: LandingFooterLink[] = [
   { label: 'DavidJGrimsley.com', href: DAVID_GRIMSLEY_PORTFOLIO_URL },
   { label: 'Time2Pay on GitHub', href: TIME2PAY_GITHUB_URL },
+  { label: 'Terms of Service', href: '/terms' },
+  { label: 'Privacy Policy', href: '/privacy' },
 ];
