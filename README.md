@@ -237,15 +237,13 @@ sh ./scripts/plesk-post-deploy.sh
 This runs `npm ci --include=dev`, builds `dist/client` + `dist/server`, and touches `../tmp/restart.txt` so the Node app restarts.
 
 6. In GitHub repository `Settings -> Secrets and variables -> Actions`, add:
-   - `PLESK_STAGING_WEBHOOK_URL`
-   - `PLESK_PRODUCTION_WEBHOOK_URL`
-   - `PLESK_STAGING_SITE_ORIGIN` (for example `https://staging.example.com`)
-   - `PLESK_PRODUCTION_SITE_ORIGIN` (for example `https://time2pay.app`)
+    - `PLESK_STAGING_WEBHOOK_URL`
+    - `PLESK_PRODUCTION_WEBHOOK_URL`
 7. Pushes now flow like this:
-   - PRs into `test` or `main` run the `Quality` check
-   - pushes to `test` that pass `Quality` trigger `Deploy Staging`, then CI polls `/<origin>/__time2pay_build.txt` until it matches the pushed commit SHA
-   - pushes to `main` that pass `Quality` trigger `Deploy Production`, then CI polls `/<origin>/__time2pay_build.txt` until it matches the pushed commit SHA
-   - PRs into `main` also run `Require Main PR Source`, which only allows `test` or `hotfix/*`
+    - PRs into `test` or `main` run the `Quality` check
+    - pushes to `test` that pass `Quality` trigger `Deploy Staging`, which validates the webhook secret and then fires the staging Plesk webhook
+    - pushes to `main` that pass `Quality` trigger `Deploy Production`, which validates the webhook secret and then fires the production Plesk webhook
+    - PRs into `main` also run `Require Main PR Source`, which only allows `test` or `hotfix/*`
 8. Keep HTTPS enabled for full PWA install/service-worker behavior.
 9. For hosted mode, ensure Supabase auth redirects include the correct callback URL for each environment, especially `https://time2pay.app/dashboard` for production.
 10. Recommended GitHub rulesets after the new checks appear:
@@ -255,8 +253,9 @@ This runs `npm ci --include=dev`, builds `dist/client` + `dist/server`, and touc
 Notes:
 
 - `build:web:deploy` skips `icons:sync`, which is intentional for CI and Plesk because the repo already tracks the built public icons while the source `time2pay_icons/` folder is local-only.
-- `build:web:deploy` now generates `dist/client/__time2pay_build.txt` and `dist/client/__time2pay_build.json`, which CI uses to verify the commit is truly live on staging/production.
-- If you change the active Node version in Plesk, update `.github/workflows/ci.yml` to match the same major version.
+- `build:web:deploy` generates `dist/client/__time2pay_build.txt` and `dist/client/__time2pay_build.json` for deploy diagnostics and manual readiness checks.
+- CI currently uses Node 22 plus npm 11 to keep `npm ci` stable against this repo's Expo/React Native dependency graph.
+- If you change the active Node version in Plesk, re-verify `.github/workflows/ci.yml` against the supported Expo/npm toolchain and update it if needed.
 
 ## Available Scripts
 
