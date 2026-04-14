@@ -239,6 +239,7 @@ This runs `npm ci --include=dev`, builds `dist/client` + `dist/server`, and touc
 6. In GitHub repository `Settings -> Secrets and variables -> Actions`, add:
     - `PLESK_STAGING_WEBHOOK_URL`
     - `PLESK_PRODUCTION_WEBHOOK_URL`
+   - If this repo still has the older typo'd secret name `PLESK__PRODUCTION_WEBHOOK_URL`, the workflow accepts it temporarily, but rename it to `PLESK_PRODUCTION_WEBHOOK_URL` when you can.
 7. Pushes now flow like this:
     - PRs into `test` or `main` run the `Quality` check
     - pushes to `test` that pass `Quality` trigger `Deploy Staging`, which validates the webhook secret and then fires the staging Plesk webhook
