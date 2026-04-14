@@ -88,15 +88,15 @@ jobs:
     steps:
       - name: Validate production webhook secret
         env:
-          PLESK_PRODUCTION_WEBHOOK_URL: ${{ secrets.PLESK_PRODUCTION_WEBHOOK_URL }}
+          PLESK_PRODUCTION_WEBHOOK_URL: ${{ secrets.PLESK_PRODUCTION_WEBHOOK_URL || secrets.PLESK__PRODUCTION_WEBHOOK_URL }}
         run: |
           if [ -z "$PLESK_PRODUCTION_WEBHOOK_URL" ]; then
-            echo "Missing PLESK_PRODUCTION_WEBHOOK_URL secret." >&2
+            echo "Missing PLESK_PRODUCTION_WEBHOOK_URL secret. Legacy alias PLESK__PRODUCTION_WEBHOOK_URL is also accepted during migration." >&2
             exit 1
           fi
 
       - name: Trigger Plesk production webhook
         env:
-          PLESK_PRODUCTION_WEBHOOK_URL: ${{ secrets.PLESK_PRODUCTION_WEBHOOK_URL }}
+          PLESK_PRODUCTION_WEBHOOK_URL: ${{ secrets.PLESK_PRODUCTION_WEBHOOK_URL || secrets.PLESK__PRODUCTION_WEBHOOK_URL }}
         run: |
           curl --fail --silent --show-error --request POST "$PLESK_PRODUCTION_WEBHOOK_URL"
