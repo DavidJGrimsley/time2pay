@@ -1,11 +1,12 @@
 import type { AddressInfo } from 'node:net';
-import express from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { handleDbWrite } from '@/server/db/_shared/route';
 import { conflict, forbidden, notFound } from '@/server/db/_shared/errors';
 import { requireAuthUserId } from '@/server/db/_shared/auth';
 import { withWriteDb } from '@/server/db/_shared/db';
+
+const express = require('express') as any;
 
 vi.mock('@/server/db/_shared/auth', () => ({
   requireAuthUserId: vi.fn(),
@@ -113,11 +114,11 @@ describe('handleDbWrite', () => {
     let matchedUrl: string | null = null;
 
     app.use('/api/db', express.json({ limit: '1mb' }));
-    app.all('/api/db/{*route}', (req, res) => {
+    app.all('/api/db/{*route}', (req: any, res: any) => {
       matchedUrl = req.originalUrl;
       res.status(204).end();
     });
-    app.use((_req, res) => {
+    app.use((_req: any, res: any) => {
       res.status(404).end();
     });
 
@@ -137,7 +138,7 @@ describe('handleDbWrite', () => {
       expect(matchedUrl).toBe('/api/db/invoices/delete');
     } finally {
       await new Promise<void>((resolve, reject) => {
-        server.close((error) => {
+        server.close((error?: Error | null) => {
           if (error) {
             reject(error);
             return;
