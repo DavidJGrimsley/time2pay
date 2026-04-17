@@ -3,6 +3,15 @@ set -eu
 
 cd "$(dirname "$0")/.."
 
+echo "[plesk-post-deploy] HEAD: $(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+echo "[plesk-post-deploy] Branch: $(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
+node -e "const pkg=require('./package.json'); console.log('[plesk-post-deploy] package versions: react-native=' + (pkg.dependencies?.['react-native'] ?? 'missing') + ' react-native-worklets=' + (pkg.dependencies?.['react-native-worklets'] ?? 'missing') + ' expo=' + (pkg.dependencies?.expo ?? 'missing'))"
+if [ -f ".env.plesk" ]; then
+  echo "[plesk-post-deploy] Using .env.plesk"
+else
+  echo "[plesk-post-deploy] No file-based env detected"
+fi
+
 echo "[plesk-post-deploy] Installing dependencies"
 npm ci --include=dev
 
