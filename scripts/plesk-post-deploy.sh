@@ -17,6 +17,26 @@ fi
 echo "[plesk-post-deploy] Installing dependencies"
 npm ci --include=dev
 
+if [ -d "dist" ]; then
+  echo "[plesk-post-deploy] Existing dist ownership:"
+  ls -ld dist || true
+
+  if [ -w "dist" ]; then
+    echo "[plesk-post-deploy] Removing writable dist"
+    rm -rf dist
+  else
+    stale_dist="dist.stale.$(date +%Y%m%d%H%M%S)"
+    echo "[plesk-post-deploy] dist is not writable; attempting to move it aside to $stale_dist"
+    if mv dist "$stale_dist"; then
+      echo "[plesk-post-deploy] Moved stale dist to $stale_dist"
+    else
+      echo "[plesk-post-deploy] Failed to move non-writable dist. Fix ownership, for example:" >&2
+      echo "[plesk-post-deploy]   sudo chown -R \$(stat -c '%U:%G' .) dist" >&2
+      exit 1
+    fi
+  fi
+fi
+
 echo "[plesk-post-deploy] Building web output"
 npm run build:web:deploy
 
