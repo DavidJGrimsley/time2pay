@@ -12,6 +12,7 @@ import {
   isHostedMode,
   resolveAppAccessMode,
 } from '@/services/runtime-mode';
+import { syncGitHubProviderTokenToHostedProfile } from '@/services/github-auth';
 import { getSupabaseSession, onSupabaseAuthStateChange } from '@/services/supabase-client';
 import { ensureTourDemoData } from '@/services/tour-demo';
 import { useAuthUiStore } from '@/stores/auth-ui-store';
@@ -20,6 +21,8 @@ import '../../global.css';
 export const unstable_settings = {
   anchor: 'index',
 };
+
+const AUTH_BOOTSTRAP_TIMEOUT_MS = 5000;
 
 if (Platform.OS === 'web' && typeof window !== 'undefined') {
   try {
@@ -110,28 +113,89 @@ export default function RootLayout() {
     }
 
     let isActive = true;
+    let authBootstrapTimeoutId: ReturnType<typeof setTimeout> | undefined;
+    const syncGitHubProviderToken = (
+      session: Awaited<ReturnType<typeof getSupabaseSession>>,
+      source: 'bootstrap' | 'auth-state',
+    ): void => {
+      syncGitHubProviderTokenToHostedProfile(session)
+        .then((status) => {
+          if (status === 'skipped') {
+            return;
+          }
+
+          logRuntimeDiagnostic('auth.githubToken.sync', {
+            source,
+            status,
+            hasSessionUser: Boolean(session?.user),
+          });
+        })
+        .catch((error) => {
+          logRuntimeDiagnostic(
+            'auth.githubToken.sync.error',
+            {
+              source,
+              message: errorMessage(error),
+            },
+            { level: 'warn' },
+          );
+        });
+    };
     logRuntimeDiagnostic('auth.bootstrap.session.read.start', {
       hostedMode,
     });
 
-    getSupabaseSession()
-      .then((session) => {
+    const sessionRead = Promise.race([
+      getSupabaseSession().then((session) => ({
+        status: 'resolved' as const,
+        session,
+      })),
+      new Promise<{ status: 'timeout' }>((resolve) => {
+        authBootstrapTimeoutId = setTimeout(
+          () => resolve({ status: 'timeout' }),
+          AUTH_BOOTSTRAP_TIMEOUT_MS,
+        );
+      }),
+    ]);
+
+    sessionRead
+      .then((result) => {
         if (!isActive) {
           return;
         }
 
+        clearTimeout(authBootstrapTimeoutId);
+
+        if (result.status === 'timeout') {
+          logRuntimeDiagnostic(
+            'auth.bootstrap.session.read.timeout',
+            {
+              timeoutMs: AUTH_BOOTSTRAP_TIMEOUT_MS,
+            },
+            { level: 'warn' },
+          );
+          syncHostedAuth({
+            ready: true,
+            authenticated: false,
+          });
+          return;
+        }
+
         logRuntimeDiagnostic('auth.bootstrap.session.read.success', {
-          hasSessionUser: Boolean(session?.user),
+          hasSessionUser: Boolean(result.session?.user),
         });
+        syncGitHubProviderToken(result.session, 'bootstrap');
         syncHostedAuth({
           ready: true,
-          authenticated: Boolean(session?.user),
+          authenticated: Boolean(result.session?.user),
         });
       })
       .catch((error) => {
         if (!isActive) {
           return;
         }
+
+        clearTimeout(authBootstrapTimeoutId);
 
         logRuntimeDiagnostic(
           'auth.bootstrap.session.read.error',
@@ -155,6 +219,7 @@ export default function RootLayout() {
         event,
         hasSessionUser: Boolean(session?.user),
       });
+      syncGitHubProviderToken(session, 'auth-state');
       syncHostedAuth({
         ready: true,
         authenticated: Boolean(session?.user),
@@ -163,6 +228,7 @@ export default function RootLayout() {
 
     return () => {
       isActive = false;
+      clearTimeout(authBootstrapTimeoutId);
       logRuntimeDiagnostic('auth.bootstrap.cleanup');
       unsubscribe();
     };

@@ -249,6 +249,12 @@ export function createInvoice(
   return provider().createInvoice(...args);
 }
 
+export function deleteInvoice(
+  ...args: Parameters<typeof local.deleteInvoice>
+): ReturnType<typeof local.deleteInvoice> {
+  return provider().deleteInvoice(...args);
+}
+
 export function listInvoices(
   ...args: Parameters<typeof local.listInvoices>
 ): ReturnType<typeof local.listInvoices> {

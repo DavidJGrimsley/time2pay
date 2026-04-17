@@ -3,12 +3,48 @@
     return;
   }
 
+  const hostname = window.location.hostname || '';
+  const isLocalhost =
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '::1' ||
+    hostname === '[::1]';
+
   if (/\.plesk\.page$/i.test(window.location.hostname || '')) {
     return;
   }
 
-  // During local Expo dev server sessions there is usually no generated /sw.js.
-  if (window.location.hostname === 'localhost' && window.location.port === '8081') {
+  // Avoid stale precache issues during any local development or local production testing.
+  if (isLocalhost) {
+    window.addEventListener('load', function onLocalLoad() {
+      navigator.serviceWorker
+        .getRegistrations()
+        .then(function (registrations) {
+          return Promise.all(
+            registrations.map(function (registration) {
+              return registration.unregister();
+            }),
+          );
+        })
+        .catch(function () {
+          return undefined;
+        });
+
+      if ('caches' in window) {
+        window.caches
+          .keys()
+          .then(function (cacheNames) {
+            return Promise.all(
+              cacheNames.map(function (cacheName) {
+                return window.caches.delete(cacheName);
+              }),
+            );
+          })
+          .catch(function () {
+            return undefined;
+          });
+      }
+    });
     return;
   }
 

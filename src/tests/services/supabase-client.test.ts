@@ -18,12 +18,24 @@ afterEach(() => {
 });
 
 describe('resolveSupabaseAuthRedirectUrl', () => {
-  it('uses the configured site origin in hosted mode', () => {
+  it('uses the current loopback browser origin in hosted mode during local testing', () => {
     process.env.EXPO_PUBLIC_TIME2PAY_DATA_MODE = 'hosted';
     process.env.EXPO_PUBLIC_SITE_ORIGIN = 'https://time2pay.app';
     process.env.EXPO_PUBLIC_SUPABASE_URL = 'https://example.supabase.co';
     process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = 'anon';
-    (globalThis as Record<string, unknown>).window = { location: { origin: 'http://localhost:3000' } };
+    (globalThis as Record<string, unknown>).window = { location: { origin: 'http://localhost:8081' } };
+
+    expect(resolveSupabaseAuthRedirectUrl()).toBe('http://localhost:8081/dashboard');
+  });
+
+  it('keeps the configured site origin in hosted mode for non-local browser origins', () => {
+    process.env.EXPO_PUBLIC_TIME2PAY_DATA_MODE = 'hosted';
+    process.env.EXPO_PUBLIC_SITE_ORIGIN = 'https://time2pay.app';
+    process.env.EXPO_PUBLIC_SUPABASE_URL = 'https://example.supabase.co';
+    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = 'anon';
+    (globalThis as Record<string, unknown>).window = {
+      location: { origin: 'https://preview.time2pay.app' },
+    };
 
     expect(resolveSupabaseAuthRedirectUrl()).toBe('https://time2pay.app/dashboard');
   });

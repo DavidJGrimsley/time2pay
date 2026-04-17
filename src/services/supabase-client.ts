@@ -7,7 +7,7 @@ import {
 } from '@supabase/supabase-js';
 import { assertHostedModeConfigured, isHostedMode } from '@/services/runtime-mode';
 import { readTrimmedPublicRuntimeConfigValue } from '@/services/runtime-config';
-import { requireConfiguredSiteOrigin } from '@/services/site-origin';
+import { resolveBrowserSiteOrigin } from '@/services/site-origin';
 
 let supabaseClient: SupabaseClient | null = null;
 const DEFAULT_AUTH_REDIRECT_PATH = '/dashboard';
@@ -123,7 +123,7 @@ export async function signInWithGitHubOAuth(): Promise<void> {
     provider: 'github',
     options: {
       redirectTo,
-      scopes: 'read:user user:email',
+      scopes: 'repo read:user user:email',
     },
   });
 
@@ -135,7 +135,7 @@ export async function signInWithGitHubOAuth(): Promise<void> {
 export function resolveSupabaseAuthRedirectUrl(): string | undefined {
   if (isHostedMode()) {
     assertHostedModeConfigured();
-    return new URL(DEFAULT_AUTH_REDIRECT_PATH, requireConfiguredSiteOrigin()).toString();
+    return new URL(DEFAULT_AUTH_REDIRECT_PATH, resolveBrowserSiteOrigin()).toString();
   }
 
   if (typeof window === 'undefined') {

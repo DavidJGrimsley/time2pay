@@ -27,7 +27,9 @@ export function DashboardOverview() {
     null,
   );
 
-  const refreshGate = useCallback(async (): Promise<void> => {
+  const refreshGate = useCallback(async (options?: { showLoading?: boolean }): Promise<void> => {
+    const showLoading = options?.showLoading ?? true;
+
     if (shouldBypassProfileGate) {
       setMissingFields([]);
       setGateStatus('unlocked');
@@ -35,7 +37,9 @@ export function DashboardOverview() {
       return;
     }
 
-    setGateStatus('loading');
+    if (showLoading) {
+      setGateStatus('loading');
+    }
     setGateStatusMessage(null);
 
     try {
@@ -52,12 +56,12 @@ export function DashboardOverview() {
   }, [shouldBypassProfileGate]);
 
   useEffect(() => {
-    refreshGate().catch(() => undefined);
+    refreshGate({ showLoading: true }).catch(() => undefined);
   }, [refreshGate]);
 
   useFocusEffect(
     useCallback(() => {
-      refreshGate().catch(() => undefined);
+      refreshGate({ showLoading: false }).catch(() => undefined);
     }, [refreshGate]),
   );
 

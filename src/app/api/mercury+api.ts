@@ -120,7 +120,7 @@ async function createInvoice(
     achDebitEnabled: resolvedPayload.achDebitEnabled ?? true,
     useRealAccountNumber: resolvedPayload.useRealAccountNumber ?? false,
     lineItems,
-    sendEmailOption: resolvedPayload.sendEmailOption ?? 'SendNow',
+    sendEmailOption: resolvedPayload.sendEmailOption ?? 'DontSend',
     internalNote: resolvedPayload.description,
     payerMemo: resolvedPayload.description,
   });

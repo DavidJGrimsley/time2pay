@@ -1,6 +1,6 @@
 import { getSupabaseClient, getSupabaseUser, requireSupabaseUserId } from '@/services/supabase-client';
 import type { UserProfile } from '@/database/hosted/types';
-import { requireConfiguredSiteOrigin } from '@/services/site-origin';
+import { requireConfiguredSiteOrigin, resolveBrowserSiteOrigin } from '@/services/site-origin';
 
 export function nowIso(): string {
   return new Date().toISOString();
@@ -96,7 +96,8 @@ export function byId<T extends { id: string }>(rows: T[]): Map<string, T> {
 
 function resolveHostedWriteUrl(path: string): string {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  return new URL(normalizedPath, requireConfiguredSiteOrigin()).toString();
+  requireConfiguredSiteOrigin();
+  return new URL(normalizedPath, resolveBrowserSiteOrigin()).toString();
 }
 
 export async function callHostedWriteRoute(
@@ -125,8 +126,20 @@ export async function callHostedWriteRoute(
   });
 
   if (!response.ok) {
-    const body = (await response.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? 'Hosted write route failed.');
+    const responseText = await response.text().catch(() => '');
+    let body: { error?: string } = {};
+    if (responseText) {
+      try {
+        body = (JSON.parse(responseText) as { error?: string }) ?? {};
+      } catch {
+        body = {};
+      }
+    }
+    const serverMessage =
+      typeof body.error === 'string' && body.error.trim()
+        ? body.error.trim()
+        : responseText.trim();
+    throw new Error(serverMessage || `Hosted write route failed (HTTP ${response.status}).`);
   }
 }
 

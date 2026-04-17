@@ -38,6 +38,7 @@ export type DbProvider = Pick<
   | 'listSessionsByClientAndRange'
   | 'listSessionsByProject'
   | 'createInvoice'
+  | 'deleteInvoice'
   | 'listInvoices'
   | 'listSessionsByInvoiceId'
   | 'assignSessionsToInvoice'
