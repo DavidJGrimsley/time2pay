@@ -1,3 +1,5 @@
+import type { AddressInfo } from 'node:net';
+import express from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { handleDbWrite } from '@/server/db/_shared/route';
@@ -104,5 +106,46 @@ describe('handleDbWrite', () => {
       },
     );
     expect(notFoundResponse.status).toBe(404);
+  });
+
+  it('matches nested /api/db routes with the Express wildcard syntax used by server.js', async () => {
+    const app = express();
+    let matchedUrl: string | null = null;
+
+    app.use('/api/db', express.json({ limit: '1mb' }));
+    app.all('/api/db/{*route}', (req, res) => {
+      matchedUrl = req.originalUrl;
+      res.status(204).end();
+    });
+    app.use((_req, res) => {
+      res.status(404).end();
+    });
+
+    const server = app.listen(0);
+
+    try {
+      const { port } = server.address() as AddressInfo;
+      const response = await fetch(`http://127.0.0.1:${port}/api/db/invoices/delete`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ id: 'invoice-1' }),
+      });
+
+      expect(response.status).toBe(204);
+      expect(matchedUrl).toBe('/api/db/invoices/delete');
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+
+          resolve();
+        });
+      });
+    }
   });
 });
