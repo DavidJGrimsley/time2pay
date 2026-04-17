@@ -63,11 +63,12 @@ Set these in `.env`:
 - `PORT` (optional): defaults to `3000`
 
 Environment file convention:
-- Build scripts now prefer `.env.build` and fall back to `.env`.
+- Plesk deploy/build scripts read `.env.plesk`.
+- `server.js` also reads `.env.plesk` for runtime startup on Plesk.
 - Keep `.env.test` and `.env.production` as minimal key reference files for Plesk values.
 
 Plesk note:
-- Set `EXPO_PUBLIC_TIME2PAY_DATA_MODE=hosted` in your Plesk Node app environment for hosted deployments.
+- Set `EXPO_PUBLIC_TIME2PAY_DATA_MODE=hosted` in your Plesk Node app environment for hosted deployments, or provide it via `.env.plesk`.
 - If this is missing or set to `local`, hosted auth/data flows are intentionally disabled.
 
 If `MERCURY_API_KEY` is missing, `/api/mercury` returns `400`.
@@ -228,6 +229,7 @@ Use Plesk as the deployment target, but deploy the repository into the Node app 
    - required app/server vars such as `MERCURY_API_KEY`
    - optional runtime vars such as `MERCURY_BASE_URL` and `PORT`
    - `EXPO_PUBLIC_SITE_ORIGIN` set to the matching domain for that environment
+   - if Plesk does not expose those vars to Git Additional deployment actions, place a single `.env.plesk` file in the app root so both build scripts and `server.js` can read it
 5. In each Plesk Git repository settings page, enable **Additional deployment actions** and use:
 
 ```sh

@@ -6,10 +6,10 @@ const express = require('express');
 const morgan = require('morgan');
 const { createRequestHandler } = require('expo-server/adapter/express');
 
-const envFilePath = path.join(__dirname, '.env');
+const envFilePath = path.join(__dirname, '.env.plesk');
 if (fs.existsSync(envFilePath)) {
   try {
-    // Local convenience: allow `node server.js` to pick up `.env` without extra flags.
+    // Plesk convenience: load file-based env when the host does not inject app vars.
     require('dotenv').config({ path: envFilePath });
   } catch {
     // no-op; runtime env vars may still be provided externally

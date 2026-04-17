@@ -4,11 +4,9 @@ import path from 'node:path';
 import { config as loadEnvFile } from 'dotenv';
 import { loadExpoRouterPluginConfig, publicDir } from './web-output-utils.mjs';
 
-for (const envFileName of ['.env.build', '.env']) {
-  const envPath = path.resolve(process.cwd(), envFileName);
-  if (existsSync(envPath)) {
-    loadEnvFile({ path: envPath, override: false });
-  }
+const envPath = path.resolve(process.cwd(), '.env.plesk');
+if (existsSync(envPath)) {
+  loadEnvFile({ path: envPath, override: false });
 }
 
 const INDEXED_PUBLIC_ROUTES = ['/'];

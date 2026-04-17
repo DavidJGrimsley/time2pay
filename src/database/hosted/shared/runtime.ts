@@ -28,6 +28,10 @@ function toNullableNonEmptyString(value: unknown): string | null {
   return trimmed ? trimmed : null;
 }
 
+function isDuplicateProfileInsertError(error: { code?: string } | null): boolean {
+  return error?.code === '23505';
+}
+
 export async function ensureHostedProfileRow(userId: string): Promise<void> {
   const supabase = getSupabaseClient();
   const authUser = await getSupabaseUser();
@@ -39,18 +43,22 @@ export async function ensureHostedProfileRow(userId: string): Promise<void> {
   const metadataEmail = toNullableNonEmptyString(authUser?.email);
   const timestamp = nowIso();
 
-  const profileQuery = supabase
-    .from('user_profiles')
-    .select('auth_user_id,full_name,email')
-    .eq('auth_user_id', userId)
-    .maybeSingle();
-  const { data: existingRow, error: existingRowError } = await profileQuery;
+  const readExistingRow = async () =>
+    supabase
+      .from('user_profiles')
+      .select('auth_user_id,full_name,email')
+      .eq('auth_user_id', userId)
+      .maybeSingle();
+
+  const { data: existingRow, error: existingRowError } = await readExistingRow();
 
   if (existingRowError) {
     throw new Error(existingRowError.message);
   }
 
-  if (!existingRow) {
+  let profileRow = existingRow;
+
+  if (!profileRow) {
     const { error: insertError } = await supabase.from('user_profiles').insert({
       auth_user_id: userId,
       id: 'me',
@@ -61,15 +69,29 @@ export async function ensureHostedProfileRow(userId: string): Promise<void> {
     });
 
     if (insertError) {
-      throw new Error(insertError.message);
+      if (!isDuplicateProfileInsertError(insertError)) {
+        throw new Error(insertError.message);
+      }
+
+      const { data: duplicateRow, error: duplicateRowError } = await readExistingRow();
+      if (duplicateRowError) {
+        throw new Error(duplicateRowError.message);
+      }
+
+      if (!duplicateRow) {
+        return;
+      }
+
+      profileRow = duplicateRow;
+    } else {
+      return;
     }
-    return;
   }
 
-  const nextFullName = toNullableNonEmptyString(existingRow.full_name) ?? metadataName;
-  const nextEmail = toNullableNonEmptyString(existingRow.email) ?? metadataEmail;
+  const nextFullName = toNullableNonEmptyString(profileRow.full_name) ?? metadataName;
+  const nextEmail = toNullableNonEmptyString(profileRow.email) ?? metadataEmail;
   const shouldUpdate =
-    nextFullName !== (existingRow.full_name ?? null) || nextEmail !== (existingRow.email ?? null);
+    nextFullName !== (profileRow.full_name ?? null) || nextEmail !== (profileRow.email ?? null);
 
   if (!shouldUpdate) {
     return;

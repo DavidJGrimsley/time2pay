@@ -19,30 +19,19 @@ function isTruthy(value) {
 }
 
 async function loadPreferredBuildEnvFile() {
-  const candidateFiles = ['.env.build', '.env'];
-  const existingCandidates = [];
+  const fileName = '.env.plesk';
+  const filePath = path.join(repoRoot, fileName);
+  const exists = await fs
+    .access(filePath)
+    .then(() => true)
+    .catch(() => false);
 
-  for (const fileName of candidateFiles) {
-    const filePath = path.join(repoRoot, fileName);
-    const exists = await fs
-      .access(filePath)
-      .then(() => true)
-      .catch(() => false);
-    if (exists) {
-      existingCandidates.push({ fileName, filePath });
-    }
-  }
-
-  if (existingCandidates.length === 0) {
+  if (!exists) {
     return { envFromFile: {}, sourceFile: null };
   }
 
-  const envFromFile = {};
-  for (const candidate of [...existingCandidates].reverse()) {
-    Object.assign(envFromFile, dotenv.parse(await fs.readFile(candidate.filePath, 'utf8')));
-  }
-
-  return { envFromFile, sourceFile: existingCandidates[0].fileName };
+  const envFromFile = dotenv.parse(await fs.readFile(filePath, 'utf8'));
+  return { envFromFile, sourceFile: fileName };
 }
 
 async function resolveBuildEnvironment() {

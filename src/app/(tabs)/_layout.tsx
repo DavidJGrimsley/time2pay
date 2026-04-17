@@ -1,9 +1,74 @@
-import { Stack } from 'expo-router';
+import { Stack, usePathname, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { useColorScheme } from 'react-native';
+import { AppLoadingShell } from '@/components/app-loading-shell';
+import { useResolvedDataMode } from '@/hooks/use-resolved-data-mode';
+import { getProfileCompletion } from '@/services/profile-completion';
+import { useAuthUiStore } from '@/stores/auth-ui-store';
 
 export default function TabsLayout() {
+  const pathname = usePathname();
+  const router = useRouter();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const { hostedMode, resolved: dataModeResolved } = useResolvedDataMode();
+  const tourModeEnabled = useAuthUiStore((state) => state.tourModeEnabled);
+  const shouldBypassProfileGate = dataModeResolved && hostedMode && tourModeEnabled;
+  const normalizedPathname = pathname !== '/' ? pathname.replace(/\/+$/, '') : pathname;
+  const isProfileRoute = normalizedPathname === '/profile';
+  const [profileGateReady, setProfileGateReady] = useState(false);
+  const [profileComplete, setProfileComplete] = useState(true);
+
+  useEffect(() => {
+    let isActive = true;
+
+    if (shouldBypassProfileGate || isProfileRoute) {
+      setProfileComplete(true);
+      setProfileGateReady(true);
+      return () => {
+        isActive = false;
+      };
+    }
+
+    setProfileGateReady(false);
+
+    getProfileCompletion()
+      .then((completion) => {
+        if (!isActive) {
+          return;
+        }
+
+        setProfileComplete(completion.isComplete);
+      })
+      .catch(() => {
+        if (!isActive) {
+          return;
+        }
+
+        setProfileComplete(false);
+      })
+      .finally(() => {
+        if (isActive) {
+          setProfileGateReady(true);
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [isProfileRoute, shouldBypassProfileGate]);
+
+  useEffect(() => {
+    if (!profileGateReady || shouldBypassProfileGate || isProfileRoute || profileComplete) {
+      return;
+    }
+
+    router.replace('/profile');
+  }, [isProfileRoute, profileComplete, profileGateReady, router, shouldBypassProfileGate]);
+
+  if (!profileGateReady && !shouldBypassProfileGate && !isProfileRoute) {
+    return <AppLoadingShell />;
+  }
 
   return (
     <Stack
