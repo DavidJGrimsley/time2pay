@@ -181,21 +181,6 @@ export function InvoiceBuilder({ onInvoiceCreated, refreshKey }: InvoiceBuilderP
   }, [selectedClientId]);
 
   useEffect(() => {
-    if (selectedClientId !== projectsClientId) {
-      return;
-    }
-    refreshWeeksForSelection({
-      clientId: selectedClientId,
-      projectId: selectedProjectId,
-    }).catch((error: unknown) => {
-      setInvoiceStatus({
-        message: error instanceof Error ? error.message : 'Failed to load invoice weeks.',
-        tone: 'error',
-      });
-    });
-  }, [projectsClientId, selectedClientId, selectedProjectId]);
-
-  useEffect(() => {
     if (selectedSessionIds.length === 0) {
       setPreviewBreaksBySessionId({});
       return;
@@ -223,7 +208,7 @@ export function InvoiceBuilder({ onInvoiceCreated, refreshKey }: InvoiceBuilderP
       projectId: selectedProjectId,
     }).catch((error: unknown) => {
       setInvoiceStatus({
-        message: error instanceof Error ? error.message : 'Failed to refresh invoice weeks.',
+        message: error instanceof Error ? error.message : 'Failed to load invoice weeks.',
         tone: 'error',
       });
     });

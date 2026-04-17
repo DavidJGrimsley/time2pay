@@ -29,6 +29,10 @@ export async function upsertInvoiceSessionLinks(
     throw notFound('Invoice not found.');
   }
 
+  if (input.sessionIds.length === 0) {
+    return;
+  }
+
   const sessionIdList = sql.join(
     input.sessionIds.map((sessionId) => sql`${sessionId}`),
     sql`, `,

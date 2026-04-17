@@ -114,6 +114,7 @@ export default function RootLayout() {
 
     let isActive = true;
     let authBootstrapTimeoutId: ReturnType<typeof setTimeout> | undefined;
+    let authStateObserved = false;
     const syncGitHubProviderToken = (
       session: Awaited<ReturnType<typeof getSupabaseSession>>,
       source: 'bootstrap' | 'auth-state',
@@ -167,6 +168,14 @@ export default function RootLayout() {
         clearTimeout(authBootstrapTimeoutId);
 
         if (result.status === 'timeout') {
+          if (authStateObserved) {
+            logRuntimeDiagnostic('auth.bootstrap.session.read.timeout.ignored', {
+              reason: 'auth-state-already-observed',
+              timeoutMs: AUTH_BOOTSTRAP_TIMEOUT_MS,
+            });
+            return;
+          }
+
           logRuntimeDiagnostic(
             'auth.bootstrap.session.read.timeout',
             {
@@ -215,6 +224,7 @@ export default function RootLayout() {
         return;
       }
 
+      authStateObserved = true;
       logRuntimeDiagnostic('auth.bootstrap.state.changed', {
         event,
         hasSessionUser: Boolean(session?.user),

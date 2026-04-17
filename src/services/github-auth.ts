@@ -106,7 +106,7 @@ export async function syncGitHubProviderTokenToHostedProfile(
     return 'skipped';
   }
 
-  const activeSession = session ?? (await getSupabaseSession());
+  const activeSession = session === undefined ? await getSupabaseSession() : session;
   const githubSession = getGitHubSessionState(activeSession);
   const authUserId = toTrimmedString(activeSession?.user?.id);
 

@@ -19,37 +19,73 @@ export type UserProfileRow = {
   updated_at: string;
 };
 
+function toNullableNonEmptyString(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
 export async function ensureHostedProfileRow(userId: string): Promise<void> {
   const supabase = getSupabaseClient();
   const authUser = await getSupabaseUser();
   const metadata = (authUser?.user_metadata ?? {}) as Record<string, unknown>;
   const metadataName =
-    typeof metadata.full_name === 'string'
-      ? metadata.full_name
-      : typeof metadata.name === 'string'
-        ? metadata.name
-        : typeof metadata.user_name === 'string'
-          ? metadata.user_name
-          : null;
+    toNullableNonEmptyString(metadata.full_name) ??
+    toNullableNonEmptyString(metadata.name) ??
+    toNullableNonEmptyString(metadata.user_name);
+  const metadataEmail = toNullableNonEmptyString(authUser?.email);
   const timestamp = nowIso();
 
-  const { error } = await supabase.from('user_profiles').upsert(
-    {
+  const profileQuery = supabase
+    .from('user_profiles')
+    .select('auth_user_id,full_name,email')
+    .eq('auth_user_id', userId)
+    .maybeSingle();
+  const { data: existingRow, error: existingRowError } = await profileQuery;
+
+  if (existingRowError) {
+    throw new Error(existingRowError.message);
+  }
+
+  if (!existingRow) {
+    const { error: insertError } = await supabase.from('user_profiles').insert({
       auth_user_id: userId,
       id: 'me',
       full_name: metadataName,
-      email: authUser?.email ?? null,
+      email: metadataEmail,
       created_at: timestamp,
       updated_at: timestamp,
-    },
-    {
-      onConflict: 'auth_user_id',
-      ignoreDuplicates: true,
-    },
-  );
+    });
 
-  if (error) {
-    throw new Error(error.message);
+    if (insertError) {
+      throw new Error(insertError.message);
+    }
+    return;
+  }
+
+  const nextFullName = toNullableNonEmptyString(existingRow.full_name) ?? metadataName;
+  const nextEmail = toNullableNonEmptyString(existingRow.email) ?? metadataEmail;
+  const shouldUpdate =
+    nextFullName !== (existingRow.full_name ?? null) || nextEmail !== (existingRow.email ?? null);
+
+  if (!shouldUpdate) {
+    return;
+  }
+
+  const { error: updateError } = await supabase
+    .from('user_profiles')
+    .update({
+      full_name: nextFullName,
+      email: nextEmail,
+      updated_at: timestamp,
+    })
+    .eq('auth_user_id', userId);
+
+  if (updateError) {
+    throw new Error(updateError.message);
   }
 }
 
