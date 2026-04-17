@@ -86,7 +86,7 @@ export function DashboardOverview() {
 
   return (
     <View className="gap-3">
-      <Text className="text-3xl font-extrabold text-heading">Dashboard test</Text>
+      <Text className="text-3xl font-extrabold text-heading">Dashboard</Text>
       <Text className="text-muted">Clock-in and out or create work sessions manually.</Text>
 
       {!shouldBypassProfileGate && gateStatus === 'loading' ? (
