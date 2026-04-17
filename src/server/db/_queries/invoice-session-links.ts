@@ -29,11 +29,19 @@ export async function upsertInvoiceSessionLinks(
     throw notFound('Invoice not found.');
   }
 
+  if (input.sessionIds.length === 0) {
+    return;
+  }
+
+  const sessionIdList = sql.join(
+    input.sessionIds.map((sessionId) => sql`${sessionId}`),
+    sql`, `,
+  );
   const sessionRowsResult = await db.execute(sql`
     select id
     from sessions
     where auth_user_id = ${authUserId}::uuid
-      and id = any(${input.sessionIds}::text[])
+      and id in (${sessionIdList})
       and deleted_at is null
   `);
   const sessionRows = Array.isArray(sessionRowsResult)

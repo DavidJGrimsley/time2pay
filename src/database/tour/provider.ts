@@ -675,6 +675,28 @@ export const tourProvider: DbProvider = {
       deleted_at: null,
     });
   },
+  async deleteInvoice(invoiceId) {
+    const current = getState();
+    const invoice = current.invoices.find((item) => item.id === invoiceId && item.deleted_at === null);
+    if (!invoice) {
+      throw new Error('Invoice not found');
+    }
+    if (invoice.mercury_invoice_id) {
+      throw new Error('Mercury-backed invoices must be reviewed in Mercury and cannot be deleted locally.');
+    }
+    if (invoice.status !== 'draft') {
+      throw new Error('Only draft invoices can be deleted.');
+    }
+
+    const timestamp = nowIso();
+    current.invoices = current.invoices.map((item) =>
+      item.id === invoiceId ? { ...item, deleted_at: timestamp, updated_at: timestamp } : item,
+    );
+    current.sessions = current.sessions.map((item) =>
+      item.invoice_id === invoiceId ? { ...item, invoice_id: null, updated_at: timestamp } : item,
+    );
+    current.invoiceSessionLinks = current.invoiceSessionLinks.filter((item) => item.invoice_id !== invoiceId);
+  },
   async listInvoices() {
     const current = getState();
     const rows: InvoiceWithClient[] = current.invoices.filter((item) => item.deleted_at === null).map((invoice) => {

@@ -35,6 +35,7 @@ import { showActionErrorAlert, showValidationAlert } from '@/services/system-ale
 
 type UseTime2PayMercurySessionWorkspaceOptions = {
   onInvoiceCreated?: () => void;
+  refreshKey?: number;
 };
 
 function createId(prefix?: string): string {
@@ -48,6 +49,7 @@ function toDayInputValue(date: Date): string {
 
 export function useTime2PayMercurySessionWorkspace({
   onInvoiceCreated,
+  refreshKey,
 }: UseTime2PayMercurySessionWorkspaceOptions): MercurySessionInvoiceAdapter {
   const [clients, setClients] = useState<Client[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -136,7 +138,7 @@ export function useTime2PayMercurySessionWorkspace({
       servicePeriodStartDate: mercuryServicePeriod.startDate,
       servicePeriodEndDate: mercuryServicePeriod.endDate,
       lineItems: mercuryLineItems,
-      sendEmailOption: 'SendNow',
+      sendEmailOption: 'DontSend',
       achDebitEnabled: true,
       creditCardEnabled: false,
       useRealAccountNumber: false,
@@ -249,21 +251,6 @@ export function useTime2PayMercurySessionWorkspace({
   }, [selectedClientId]);
 
   useEffect(() => {
-    if (selectedClientId !== projectsClientId) {
-      return;
-    }
-    refreshWeeksForSelection({
-      clientId: selectedClientId,
-      projectId: selectedProjectId,
-    }).catch((error: unknown) => {
-      setBuilderStatus({
-        message: error instanceof Error ? error.message : 'Failed to load invoice weeks.',
-        tone: 'error',
-      });
-    });
-  }, [projectsClientId, selectedClientId, selectedProjectId]);
-
-  useEffect(() => {
     if (selectedSessionIds.length === 0) {
       setPreviewBreaksBySessionId({});
       return;
@@ -280,6 +267,22 @@ export function useTime2PayMercurySessionWorkspace({
         });
       });
   }, [selectedSessionIds]);
+
+  useEffect(() => {
+    if (!selectedClientId || selectedClientId !== projectsClientId) {
+      return;
+    }
+
+    refreshWeeksForSelection({
+      clientId: selectedClientId,
+      projectId: selectedProjectId,
+    }).catch((error: unknown) => {
+      setBuilderStatus({
+        message: error instanceof Error ? error.message : 'Failed to load invoice weeks.',
+        tone: 'error',
+      });
+    });
+  }, [projectsClientId, refreshKey, selectedClientId, selectedProjectId]);
 
   async function handleCreateInvoice(payload: MercuryInvoicePayload): Promise<void> {
     if (!hasAcknowledgedBeta) {
@@ -313,7 +316,7 @@ export function useTime2PayMercurySessionWorkspace({
 
     setIsCreatingInvoice(true);
     setBuilderStatus({
-      message: 'Creating the local invoice and Mercury AR invoice...',
+      message: 'Creating the local invoice and Mercury draft...',
       tone: 'neutral',
     });
 
@@ -337,7 +340,7 @@ export function useTime2PayMercurySessionWorkspace({
           servicePeriodStartDate: payload.servicePeriodStartDate,
           servicePeriodEndDate: payload.servicePeriodEndDate,
           lineItems: payload.lineItems,
-          sendEmailOption: payload.sendEmailOption,
+          sendEmailOption: 'DontSend',
           achDebitEnabled: payload.achDebitEnabled,
           creditCardEnabled: payload.creditCardEnabled,
           useRealAccountNumber: payload.useRealAccountNumber,
@@ -347,11 +350,11 @@ export function useTime2PayMercurySessionWorkspace({
 
       const hostedUrl = result.mercuryInvoice?.hosted_url?.trim();
       const paymentLabel = hostedUrl
-        ? ' Open it from Saved Invoices with the "Open Mercury Invoice" button.'
+        ? ' Open it from Saved Invoices with the "Open Mercury Draft" button and send it from Mercury when you are satisfied.'
         : '';
       const warningLabel = result.mercuryWarning ? ` ${result.mercuryWarning}` : '';
       setBuilderStatus({
-        message: `Invoice ${invoiceId} created for ${selectedClient.name}. Local total remains $${result.totalAmount.toFixed(2)}.${paymentLabel}${warningLabel}`,
+        message: `Invoice ${invoiceId} created for ${selectedClient.name}. Mercury is saved as a draft and is not emailed automatically. Local total remains $${result.totalAmount.toFixed(2)}.${paymentLabel}${warningLabel}`,
         tone: result.mercuryWarning ? 'error' : 'success',
       });
 
@@ -388,7 +391,7 @@ export function useTime2PayMercurySessionWorkspace({
       >
         <Text style={{ color: '#6b4e00', fontWeight: '700' }}>Mercury AR beta guardrails</Text>
         <Text style={{ color: '#6b4e00', fontSize: 12, lineHeight: 18 }}>
-          Mercury invoicing is still beta. Review destination account, service period, line items, and send-email option before submitting. A local Time2Pay invoice may still be created even if Mercury sync fails.
+          Mercury invoicing is still beta. This flow now creates Mercury drafts without emailing automatically, so you can review destination account, service period, and line items before sending from Mercury.
         </Text>
         <Pressable
           onPress={() => setHasAcknowledgedBeta((value) => !value)}

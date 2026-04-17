@@ -17,6 +17,7 @@ import {
   listRecentCommits,
   type GitHubCommitSummary,
 } from '@/services/github';
+import { resolveGitHubApiToken } from '@/services/github-auth';
 import { InlineNotice } from '@/components/inline-notice';
 
 const EMPTY_PICKER_VALUE = '';
@@ -127,9 +128,9 @@ export function SessionCompleteModal({
 
     let cancelled = false;
     getUserProfile()
-      .then((profile) => {
+      .then(async (profile) => {
         if (!cancelled) {
-          setGithubToken(profile.github_pat ?? null);
+          setGithubToken(await resolveGitHubApiToken(profile.github_pat ?? null));
         }
       })
       .catch(() => {

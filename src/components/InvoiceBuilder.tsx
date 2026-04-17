@@ -28,6 +28,7 @@ import { showActionErrorAlert, showValidationAlert } from '@/services/system-ale
 
 type InvoiceBuilderProps = {
   onInvoiceCreated?: () => void;
+  refreshKey?: number;
 };
 
 type StatusNotice = {
@@ -40,7 +41,7 @@ function createId(prefix?: string): string {
   return prefix ? `${prefix}_${suffix}` : suffix;
 }
 
-export function InvoiceBuilder({ onInvoiceCreated }: InvoiceBuilderProps) {
+export function InvoiceBuilder({ onInvoiceCreated, refreshKey }: InvoiceBuilderProps) {
   const [clients, setClients] = useState<Client[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsClientId, setProjectsClientId] = useState<string | null>(null);
@@ -180,21 +181,6 @@ export function InvoiceBuilder({ onInvoiceCreated }: InvoiceBuilderProps) {
   }, [selectedClientId]);
 
   useEffect(() => {
-    if (selectedClientId !== projectsClientId) {
-      return;
-    }
-    refreshWeeksForSelection({
-      clientId: selectedClientId,
-      projectId: selectedProjectId,
-    }).catch((error: unknown) => {
-      setInvoiceStatus({
-        message: error instanceof Error ? error.message : 'Failed to load invoice weeks.',
-        tone: 'error',
-      });
-    });
-  }, [projectsClientId, selectedClientId, selectedProjectId]);
-
-  useEffect(() => {
     if (selectedSessionIds.length === 0) {
       setPreviewBreaksBySessionId({});
       return;
@@ -211,6 +197,22 @@ export function InvoiceBuilder({ onInvoiceCreated }: InvoiceBuilderProps) {
         });
       });
   }, [selectedSessionIds]);
+
+  useEffect(() => {
+    if (!selectedClientId || selectedClientId !== projectsClientId) {
+      return;
+    }
+
+    refreshWeeksForSelection({
+      clientId: selectedClientId,
+      projectId: selectedProjectId,
+    }).catch((error: unknown) => {
+      setInvoiceStatus({
+        message: error instanceof Error ? error.message : 'Failed to load invoice weeks.',
+        tone: 'error',
+      });
+    });
+  }, [projectsClientId, refreshKey, selectedClientId, selectedProjectId]);
 
   async function handleCreateInvoice(): Promise<void> {
     if (!selectedClient || selectedWeeks.length === 0 || !preview) {

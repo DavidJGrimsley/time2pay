@@ -90,6 +90,10 @@ export type AssignSessionsToInvoiceInput = {
   sessionIds: string[];
 };
 
+export type DeleteInvoiceInput = {
+  invoiceId: string;
+};
+
 export async function assignSessionsToInvoice(
   db: WriteDb,
   authUserId: string,
@@ -114,11 +118,15 @@ export async function assignSessionsToInvoice(
   }
 
   const sessionIdArray = input.sessionIds;
+  const sessionIdList = sql.join(
+    sessionIdArray.map((sessionId) => sql`${sessionId}`),
+    sql`, `,
+  );
   const sessionResult = await db.execute(sql`
     select id
     from sessions
     where auth_user_id = ${authUserId}::uuid
-      and id = any(${sessionIdArray}::text[])
+      and id in (${sessionIdList})
       and deleted_at is null
   `);
   const sessionRows = Array.isArray(sessionResult)
@@ -133,7 +141,7 @@ export async function assignSessionsToInvoice(
     update sessions
     set invoice_id = ${input.invoiceId}, updated_at = ${timestamp}
     where auth_user_id = ${authUserId}::uuid
-      and id = any(${input.sessionIds}::text[])
+      and id in (${sessionIdList})
       and deleted_at is null
     returning id
   `);
@@ -143,4 +151,69 @@ export async function assignSessionsToInvoice(
   if (updatedRows.length !== input.sessionIds.length) {
     throw conflict('Failed to assign every requested session to the invoice.');
   }
+}
+
+export async function deleteInvoice(
+  db: WriteDb,
+  authUserId: string,
+  input: DeleteInvoiceInput,
+): Promise<void> {
+  if (!input.invoiceId.trim()) {
+    throw validation('Invoice id is required.');
+  }
+
+  const invoiceResult = await db.execute(sql`
+    select id, mercury_invoice_id, status
+    from invoices
+    where id = ${input.invoiceId}
+      and auth_user_id = ${authUserId}::uuid
+      and deleted_at is null
+    limit 1
+  `);
+  const invoiceRows = Array.isArray(invoiceResult)
+    ? invoiceResult
+    : ((invoiceResult as { rows?: Array<{ mercury_invoice_id?: string | null; status?: string | null }> }).rows ??
+        []);
+  const invoice = invoiceRows[0];
+  if (!invoice) {
+    throw notFound('Invoice not found.');
+  }
+  if ((invoice.mercury_invoice_id ?? null) !== null) {
+    throw conflict('Mercury-backed invoices must be reviewed in Mercury and cannot be deleted locally.');
+  }
+  if ((invoice.status ?? 'draft') !== 'draft') {
+    throw conflict('Only draft invoices can be deleted.');
+  }
+
+  const timestamp = nowIso();
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`
+      update sessions
+      set invoice_id = null, updated_at = ${timestamp}
+      where auth_user_id = ${authUserId}::uuid
+        and invoice_id = ${input.invoiceId}
+        and deleted_at is null
+    `);
+
+    await tx.execute(sql`
+      delete from invoice_session_links
+      where auth_user_id = ${authUserId}::uuid
+        and invoice_id = ${input.invoiceId}
+    `);
+
+    const deleteResult = await tx.execute(sql`
+      update invoices
+      set deleted_at = ${timestamp}, updated_at = ${timestamp}
+      where id = ${input.invoiceId}
+        and auth_user_id = ${authUserId}::uuid
+        and deleted_at is null
+      returning id
+    `);
+    const deletedRows = Array.isArray(deleteResult)
+      ? deleteResult
+      : ((deleteResult as { rows?: unknown[] }).rows ?? []);
+    if (deletedRows.length === 0) {
+      throw notFound('Invoice not found.');
+    }
+  });
 }

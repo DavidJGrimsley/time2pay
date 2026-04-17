@@ -196,6 +196,71 @@ export async function assignSessionsToInvoice(sessionIds: string[], invoiceId: s
   );
 }
 
+export async function deleteInvoice(invoiceId: string): Promise<void> {
+  if (!invoiceId.trim()) {
+    throw new Error('Invoice id is required.');
+  }
+
+  const db = await getDb();
+  const invoice = await db.getFirstAsync<Pick<Invoice, 'id' | 'mercury_invoice_id' | 'status' | 'deleted_at'>>(
+    `SELECT id, mercury_invoice_id, status, deleted_at
+     FROM invoices
+     WHERE id = ?
+       AND deleted_at IS NULL`,
+    invoiceId,
+  );
+
+  if (!invoice) {
+    throw new Error('Invoice not found');
+  }
+  if (invoice.mercury_invoice_id) {
+    throw new Error('Mercury-backed invoices must be reviewed in Mercury and cannot be deleted locally.');
+  }
+  if (invoice.status !== 'draft') {
+    throw new Error('Only draft invoices can be deleted.');
+  }
+
+  const timestamp = nowIso();
+  await db.execAsync('BEGIN;');
+  try {
+    await db.runAsync(
+      `UPDATE sessions
+         SET invoice_id = NULL,
+             updated_at = ?
+       WHERE invoice_id = ?
+         AND deleted_at IS NULL`,
+      timestamp,
+      invoiceId,
+    );
+
+    await db.runAsync(
+      `DELETE FROM invoice_session_links
+       WHERE invoice_id = ?`,
+      invoiceId,
+    );
+
+    const result = await db.runAsync(
+      `UPDATE invoices
+         SET deleted_at = ?,
+             updated_at = ?
+       WHERE id = ?
+         AND deleted_at IS NULL`,
+      timestamp,
+      timestamp,
+      invoiceId,
+    );
+
+    if (result.changes === 0) {
+      throw new Error('Invoice not found');
+    }
+
+    await db.execAsync('COMMIT;');
+  } catch (error) {
+    await db.execAsync('ROLLBACK;');
+    throw error;
+  }
+}
+
 export async function createInvoiceSessionLinks(input: {
   invoiceId: string;
   sessionIds: string[];

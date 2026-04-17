@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { handleDbWrite } from '@/server/db/_shared/route';
-import { assignSessionsToInvoice, createInvoice } from '@/server/db/_queries/invoices';
+import { assignSessionsToInvoice, createInvoice, deleteInvoice } from '@/server/db/_queries/invoices';
 import { invoiceInsertSchema } from '@/database/hosted/invoices/schema';
 
 const invoiceStatusSchema = z.enum(['draft', 'sent', 'paid', 'overdue']);
@@ -47,6 +47,10 @@ const assignSessionsSchema = z.object({
   sessionIds: z.array(z.string().min(1)),
 }).strict();
 
+const deleteInvoiceSchema = z.object({
+  invoiceId: z.string().min(1),
+}).strict();
+
 export async function POST(
   request: Request,
   { params }: { params: { action: string } },
@@ -56,6 +60,8 @@ export async function POST(
       return handleDbWrite(request, createInvoiceSchema, createInvoice);
     case 'assign-sessions':
       return handleDbWrite(request, assignSessionsSchema, assignSessionsToInvoice);
+    case 'delete':
+      return handleDbWrite(request, deleteInvoiceSchema, deleteInvoice);
     default:
       return Response.json({ error: `Unsupported invoices action: ${params.action}` }, { status: 404 });
   }

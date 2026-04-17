@@ -19,10 +19,11 @@ import {
   parseAndValidateBackup,
   restoreBackup,
 } from '@/services/data-backup';
+import { getCurrentGitHubSessionState, type GitHubSessionState } from '@/services/github-auth';
 import { InlineNotice, type NoticeTone } from '@/components/inline-notice';
 import { readTrimmedPublicRuntimeConfigValue } from '@/services/runtime-config';
 import { isHostedMode } from '@/services/runtime-mode';
-import { requireConfiguredSiteOrigin } from '@/services/site-origin';
+import { requireConfiguredSiteOrigin, resolveBrowserSiteOrigin } from '@/services/site-origin';
 import { showActionErrorAlert, showSystemConfirm, showValidationAlert } from '@/services/system-alert';
 import { useAuthUiStore } from '@/stores/auth-ui-store';
 
@@ -32,7 +33,7 @@ const GITHUB_PAT_DOCS_URL =
   'https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens';
 const GITHUB_OAUTH_AUTHORIZE_URL = 'https://github.com/login/oauth/authorize';
 const GITHUB_OAUTH_PROXY_PATH = '/api/github';
-const GITHUB_OAUTH_SCOPE = 'repo,read:user';
+const GITHUB_OAUTH_SCOPE = 'repo read:user';
 const GITHUB_OAUTH_STATE_KEY = 'time2pay_github_oauth_state';
 
 type StatusNotice = {
@@ -160,13 +161,27 @@ export function ProfileOverview() {
   const [businessEmail, setBusinessEmail] = useState('');
   const [githubPat, setGithubPat] = useState('');
   const [showIntegrations, setShowIntegrations] = useState(true);
+  const [showAdvancedGitHubOptions, setShowAdvancedGitHubOptions] = useState(false);
   const [showPatInfoModal, setShowPatInfoModal] = useState(false);
   const [isSigningInWithGitHub, setIsSigningInWithGitHub] = useState(false);
+  const [githubSessionState, setGitHubSessionState] = useState<GitHubSessionState>({
+    isGitHubSession: false,
+    providerToken: null,
+    displayName: null,
+  });
   const tourModeEnabled = useAuthUiStore((state) => state.tourModeEnabled);
   const shouldRouteAuthIntegrationsToSignIn = isHostedMode() && tourModeEnabled;
 
   const githubClientId = readTrimmedPublicRuntimeConfigValue('EXPO_PUBLIC_GITHUB_CLIENT_ID');
-  const isGitHubOAuthEnabled = process.env.EXPO_OS === 'web' && Boolean(githubClientId);
+  const isGitHubOAuthEnabled = Platform.OS === 'web' && Boolean(githubClientId);
+  const hasSavedGitHubToken = githubPat.trim().length > 0;
+  const hasGitHubSessionToken =
+    githubSessionState.isGitHubSession && Boolean(githubSessionState.providerToken?.trim());
+  const hasGitHubRepoAccess = hasGitHubSessionToken || hasSavedGitHubToken;
+  const shouldShowManualGitHubSyncButton =
+    isGitHubOAuthEnabled &&
+    !hasSavedGitHubToken &&
+    (!githubSessionState.isGitHubSession || !githubSessionState.providerToken);
 
   const showStatus = useCallback((section: ProfileStatusSection, notice: StatusNotice): void => {
     setSectionStatus({ section, ...notice });
@@ -187,11 +202,12 @@ export function ProfileOverview() {
   const resolveGitHubOAuthRedirectUri = useCallback((): string | null => {
     if (isHostedMode()) {
       try {
-        return new URL('/profile', requireConfiguredSiteOrigin()).toString();
+        requireConfiguredSiteOrigin();
+        return new URL('/profile', resolveBrowserSiteOrigin()).toString();
       } catch (error) {
         if (typeof console !== 'undefined' && typeof console.error === 'function') {
           console.error(
-            'Failed to resolve GitHub OAuth redirect URI from EXPO_PUBLIC_SITE_ORIGIN:',
+            'Failed to resolve GitHub OAuth redirect URI from the active site origin:',
             error,
           );
         }
@@ -216,9 +232,13 @@ export function ProfileOverview() {
     setGithubPat(profile.github_pat ?? '');
   }, []);
 
+  const refreshGitHubSessionState = useCallback(async (): Promise<void> => {
+    setGitHubSessionState(await getCurrentGitHubSessionState());
+  }, []);
+
   useEffect(() => {
     initializeDatabase()
-      .then(() => Promise.all([loadProfileData()]))
+      .then(() => Promise.all([loadProfileData(), refreshGitHubSessionState()]))
       .catch((error: unknown) => {
         showStatus('general', {
           message: error instanceof Error ? error.message : 'Failed to load profile.',
@@ -226,7 +246,7 @@ export function ProfileOverview() {
         });
       })
       .finally(() => setIsLoading(false));
-  }, [loadProfileData, showStatus]);
+  }, [loadProfileData, refreshGitHubSessionState, showStatus]);
 
   useEffect(() => {
     if (!isGitHubOAuthEnabled || typeof window === 'undefined') {
@@ -329,7 +349,7 @@ export function ProfileOverview() {
           return;
         }
 
-        await loadProfileData();
+        await Promise.all([loadProfileData(), refreshGitHubSessionState()]);
         const display = githubUser.name?.trim() || githubUser.login?.trim() || 'GitHub account';
         showStatus('integrations', {
           tone: 'success',
@@ -355,6 +375,7 @@ export function ProfileOverview() {
   }, [
     isGitHubOAuthEnabled,
     loadProfileData,
+    refreshGitHubSessionState,
     resolveGitHubOAuthRedirectUri,
     routeAuthIntegrationsToSignIn,
     shouldRouteAuthIntegrationsToSignIn,
@@ -456,13 +477,28 @@ export function ProfileOverview() {
       return;
     }
 
+    clearSectionStatus('integrations');
+    setIsSigningInWithGitHub(true);
+    showStatus('integrations', {
+      tone: 'neutral',
+      message: 'Redirecting to GitHub so you can approve repository sync.',
+    });
+
     const authorizeUrl = new URL(GITHUB_OAUTH_AUTHORIZE_URL);
     authorizeUrl.searchParams.set('client_id', githubClientId);
     authorizeUrl.searchParams.set('redirect_uri', redirectUri);
     authorizeUrl.searchParams.set('scope', GITHUB_OAUTH_SCOPE);
     authorizeUrl.searchParams.set('state', oauthState);
 
-    window.location.assign(authorizeUrl.toString());
+    try {
+      window.location.assign(authorizeUrl.toString());
+    } catch (error) {
+      setIsSigningInWithGitHub(false);
+      showStatus('integrations', {
+        tone: 'error',
+        message: error instanceof Error ? error.message : 'Failed to open GitHub OAuth.',
+      });
+    }
   }
 
   async function handleExportData(): Promise<void> {
@@ -629,74 +665,98 @@ export function ProfileOverview() {
         {showIntegrations ? (
           <View className="gap-2">
             <Text className="text-sm text-muted">
-              GitHub connection is for repository/commit access only. It does not auto-fill your
+              GitHub access is for repository and commit lookup only. It does not auto-fill your
               personal profile name or email.
             </Text>
-            {isGitHubOAuthEnabled && !githubPat.trim() ? (
+            {isGitHubOAuthEnabled ? (
               <Pressable
                 className={`self-start rounded-full border px-4 py-2 ${isSigningInWithGitHub ? 'opacity-70' : ''}`}
-                style={{ borderColor: '#ffffff', backgroundColor: '#24292f' }}
-                onPress={startGitHubOAuth}
-                disabled={isSigningInWithGitHub}
+                style={
+                  hasGitHubRepoAccess
+                    ? { borderColor: '#15803d', backgroundColor: '#166534' }
+                    : { borderColor: '#ffffff', backgroundColor: '#24292f' }
+                }
+                onPress={shouldShowManualGitHubSyncButton ? startGitHubOAuth : undefined}
+                disabled={isSigningInWithGitHub || !shouldShowManualGitHubSyncButton}
               >
                 <View className="flex-row items-center gap-2">
                   <Octicons name="mark-github" size={16} color="#ffffff" />
                   <Text className="font-semibold" style={{ color: '#ffffff' }}>
-                    {isSigningInWithGitHub ? 'Connecting GitHub...' : 'Sign in with GitHub'}
+                    {isSigningInWithGitHub
+                      ? 'Redirecting to GitHub...'
+                      : 'Sync repositories from GitHub'}
                   </Text>
+                  {hasGitHubRepoAccess ? (
+                    <View
+                      className="items-center justify-center rounded-full"
+                      style={{ width: 18, height: 18, backgroundColor: '#22c55e' }}
+                    >
+                      <Text className="text-xs font-bold" style={{ color: '#052e16' }}>
+                        ✓
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
               </Pressable>
             ) : null}
-            <View className="flex-row items-center justify-between gap-2">
-              <Text className="flex-1 text-sm text-muted">
-                Optional. Increases GitHub API rate limit from 60 to 5,000 requests/hour.
-              </Text>
-              <Pressable
-                className="h-7 w-7 items-center justify-center rounded-full border border-border bg-background"
-                onPress={() => setShowPatInfoModal(true)}
-              >
-                <Text className="text-sm font-bold text-heading">i</Text>
-              </Pressable>
-            </View>
             <Pressable
-              className="self-start rounded-full border px-4 py-2"
-              style={{ borderColor: '#d0d7de', backgroundColor: '#f6f8fa' }}
-              onPress={() => openExternalUrl(GITHUB_PAT_CREATE_URL, { authRelated: true })}
+              className="flex-row items-center justify-between rounded-md border border-border bg-background px-3 py-2"
+              onPress={() => setShowAdvancedGitHubOptions((current) => !current)}
             >
-              <View className="flex-row items-center gap-2">
-                <Octicons name="mark-github" size={16} color="#24292f" />
-                <Text className="font-semibold" style={{ color: '#24292f' }}>
-                  Create GitHub PAT
-                </Text>
+              <Text className="font-semibold text-heading">Advanced GitHub token options</Text>
+              <Text className="text-sm font-semibold text-secondary">
+                {showAdvancedGitHubOptions ? 'Hide' : 'Show'}
+              </Text>
+            </Pressable>
+            {showAdvancedGitHubOptions ? (
+              <View className="gap-2 rounded-md border border-border bg-background p-3">
+                <View className="flex-row items-center justify-between gap-2">
+                  <Text className="flex-1 text-sm text-muted">
+                    {hasGitHubSessionToken
+                      ? 'Your current GitHub sign-in already unlocks repo access. Use a PAT only if you want a manually saved fallback token on this profile.'
+                      : 'Optional. Save a PAT if you want a manual GitHub token on this profile or need repo access outside the current GitHub sign-in session.'}
+                  </Text>
+                  <Pressable
+                    className="h-7 w-7 items-center justify-center rounded-full border border-border bg-card"
+                    onPress={() => setShowPatInfoModal(true)}
+                  >
+                    <Text className="text-sm font-bold text-heading">i</Text>
+                  </Pressable>
+                </View>
+                <Pressable
+                  className="self-start rounded-full border px-4 py-2"
+                  style={{ borderColor: '#d0d7de', backgroundColor: '#f6f8fa' }}
+                  onPress={() => openExternalUrl(GITHUB_PAT_CREATE_URL, { authRelated: true })}
+                >
+                  <View className="flex-row items-center gap-2">
+                    <Octicons name="mark-github" size={16} color="#24292f" />
+                    <Text className="font-semibold" style={{ color: '#24292f' }}>
+                      Create GitHub PAT
+                    </Text>
+                  </View>
+                </Pressable>
+                <TextInput
+                  value={githubPat}
+                  onChangeText={setGithubPat}
+                  placeholder="GitHub access token or PAT (optional)"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  secureTextEntry
+                  className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
+                />
+                <Pressable
+                  className="rounded-md bg-secondary px-4 py-2"
+                  onPress={() => {
+                    handleSaveIntegrations().catch(() => undefined);
+                  }}
+                  disabled={isSavingIntegrations || isLoading}
+                >
+                  <Text className="text-center font-semibold text-white">
+                    {isSavingIntegrations ? 'Saving...' : 'Save Integrations'}
+                  </Text>
+                </Pressable>
               </View>
-            </Pressable>
-            {githubPat.trim() ? (
-              <InlineNotice
-                tone="success"
-                message="GitHub is connected. OAuth/PAT token is saved."
-                textClassName="text-xs text-success"
-              />
             ) : null}
-            <TextInput
-              value={githubPat}
-              onChangeText={setGithubPat}
-              placeholder="GitHub Personal Access Token (optional)"
-              autoCapitalize="none"
-              autoCorrect={false}
-              secureTextEntry
-              className="rounded-md border border-border bg-background px-3 py-2 text-foreground"
-            />
-            <Pressable
-              className="rounded-md bg-secondary px-4 py-2"
-              onPress={() => {
-                handleSaveIntegrations().catch(() => undefined);
-              }}
-              disabled={isSavingIntegrations || isLoading}
-            >
-              <Text className="text-center font-semibold text-white">
-                {isSavingIntegrations ? 'Saving...' : 'Save Integrations'}
-              </Text>
-            </Pressable>
             {sectionStatus?.section === 'integrations' ? (
               <InlineNotice tone={sectionStatus.tone} message={sectionStatus.message} />
             ) : null}

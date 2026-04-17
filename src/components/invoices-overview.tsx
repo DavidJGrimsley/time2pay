@@ -24,8 +24,10 @@ export function InvoicesOverview() {
   const [builderModeMessage, setBuilderModeMessage] = useState(
     'Checking whether Mercury invoice mode is available in this environment...',
   );
+  const triggerRefresh = () => setRefreshKey((current) => current + 1);
   const sessionAdapter = useTime2PayMercurySessionWorkspace({
-    onInvoiceCreated: () => setRefreshKey((current) => current + 1),
+    onInvoiceCreated: triggerRefresh,
+    refreshKey,
   });
 
   useEffect(() => {
@@ -40,7 +42,7 @@ export function InvoicesOverview() {
 
         setBuilderMode('mercury');
         setBuilderModeMessage(
-          `Mercury invoicing is enabled (${result.environment}). Using the Time2Pay Mercury invoice builder.`,
+          `Mercury invoicing is enabled (${result.environment}). Using the Time2Pay Mercury draft builder.`,
         );
         return;
       } catch {
@@ -86,14 +88,14 @@ export function InvoicesOverview() {
             />
           ) : null}
           {builderMode === 'generic' ? (
-            <InvoiceBuilder onInvoiceCreated={() => setRefreshKey((current) => current + 1)} />
+            <InvoiceBuilder onInvoiceCreated={triggerRefresh} refreshKey={refreshKey} />
           ) : null}
           {builderMode === 'checking' ? (
             <View className="rounded-xl border border-border bg-card p-4">
               <Text className="text-muted">Checking Mercury connection before choosing the invoice flow...</Text>
             </View>
           ) : null}
-          <InvoiceHistory refreshKey={refreshKey} />
+          <InvoiceHistory refreshKey={refreshKey} onInvoiceDeleted={triggerRefresh} />
         </View>
       </View>
     </View>

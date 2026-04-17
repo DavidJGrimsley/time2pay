@@ -64,7 +64,9 @@ describe('handleDbWrite', () => {
   it('maps domain errors to status codes', async () => {
     requireAuthUserIdMock.mockResolvedValue('user-1');
     withWriteDbMock.mockImplementation(async (work) =>
-      work({} as Parameters<typeof work>[0]),
+      work({
+        execute: vi.fn().mockResolvedValue({ rows: [] }),
+      } as unknown as Parameters<typeof work>[0]),
     );
 
     const conflictResponse = await handleDbWrite(

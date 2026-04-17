@@ -23,6 +23,7 @@ import {
   prettifyBranchName,
   type GitHubRepoSummary,
 } from '@/services/github';
+import { resolveGitHubApiToken } from '@/services/github-auth';
 import { showActionErrorAlert, showValidationAlert } from '@/services/system-alert';
 
 const EMPTY_PICKER_VALUE = '';
@@ -185,9 +186,9 @@ export function GitHubStartModal({ visible, onClose, onComplete }: GitHubStartMo
 
     initializeDatabase()
       .then(() => Promise.all([listClients(), getUserProfile()]))
-      .then(([rows, profile]) => {
+      .then(async ([rows, profile]) => {
         setClients(rows);
-        setGithubToken(profile.github_pat ?? null);
+        setGithubToken(await resolveGitHubApiToken(profile.github_pat ?? null));
       })
       .catch((error: unknown) => {
         const message = error instanceof Error ? error.message : 'Failed to load existing records.';
