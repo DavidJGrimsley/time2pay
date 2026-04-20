@@ -131,6 +131,32 @@ describe('/api/mercury POST', () => {
     });
   });
 
+  it('uses the signed-in hosted user key when a bearer request asks for tour mode', async () => {
+    process.env.MERCURY_SANDBOX_API_KEY = 'sandbox_key';
+    mockHostedMercuryCredential('user_mercury_key');
+    accountsListMock.mockResolvedValue({ items: [] });
+    const { POST } = await import('@/app/api/mercury+api');
+
+    const response = await POST(
+      new Request('http://localhost/api/mercury', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer supabase-token',
+        },
+        body: JSON.stringify({ action: 'testConnection', accessMode: 'tour' }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true, environment: 'production' });
+    expect(createMercuryClientMock).toHaveBeenCalledWith({
+      apiKey: 'user_mercury_key',
+      environment: 'production',
+      baseUrl: undefined,
+    });
+  });
+
   it('returns a clear error when signed-in hosted mode has no saved Mercury key', async () => {
     vi.doMock('@/server/db/_shared/auth', () => ({
       requireAuthUserId: vi.fn().mockResolvedValue('user-1'),

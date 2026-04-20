@@ -44,8 +44,4 @@ ALTER TABLE public.mercury_credentials ENABLE ROW LEVEL SECURITY;
 --> statement-breakpoint
 ALTER TABLE public.mercury_referrals ENABLE ROW LEVEL SECURITY;
 --> statement-breakpoint
-ALTER TABLE public.mercury_credentials FORCE ROW LEVEL SECURITY;
---> statement-breakpoint
-ALTER TABLE public.mercury_referrals FORCE ROW LEVEL SECURITY;
---> statement-breakpoint
 CREATE POLICY mercury_referrals_select_own ON public.mercury_referrals FOR SELECT TO authenticated USING (auth.uid() = auth_user_id);

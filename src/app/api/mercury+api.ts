@@ -36,38 +36,55 @@ type MercuryResolvedConfig = {
   baseUrl?: string;
 };
 
+function hasBearerToken(request: Request): boolean {
+  const authorization = request.headers.get('authorization') ?? '';
+  return authorization.startsWith('Bearer ') && Boolean(authorization.slice('Bearer '.length).trim());
+}
+
+async function resolveHostedMercuryConfig(request: Request): Promise<MercuryResolvedConfig> {
+  const authUserId = await requireAuthUserId(request);
+  const apiKey = await getDecryptedMercuryApiKeyForUser(authUserId);
+  if (!apiKey) {
+    throw new Error('No Mercury API key is saved for this account.');
+  }
+
+  return {
+    apiKey,
+    environment: 'production',
+  };
+}
+
+function resolveTourMercuryConfig(): MercuryResolvedConfig {
+  const apiKey = process.env.MERCURY_SANDBOX_API_KEY?.trim() ?? '';
+  if (!apiKey) {
+    throw new Error('Missing MERCURY_SANDBOX_API_KEY environment variable.');
+  }
+
+  return {
+    apiKey,
+    environment: 'sandbox',
+    baseUrl:
+      process.env.MERCURY_SANDBOX_BASE_URL?.trim() ||
+      'https://api-sandbox.mercury.com/api/v1',
+  };
+}
+
 async function resolveMercuryConfig(
   request: Request,
   payload: MercuryActionRequest,
 ): Promise<MercuryResolvedConfig> {
   const accessMode = payload.accessMode ?? 'local';
 
-  if (accessMode === 'tour') {
-    const apiKey = process.env.MERCURY_SANDBOX_API_KEY?.trim() ?? '';
-    if (!apiKey) {
-      throw new Error('Missing MERCURY_SANDBOX_API_KEY environment variable.');
-    }
-
-    return {
-      apiKey,
-      environment: 'sandbox',
-      baseUrl:
-        process.env.MERCURY_SANDBOX_BASE_URL?.trim() ||
-        'https://api-sandbox.mercury.com/api/v1',
-    };
+  if (hasBearerToken(request)) {
+    return resolveHostedMercuryConfig(request);
   }
 
   if (accessMode === 'hosted') {
-    const authUserId = await requireAuthUserId(request);
-    const apiKey = await getDecryptedMercuryApiKeyForUser(authUserId);
-    if (!apiKey) {
-      throw new Error('No Mercury API key is saved for this account.');
-    }
+    return resolveHostedMercuryConfig(request);
+  }
 
-    return {
-      apiKey,
-      environment: 'production',
-    };
+  if (accessMode === 'tour') {
+    return resolveTourMercuryConfig();
   }
 
   throw new Error(

@@ -294,14 +294,25 @@ export function ProfileOverview() {
 
   useEffect(() => {
     initializeDatabase()
-      .then(() =>
-        Promise.all([
+      .then(async () => {
+        const [profileResult, githubResult, mercuryCredentialResult, mercuryReferralResult] =
+          await Promise.allSettled([
           loadProfileData(),
           refreshGitHubSessionState(),
           refreshMercuryCredentialStatus(),
           refreshMercuryReferralStatus(),
-        ]),
-      )
+        ]);
+
+        for (const result of [githubResult, mercuryCredentialResult, mercuryReferralResult]) {
+          if (result.status === 'rejected' && typeof console !== 'undefined') {
+            console.warn('Optional profile integration load failed:', result.reason);
+          }
+        }
+
+        if (profileResult.status === 'rejected') {
+          throw profileResult.reason;
+        }
+      })
       .catch((error: unknown) => {
         showStatus('general', {
           message: error instanceof Error ? error.message : 'Failed to load profile.',

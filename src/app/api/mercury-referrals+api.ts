@@ -58,13 +58,17 @@ function getErrorText(error: unknown): string {
 
 export async function POST(request: Request): Promise<Response> {
   let authUserId: string;
-  let payload: MercuryReferralActionRequest;
-
   try {
     authUserId = await requireAuthUserId(request);
-    payload = await parseRequest(request);
   } catch (error) {
     return errorResponse(error, 401);
+  }
+
+  let payload: MercuryReferralActionRequest;
+  try {
+    payload = await parseRequest(request);
+  } catch (error) {
+    return errorResponse(error, 400);
   }
 
   try {

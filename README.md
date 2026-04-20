@@ -57,7 +57,6 @@ Set these in `.env`:
 - `TIME2PAY_FAIL_BUILD_IF_LOCAL` (optional): when truthy (`1/true/yes/on`), blocks web export if data mode resolves to `local`
 - `EXPO_PUBLIC_SUPABASE_URL` (required in hosted mode)
 - `EXPO_PUBLIC_SUPABASE_ANON_KEY` (required in hosted mode)
-- `SUPABASE_SERVICE_ROLE_KEY` (required for server-side admin operations)
 - `DATABASE_URL` (recommended for Drizzle migrations and runtime SQL clients; Supabase pooler, usually `6543`)
 - `DATABASE_DIRECT_URL` (optional direct database host/port, usually `5432`, only if your network supports direct connectivity)
 - `DRIZZLE_DATABASE_URL` (optional): explicit override used by Drizzle CLI (`db:migrate`, `db:check`, etc.)

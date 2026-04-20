@@ -77,9 +77,11 @@ async function mercuryAction<TAction extends MercuryActionName>(
 
   if (accessMode === 'hosted') {
     const token = await getHostedBearerToken();
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
+    if (!token) {
+      throw new Error('Sign in to use Mercury banking features.');
     }
+
+    headers.Authorization = `Bearer ${token}`;
   }
 
   const response = await fetch(config.proxyPath, {
