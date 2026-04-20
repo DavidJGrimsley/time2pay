@@ -6,6 +6,7 @@ import {
   resumeSession,
   startSession,
   stopSession,
+  deleteSession,
   updateSession,
   updateSessionNotes,
 } from '@/server/db/_queries/sessions';
@@ -52,6 +53,10 @@ const updateSessionNotesSchema = z.object({
   commitSha: z.string().nullable().optional(),
 }).strict();
 
+const deleteSessionSchema = z.object({
+  id: z.string().min(1),
+}).strict();
+
 const pauseSessionSchema = z.object({
   sessionId: z.string().min(1),
   startTime: z.string().optional(),
@@ -77,6 +82,8 @@ export async function POST(
       return handleDbWrite(request, updateSessionSchema, updateSession);
     case 'notes':
       return handleDbWrite(request, updateSessionNotesSchema, updateSessionNotes);
+    case 'delete':
+      return handleDbWrite(request, deleteSessionSchema, deleteSession);
     case 'pause':
       return handleDbWrite(request, pauseSessionSchema, pauseSession);
     case 'resume':

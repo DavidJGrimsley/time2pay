@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 import type { WriteDb } from '@/server/db/_shared/db';
-import { stopSession } from '@/server/db/_queries/sessions';
+import { deleteSession, stopSession } from '@/server/db/_queries/sessions';
 
 type Query = ReturnType<typeof sql>;
 
@@ -85,14 +85,69 @@ class MockTx {
 }
 
 class MockDb {
-  tx: MockTx;
+  tx: unknown;
 
-  constructor(tx: MockTx) {
+  constructor(tx: unknown) {
     this.tx = tx;
   }
 
-  async transaction<T>(work: (tx: MockTx) => Promise<T>): Promise<T> {
+  async transaction<T>(work: (tx: unknown) => Promise<T>): Promise<T> {
     return work(this.tx);
+  }
+}
+
+class MockDeleteSessionTx {
+  session: {
+    id: string;
+    end_time: string | null;
+    invoice_id: string | null;
+    deleted_at?: string | null;
+  } | null;
+  links: { id: string }[];
+  breaks: Array<SessionBreakRow & { updated_at?: string | null }>;
+
+  constructor(input: {
+    session: MockDeleteSessionTx['session'];
+    links?: { id: string }[];
+    breaks?: Array<SessionBreakRow & { updated_at?: string | null }>;
+  }) {
+    this.session = input.session;
+    this.links = input.links ?? [];
+    this.breaks = input.breaks ?? [];
+  }
+
+  async execute(query: Query): Promise<{ rows: unknown[] }> {
+    const { sql: text, params } = queryParts(query);
+
+    if (text.includes('from sessions') && text.includes('limit 1')) {
+      return { rows: this.session && (this.session.deleted_at ?? null) === null ? [this.session] : [] };
+    }
+
+    if (text.includes('from invoice_session_links')) {
+      return { rows: this.links };
+    }
+
+    if (text.includes('update session_breaks')) {
+      const [deletedAt, updatedAt] = params as [string, string];
+      this.breaks = this.breaks.map((row) =>
+        (row.deleted_at ?? null) === null
+          ? { ...row, deleted_at: deletedAt, updated_at: updatedAt }
+          : row,
+      );
+      return { rows: [] };
+    }
+
+    if (text.includes('update sessions')) {
+      if (!this.session || !this.session.end_time || this.session.invoice_id !== null) {
+        return { rows: [] };
+      }
+
+      const [deletedAt] = params as [string];
+      this.session = { ...this.session, deleted_at: deletedAt };
+      return { rows: [{ id: this.session.id }] };
+    }
+
+    throw new Error(`Unhandled SQL: ${text}`);
   }
 }
 
@@ -152,5 +207,84 @@ describe('stopSession (hosted)', () => {
     ).rejects.toThrow('Cannot clock out before active break start.');
     expect(mockTx.breaks[0]?.end_time).toBeNull();
     expect(mockTx.sessionUpdate).toBeUndefined();
+  });
+});
+
+describe('deleteSession (hosted)', () => {
+  it('soft-deletes a completed uninvoiced session and its breaks', async () => {
+    const sessionId = 'session_delete_1';
+    const tx = new MockDeleteSessionTx({
+      session: {
+        id: sessionId,
+        end_time: '2024-01-01T11:00:00.000Z',
+        invoice_id: null,
+        deleted_at: null,
+      },
+      breaks: [
+        {
+          id: 'break_delete_1',
+          start_time: '2024-01-01T10:30:00.000Z',
+          end_time: '2024-01-01T10:45:00.000Z',
+          deleted_at: null,
+        },
+      ],
+    });
+
+    await deleteSession(new MockDb(tx) as unknown as WriteDb, 'user-1', { id: sessionId });
+
+    expect(tx.session?.deleted_at).toEqual(expect.any(String));
+    expect(tx.breaks[0]?.deleted_at).toEqual(expect.any(String));
+  });
+
+  it('blocks invoiced sessions', async () => {
+    const tx = new MockDeleteSessionTx({
+      session: {
+        id: 'session_delete_2',
+        end_time: '2024-01-01T11:00:00.000Z',
+        invoice_id: 'invoice_1',
+        deleted_at: null,
+      },
+    });
+
+    await expect(
+      deleteSession(new MockDb(tx) as unknown as WriteDb, 'user-1', {
+        id: 'session_delete_2',
+      }),
+    ).rejects.toThrow('Invoiced sessions cannot be deleted.');
+  });
+
+  it('blocks active sessions', async () => {
+    const tx = new MockDeleteSessionTx({
+      session: {
+        id: 'session_delete_3',
+        end_time: null,
+        invoice_id: null,
+        deleted_at: null,
+      },
+    });
+
+    await expect(
+      deleteSession(new MockDb(tx) as unknown as WriteDb, 'user-1', {
+        id: 'session_delete_3',
+      }),
+    ).rejects.toThrow('Only completed sessions can be deleted.');
+  });
+
+  it('blocks sessions attached to invoice history', async () => {
+    const tx = new MockDeleteSessionTx({
+      session: {
+        id: 'session_delete_4',
+        end_time: '2024-01-01T11:00:00.000Z',
+        invoice_id: null,
+        deleted_at: null,
+      },
+      links: [{ id: 'invoice_link_1' }],
+    });
+
+    await expect(
+      deleteSession(new MockDb(tx) as unknown as WriteDb, 'user-1', {
+        id: 'session_delete_4',
+      }),
+    ).rejects.toThrow('Sessions attached to invoice history cannot be deleted.');
   });
 });
