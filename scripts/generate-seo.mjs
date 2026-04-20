@@ -1,13 +1,12 @@
 import { promises as fs } from 'node:fs';
-import { existsSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
-import { config as loadEnvFile } from 'dotenv';
 import { loadExpoRouterPluginConfig, publicDir } from './web-output-utils.mjs';
 
-const envPath = path.resolve(process.cwd(), '.env.plesk');
-if (existsSync(envPath)) {
-  loadEnvFile({ path: envPath, override: false });
-}
+const require = createRequire(import.meta.url);
+const { loadFirstEnvFile } = require('./env-loader.cjs');
+
+loadFirstEnvFile({ cwd: process.cwd(), prefix: '[generate-seo]' });
 
 const INDEXED_PUBLIC_ROUTES = ['/'];
 const PRIVATE_ROUTE_BLOCKLIST = ['/api/', '/_sitemap'];

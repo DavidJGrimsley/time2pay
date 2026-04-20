@@ -7,6 +7,8 @@ import type {
   MercurySendMoneyInput,
   MercuryTransaction,
 } from '@mr.dj2u/mercury';
+import { getAppAccessMode } from '@/services/runtime-mode';
+import { getSupabaseClient } from '@/services/supabase-client';
 
 export type MercuryConfig = {
   proxyPath: string;
@@ -47,6 +49,16 @@ type MercuryActionResponseMap = {
   sendMoney: { transaction: MercuryTransaction };
 };
 
+async function getHostedBearerToken(): Promise<string | null> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.auth.getSession();
+  if (error) {
+    throw new Error('Sign in to use Mercury banking features.');
+  }
+
+  return data.session?.access_token?.trim() || null;
+}
+
 function getMercuryConfig(): MercuryConfig {
   return {
     proxyPath: '/api/mercury',
@@ -58,15 +70,27 @@ async function mercuryAction<TAction extends MercuryActionName>(
   payload?: MercuryActionPayloadMap[TAction],
 ): Promise<MercuryActionResponseMap[TAction]> {
   const config = getMercuryConfig();
+  const accessMode = getAppAccessMode();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (accessMode === 'hosted') {
+    const token = await getHostedBearerToken();
+    if (!token) {
+      throw new Error('Sign in to use Mercury banking features.');
+    }
+
+    headers.Authorization = `Bearer ${token}`;
+  }
 
   const response = await fetch(config.proxyPath, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers,
     body: JSON.stringify({
       action,
       payload,
+      accessMode,
     }),
   });
 

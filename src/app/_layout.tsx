@@ -13,6 +13,7 @@ import {
   resolveAppAccessMode,
 } from '@/services/runtime-mode';
 import { syncGitHubProviderTokenToHostedProfile } from '@/services/github-auth';
+import { syncPendingMercuryReferralClick } from '@/services/mercury-referrals';
 import { getSupabaseSession, onSupabaseAuthStateChange } from '@/services/supabase-client';
 import { ensureTourDemoData } from '@/services/tour-demo';
 import { useAuthUiStore } from '@/stores/auth-ui-store';
@@ -243,6 +244,22 @@ export default function RootLayout() {
       unsubscribe();
     };
   }, [hostedMode, resetForLocalMode, syncHostedAuth]);
+
+  useEffect(() => {
+    if (!hostedMode || !authReady || !isAuthenticated) {
+      return;
+    }
+
+    syncPendingMercuryReferralClick().catch((error) => {
+      logRuntimeDiagnostic(
+        'mercury.referral.pendingSync.error',
+        {
+          message: errorMessage(error),
+        },
+        { level: 'warn' },
+      );
+    });
+  }, [authReady, hostedMode, isAuthenticated]);
 
   useEffect(() => {
     let isActive = true;

@@ -19,7 +19,7 @@
     "build:web": "npm run icons:sync && npm run build:web:deploy",
     "serve:prod": "node server.js",
     "serve:prod:fresh": "npm run build:web:deploy && node server.js",
-    "serve:prod:env": "node --env-file=.env server.js",
+    "serve:prod:env": "node server.js",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

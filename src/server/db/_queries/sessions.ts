@@ -456,6 +456,81 @@ export async function updateSession(
   );
 }
 
+export type DeleteSessionInput = {
+  id: string;
+};
+
+export async function deleteSession(
+  db: WriteDb,
+  authUserId: string,
+  input: DeleteSessionInput,
+): Promise<void> {
+  if (!input.id.trim()) {
+    throw validation('Session id is required.');
+  }
+
+  await db.transaction(async (tx) => {
+    const sessionResult = await tx.execute(sql`
+      select id, end_time, invoice_id
+      from sessions
+      where id = ${input.id}
+        and auth_user_id = ${authUserId}::uuid
+        and deleted_at is null
+      limit 1
+    `);
+    const sessionRows = rowsFromResult(sessionResult) as {
+      id: string;
+      end_time?: string | null;
+      invoice_id?: string | null;
+    }[];
+    const session = sessionRows[0];
+    if (!session) {
+      throw notFound('Session not found.');
+    }
+    if (!session.end_time) {
+      throw conflict('Only completed sessions can be deleted.');
+    }
+    if ((session.invoice_id ?? null) !== null) {
+      throw conflict('Invoiced sessions cannot be deleted.');
+    }
+
+    const linkResult = await tx.execute(sql`
+      select id
+      from invoice_session_links
+      where session_id = ${input.id}
+        and auth_user_id = ${authUserId}::uuid
+      limit 1
+    `);
+    if (rowsFromResult(linkResult).length > 0) {
+      throw conflict('Sessions attached to invoice history cannot be deleted.');
+    }
+
+    const timestamp = nowIso();
+    await tx.execute(sql`
+      update session_breaks
+      set deleted_at = ${timestamp}, updated_at = ${timestamp}
+      where session_id = ${input.id}
+        and auth_user_id = ${authUserId}::uuid
+        and deleted_at is null
+    `);
+
+    await assertUpdated(
+      tx,
+      sql`
+        update sessions
+        set deleted_at = ${timestamp}, updated_at = ${timestamp}
+        where id = ${input.id}
+          and auth_user_id = ${authUserId}::uuid
+          and deleted_at is null
+          and invoice_id is null
+          and end_time is not null
+        returning id
+      `,
+      'Session not found.',
+    );
+  });
+}
+
 export type UpdateSessionNotesInput = {
   id: string;
   notes: string | null;

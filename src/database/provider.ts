@@ -34,6 +34,7 @@ export type DbProvider = Pick<
   | 'stopSession'
   | 'addManualSession'
   | 'updateSession'
+  | 'deleteSession'
   | 'listSessions'
   | 'listSessionsByClientAndRange'
   | 'listSessionsByProject'

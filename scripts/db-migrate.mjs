@@ -1,11 +1,16 @@
-import 'dotenv/config';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import postgres from 'postgres';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
+
+const require = createRequire(import.meta.url);
+const { loadFirstEnvFile } = require('./env-loader.cjs');
+
+loadFirstEnvFile({ cwd: process.cwd(), prefix: '[db:migrate]' });
 
 const URL_PRECEDENCE = ['DRIZZLE_DATABASE_URL', 'DATABASE_URL', 'DATABASE_DIRECT_URL'];
 const chosenEnvKey = URL_PRECEDENCE.find((key) => process.env[key]?.trim());

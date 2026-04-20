@@ -5,16 +5,9 @@ const compression = require('compression');
 const express = require('express');
 const morgan = require('morgan');
 const { createRequestHandler } = require('expo-server/adapter/express');
+const { loadFirstEnvFile } = require('./scripts/env-loader.cjs');
 
-const envFilePath = path.join(__dirname, '.env.plesk');
-if (fs.existsSync(envFilePath)) {
-  try {
-    // Plesk convenience: load file-based env when the host does not inject app vars.
-    require('dotenv').config({ path: envFilePath });
-  } catch {
-    // no-op; runtime env vars may still be provided externally
-  }
-}
+loadFirstEnvFile({ cwd: __dirname, prefix: '[startup]' });
 
 process.env.NODE_ENV = process.env.NODE_ENV || 'production';
 

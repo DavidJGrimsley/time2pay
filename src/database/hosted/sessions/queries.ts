@@ -196,6 +196,12 @@ export function updateSession(input: {
   });
 }
 
+export function deleteSession(sessionId: string): Promise<void> {
+  return callHostedWriteRoute('/api/db/sessions/delete', {
+    id: sessionId,
+  });
+}
+
 export function listSessions(): Promise<Session[]> {
   return withHostedRead(async () => {
     const supabase = getSupabaseClient();

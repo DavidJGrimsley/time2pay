@@ -20,6 +20,7 @@ import {
   ctaSection,
   footerLinks,
   heroSection,
+  MERCURY_REFERRAL_URL,
   workflowSection,
   type LandingCta,
 } from '../../content/landing-content';
@@ -36,6 +37,7 @@ import {
 } from './landing-motion';
 import { useResolvedDataMode } from '@/hooks/use-resolved-data-mode';
 import { logRuntimeDiagnostic } from '@/services/runtime-diagnostics';
+import { trackMercuryReferralClick } from '@/services/mercury-referrals';
 import { useStableWindowDimensions } from '@/hooks/use-stable-window-dimensions';
 import { LandingSection } from './landing-section';
 import { SemanticText } from './semantic-elements';
@@ -276,6 +278,10 @@ export function LandingPage() {
 
   const handleRoute = useCallback(
     (href: string) => {
+      if (href === MERCURY_REFERRAL_URL) {
+        trackMercuryReferralClick().catch(() => undefined);
+      }
+
       if (href.startsWith('http')) {
         Linking.openURL(href).catch(() => undefined);
         return;
