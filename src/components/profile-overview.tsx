@@ -266,7 +266,14 @@ export function ProfileOverview() {
       return;
     }
 
-    setMercuryCredentialStatus(await getMercuryCredentialStatus());
+    try {
+      setMercuryCredentialStatus(await getMercuryCredentialStatus());
+    } catch (error: unknown) {
+      setMercuryCredentialStatus({ configured: false, keyLastFour: null, updatedAt: null });
+      if (typeof console !== 'undefined' && typeof console.warn === 'function') {
+        console.warn('Failed to load Mercury credential status:', error);
+      }
+    }
   }, [shouldShowHostedMercuryCredentials]);
 
   const refreshMercuryReferralStatus = useCallback(async (): Promise<void> => {
@@ -275,7 +282,14 @@ export function ProfileOverview() {
       return;
     }
 
-    setMercuryReferralStatus(await getMercuryReferralStatus());
+    try {
+      setMercuryReferralStatus(await getMercuryReferralStatus());
+    } catch (error: unknown) {
+      setMercuryReferralStatus(null);
+      if (typeof console !== 'undefined' && typeof console.warn === 'function') {
+        console.warn('Failed to load Mercury referral status:', error);
+      }
+    }
   }, [shouldShowHostedMercuryCredentials]);
 
   useEffect(() => {

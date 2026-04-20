@@ -31,7 +31,6 @@ export function InvoicesOverview() {
   const [mercuryCredentialStatus, setMercuryCredentialStatus] =
     useState<MercuryCredentialStatus | null>(null);
   const [isLoadingMercuryCredentialStatus, setIsLoadingMercuryCredentialStatus] = useState(false);
-  const [mercuryCredentialError, setMercuryCredentialError] = useState<string | null>(null);
   const triggerRefresh = () => setRefreshKey((current) => current + 1);
   const sessionAdapter = useTime2PayMercurySessionWorkspace({
     onInvoiceCreated: triggerRefresh,
@@ -51,7 +50,6 @@ export function InvoicesOverview() {
     let active = true;
 
     if (builderMode !== 'mercury' || !needsHostedMercuryCredential) {
-      setMercuryCredentialError(null);
       setIsLoadingMercuryCredentialStatus(false);
       return () => {
         active = false;
@@ -65,15 +63,15 @@ export function InvoicesOverview() {
           return;
         }
         setMercuryCredentialStatus(status);
-        setMercuryCredentialError(null);
       })
       .catch((error: unknown) => {
         if (!active) {
           return;
         }
-        setMercuryCredentialError(
-          error instanceof Error ? error.message : 'Failed to load Mercury credential status.',
-        );
+        setMercuryCredentialStatus({ configured: false, keyLastFour: null, updatedAt: null });
+        if (typeof console !== 'undefined' && typeof console.warn === 'function') {
+          console.warn('Failed to load Mercury credential status:', error);
+        }
       })
       .finally(() => {
         if (active) {
@@ -117,11 +115,6 @@ export function InvoicesOverview() {
           {builderMode === 'mercury' && isLoadingMercuryCredentialStatus ? (
             <View className="rounded-xl border border-border bg-card p-4">
               <Text className="text-muted">Checking saved Mercury API key...</Text>
-            </View>
-          ) : null}
-          {builderMode === 'mercury' && mercuryCredentialError ? (
-            <View className="rounded-xl border border-danger/50 bg-card p-4">
-              <Text className="text-danger">{mercuryCredentialError}</Text>
             </View>
           ) : null}
           {builderMode === 'mercury' && !isLoadingMercuryCredentialStatus && !mercuryCredentialReady ? (

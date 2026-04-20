@@ -17,10 +17,43 @@ async function parseRequest(request: Request): Promise<MercuryReferralActionRequ
 }
 
 function errorResponse(error: unknown, status = 400): Response {
+  const message = formatReferralError(error);
   return Response.json(
-    { error: error instanceof Error ? error.message : 'Mercury referral request failed.' },
+    { error: message },
     { status },
   );
+}
+
+function formatReferralError(error: unknown): string {
+  const message = getErrorText(error);
+  const code =
+    error && typeof error === 'object' && 'code' in error
+      ? String((error as { code?: unknown }).code ?? '')
+      : error && typeof error === 'object' && 'cause' in error
+        ? String((error as { cause?: { code?: unknown } }).cause?.code ?? '')
+        : '';
+
+  if (
+    code === '42P01' ||
+    /relation\s+"?mercury_referrals"?\s+does not exist/i.test(message)
+  ) {
+    return 'Mercury referral tables are not migrated. Run `npm run db:migrate` against this Supabase database, then restart the dev server.';
+  }
+
+  return message || 'Mercury referral request failed.';
+}
+
+function getErrorText(error: unknown): string {
+  if (!(error instanceof Error)) {
+    return '';
+  }
+
+  const cause =
+    error && typeof error === 'object' && 'cause' in error
+      ? (error as { cause?: unknown }).cause
+      : null;
+  const causeMessage = cause instanceof Error ? cause.message : '';
+  return [error.message, causeMessage].filter(Boolean).join('\n');
 }
 
 export async function POST(request: Request): Promise<Response> {

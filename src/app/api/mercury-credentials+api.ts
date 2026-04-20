@@ -21,10 +21,47 @@ async function parseRequest(request: Request): Promise<MercuryCredentialActionRe
 }
 
 function errorResponse(error: unknown, status = 400): Response {
+  const message = formatCredentialError(error);
   return Response.json(
-    { error: error instanceof Error ? error.message : 'Mercury credential request failed.' },
+    { error: message },
     { status },
   );
+}
+
+function formatCredentialError(error: unknown): string {
+  const message = getErrorText(error);
+  const code =
+    error && typeof error === 'object' && 'code' in error
+      ? String((error as { code?: unknown }).code ?? '')
+      : error && typeof error === 'object' && 'cause' in error
+        ? String((error as { cause?: { code?: unknown } }).cause?.code ?? '')
+        : '';
+
+  if (
+    code === '42P01' ||
+    /relation\s+"?mercury_credentials"?\s+does not exist/i.test(message)
+  ) {
+    return 'Mercury credential tables are not migrated. Run npm run db:migrate against this Supabase database, then restart the dev server.';
+  }
+
+  if (/Missing MERCURY_API_KEY_ENCRYPTION_SECRET/i.test(message)) {
+    return 'Missing MERCURY_API_KEY_ENCRYPTION_SECRET. Add it to .env locally or your hosting secrets, then restart the server.';
+  }
+
+  return message || 'Mercury credential request failed.';
+}
+
+function getErrorText(error: unknown): string {
+  if (!(error instanceof Error)) {
+    return '';
+  }
+
+  const cause =
+    error && typeof error === 'object' && 'cause' in error
+      ? (error as { cause?: unknown }).cause
+      : null;
+  const causeMessage = cause instanceof Error ? cause.message : '';
+  return [error.message, causeMessage].filter(Boolean).join('\n');
 }
 
 export async function POST(request: Request): Promise<Response> {
