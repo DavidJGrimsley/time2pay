@@ -33,6 +33,7 @@ export type LandingSection = {
 
 export const TIME2PAY_GITHUB_URL = 'https://github.com/DavidJGrimsley/time2pay';
 export const DAVID_GRIMSLEY_PORTFOLIO_URL = 'https://DavidJGrimsley.com';
+export const MERCURY_REFERRAL_URL = 'https://mercury.com/partner/time2pay';
 
 export const heroSection: LandingSection = {
   id: 'hero',
@@ -95,6 +96,7 @@ export const mercuryCallout: LandingSection = {
     'This is the early version of that story. As more Mercury API features land, this section will grow into a stronger partnership and demo surface.',
   ],
   ctas: [
+    { label: 'Open Mercury with Time2Pay', href: MERCURY_REFERRAL_URL, kind: 'primary' },
     { label: 'Finish Profile Setup', href: '/profile', kind: 'primary' },
     { label: 'Self-Host for Free', href: TIME2PAY_GITHUB_URL, kind: 'secondary' },
   ],

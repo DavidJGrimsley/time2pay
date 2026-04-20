@@ -8,6 +8,13 @@
       "when": 1773881537510,
       "tag": "0000_kind_black_tom",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1776686400000,
+      "tag": "0001_mercury_credentials_referrals",
+      "breakpoints": true
     }
   ]
 }

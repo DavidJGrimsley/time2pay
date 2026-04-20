@@ -21,6 +21,19 @@ import {
 } from '@/services/data-backup';
 import { getCurrentGitHubSessionState, type GitHubSessionState } from '@/services/github-auth';
 import { InlineNotice, type NoticeTone } from '@/components/inline-notice';
+import {
+  deleteMercuryApiKey,
+  getMercuryCredentialStatus,
+  saveMercuryApiKey,
+  testMercuryApiKey,
+  type MercuryCredentialStatus,
+} from '@/services/mercury-credentials';
+import {
+  getMercuryReferralStatus,
+  MERCURY_REFERRAL_URL,
+  trackMercuryReferralClick,
+  type MercuryReferralStatus,
+} from '@/services/mercury-referrals';
 import { readTrimmedPublicRuntimeConfigValue } from '@/services/runtime-config';
 import { isHostedMode } from '@/services/runtime-mode';
 import { requireConfiguredSiteOrigin, resolveBrowserSiteOrigin } from '@/services/site-origin';
@@ -160,6 +173,15 @@ export function ProfileOverview() {
   const [businessPhone, setBusinessPhone] = useState('');
   const [businessEmail, setBusinessEmail] = useState('');
   const [githubPat, setGithubPat] = useState('');
+  const [mercuryApiKey, setMercuryApiKey] = useState('');
+  const [mercuryCredentialStatus, setMercuryCredentialStatus] =
+    useState<MercuryCredentialStatus | null>(null);
+  const [isSavingMercuryKey, setIsSavingMercuryKey] = useState(false);
+  const [isTestingMercuryKey, setIsTestingMercuryKey] = useState(false);
+  const [isDeletingMercuryKey, setIsDeletingMercuryKey] = useState(false);
+  const [mercuryReferralStatus, setMercuryReferralStatus] =
+    useState<MercuryReferralStatus | null>(null);
+  const [isOpeningMercuryReferral, setIsOpeningMercuryReferral] = useState(false);
   const [showIntegrations, setShowIntegrations] = useState(true);
   const [showAdvancedGitHubOptions, setShowAdvancedGitHubOptions] = useState(false);
   const [showPatInfoModal, setShowPatInfoModal] = useState(false);
@@ -170,7 +192,9 @@ export function ProfileOverview() {
     displayName: null,
   });
   const tourModeEnabled = useAuthUiStore((state) => state.tourModeEnabled);
+  const isAuthenticated = useAuthUiStore((state) => state.isAuthenticated);
   const shouldRouteAuthIntegrationsToSignIn = isHostedMode() && tourModeEnabled;
+  const shouldShowHostedMercuryCredentials = isHostedMode() && isAuthenticated && !tourModeEnabled;
 
   const githubClientId = readTrimmedPublicRuntimeConfigValue('EXPO_PUBLIC_GITHUB_CLIENT_ID');
   const isGitHubOAuthEnabled = Platform.OS === 'web' && Boolean(githubClientId);
@@ -236,9 +260,34 @@ export function ProfileOverview() {
     setGitHubSessionState(await getCurrentGitHubSessionState());
   }, []);
 
+  const refreshMercuryCredentialStatus = useCallback(async (): Promise<void> => {
+    if (!shouldShowHostedMercuryCredentials) {
+      setMercuryCredentialStatus(null);
+      return;
+    }
+
+    setMercuryCredentialStatus(await getMercuryCredentialStatus());
+  }, [shouldShowHostedMercuryCredentials]);
+
+  const refreshMercuryReferralStatus = useCallback(async (): Promise<void> => {
+    if (!shouldShowHostedMercuryCredentials) {
+      setMercuryReferralStatus(null);
+      return;
+    }
+
+    setMercuryReferralStatus(await getMercuryReferralStatus());
+  }, [shouldShowHostedMercuryCredentials]);
+
   useEffect(() => {
     initializeDatabase()
-      .then(() => Promise.all([loadProfileData(), refreshGitHubSessionState()]))
+      .then(() =>
+        Promise.all([
+          loadProfileData(),
+          refreshGitHubSessionState(),
+          refreshMercuryCredentialStatus(),
+          refreshMercuryReferralStatus(),
+        ]),
+      )
       .catch((error: unknown) => {
         showStatus('general', {
           message: error instanceof Error ? error.message : 'Failed to load profile.',
@@ -246,7 +295,13 @@ export function ProfileOverview() {
         });
       })
       .finally(() => setIsLoading(false));
-  }, [loadProfileData, refreshGitHubSessionState, showStatus]);
+  }, [
+    loadProfileData,
+    refreshGitHubSessionState,
+    refreshMercuryCredentialStatus,
+    refreshMercuryReferralStatus,
+    showStatus,
+  ]);
 
   useEffect(() => {
     if (!isGitHubOAuthEnabled || typeof window === 'undefined') {
@@ -439,6 +494,99 @@ export function ProfileOverview() {
       showStatus('integrations', { message, tone: 'error' });
     } finally {
       setIsSavingIntegrations(false);
+    }
+  }
+
+  async function handleSaveMercuryKey(): Promise<void> {
+    clearSectionStatus('integrations');
+    const apiKey = mercuryApiKey.trim();
+    if (!apiKey) {
+      const message = 'Mercury API key is required.';
+      showValidationAlert(message);
+      showStatus('integrations', { message, tone: 'error' });
+      return;
+    }
+
+    setIsSavingMercuryKey(true);
+    try {
+      const nextStatus = await saveMercuryApiKey(apiKey);
+      setMercuryCredentialStatus(nextStatus);
+      setMercuryApiKey('');
+      showStatus('integrations', { message: 'Mercury API key saved.', tone: 'success' });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to save Mercury API key.';
+      showActionErrorAlert(message);
+      showStatus('integrations', { message, tone: 'error' });
+    } finally {
+      setIsSavingMercuryKey(false);
+    }
+  }
+
+  async function handleTestMercuryKey(): Promise<void> {
+    clearSectionStatus('integrations');
+    setIsTestingMercuryKey(true);
+
+    try {
+      await testMercuryApiKey();
+      await refreshMercuryCredentialStatus();
+      showStatus('integrations', { message: 'Mercury API key connected successfully.', tone: 'success' });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to test Mercury API key.';
+      showActionErrorAlert(message);
+      showStatus('integrations', { message, tone: 'error' });
+    } finally {
+      setIsTestingMercuryKey(false);
+    }
+  }
+
+  async function handleDeleteMercuryKey(): Promise<void> {
+    clearSectionStatus('integrations');
+    const confirmed = await showSystemConfirm({
+      title: 'Delete Mercury API key?',
+      message: 'This removes the saved Mercury key from your Time2Pay hosted profile.',
+      confirmLabel: 'Delete',
+      cancelLabel: 'Cancel',
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    setIsDeletingMercuryKey(true);
+    try {
+      await deleteMercuryApiKey();
+      setMercuryCredentialStatus({ configured: false, keyLastFour: null, updatedAt: null });
+      setMercuryApiKey('');
+      showStatus('integrations', { message: 'Mercury API key deleted.', tone: 'success' });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to delete Mercury API key.';
+      showActionErrorAlert(message);
+      showStatus('integrations', { message, tone: 'error' });
+    } finally {
+      setIsDeletingMercuryKey(false);
+    }
+  }
+
+  async function handleOpenMercuryReferral(): Promise<void> {
+    clearSectionStatus('integrations');
+    setIsOpeningMercuryReferral(true);
+
+    try {
+      const nextStatus = await trackMercuryReferralClick();
+      if (nextStatus) {
+        setMercuryReferralStatus(nextStatus);
+      }
+      openExternalUrl(MERCURY_REFERRAL_URL);
+      showStatus('integrations', {
+        message: 'Mercury referral visit recorded. Premium access is granted manually after qualification is verified.',
+        tone: 'success',
+      });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to record Mercury referral visit.';
+      showStatus('integrations', { message, tone: 'error' });
+      openExternalUrl(MERCURY_REFERRAL_URL);
+    } finally {
+      setIsOpeningMercuryReferral(false);
     }
   }
 
@@ -756,6 +904,91 @@ export function ProfileOverview() {
                   </Text>
                 </Pressable>
               </View>
+            ) : null}
+            {shouldShowHostedMercuryCredentials ? (
+              <View className="gap-2 rounded-md border border-border bg-background p-3">
+                <Text className="text-sm font-semibold text-heading">Mercury production API key</Text>
+                <Text className="text-sm text-muted">
+                  {mercuryCredentialStatus?.configured
+                    ? `Saved key ending in ${mercuryCredentialStatus.keyLastFour ?? '....'}.`
+                    : 'No Mercury production key is saved for this hosted profile.'}
+                </Text>
+                <TextInput
+                  value={mercuryApiKey}
+                  onChangeText={setMercuryApiKey}
+                  placeholder="Mercury production API key"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  secureTextEntry
+                  className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
+                />
+                <View className="flex-row flex-wrap gap-2">
+                  <Pressable
+                    className="rounded-md bg-secondary px-4 py-2"
+                    onPress={() => {
+                      handleSaveMercuryKey().catch(() => undefined);
+                    }}
+                    disabled={isSavingMercuryKey || isLoading}
+                  >
+                    <Text className="text-center font-semibold text-white">
+                      {isSavingMercuryKey ? 'Saving...' : 'Save Mercury Key'}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    className="rounded-md border border-border px-4 py-2"
+                    onPress={() => {
+                      handleTestMercuryKey().catch(() => undefined);
+                    }}
+                    disabled={isTestingMercuryKey || !mercuryCredentialStatus?.configured}
+                  >
+                    <Text className="text-center font-semibold text-heading">
+                      {isTestingMercuryKey ? 'Testing...' : 'Test Key'}
+                    </Text>
+                  </Pressable>
+                  {mercuryCredentialStatus?.configured ? (
+                    <Pressable
+                      className="rounded-md border border-danger px-4 py-2"
+                      onPress={() => {
+                        handleDeleteMercuryKey().catch(() => undefined);
+                      }}
+                      disabled={isDeletingMercuryKey}
+                    >
+                      <Text className="text-center font-semibold text-danger">
+                        {isDeletingMercuryKey ? 'Deleting...' : 'Delete Key'}
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              </View>
+            ) : null}
+            {shouldShowHostedMercuryCredentials ? (
+              <View className="gap-2 rounded-md border border-border bg-background p-3">
+                <Text className="text-sm font-semibold text-heading">Mercury referral premium</Text>
+                <Text className="text-sm text-muted">
+                  {mercuryReferralStatus?.premiumAccess
+                    ? `Premium access granted${mercuryReferralStatus.premiumAccessGrantedAt ? ` on ${new Date(mercuryReferralStatus.premiumAccessGrantedAt).toLocaleDateString()}` : ''}.`
+                    : mercuryReferralStatus && mercuryReferralStatus.status !== 'none'
+                      ? `Referral status: ${mercuryReferralStatus.status.replace('_', ' ')}.`
+                      : 'No Mercury referral visit recorded for this profile yet.'}
+                </Text>
+                <Pressable
+                  className="self-start rounded-md bg-secondary px-4 py-2"
+                  onPress={() => {
+                    handleOpenMercuryReferral().catch(() => undefined);
+                  }}
+                  disabled={isOpeningMercuryReferral}
+                >
+                  <Text className="font-semibold text-white">
+                    {isOpeningMercuryReferral ? 'Opening...' : 'Open Mercury Referral'}
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
+            {isHostedMode() && tourModeEnabled ? (
+              <InlineNotice
+                tone="neutral"
+                message="Tour mode uses Mercury sandbox credentials. Sign in to save your own production Mercury API key."
+              />
             ) : null}
             {sectionStatus?.section === 'integrations' ? (
               <InlineNotice tone={sectionStatus.tone} message={sectionStatus.message} />

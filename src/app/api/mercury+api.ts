@@ -10,8 +10,12 @@ import {
   type MercurySendMoneyInput,
   type MercuryTransaction,
 } from '@mr.dj2u/mercury';
+import { requireAuthUserId } from '@/server/db/_shared/auth';
+import { getDecryptedMercuryApiKeyForUser } from '@/server/mercury/credentials';
 
-type MercuryActionRequest =
+type MercuryAccessMode = 'local' | 'hosted' | 'tour';
+
+type MercuryActionPayload =
   | { action: 'testConnection' }
   | { action: 'testInvoiceAccess' }
   | { action: 'ensureCustomer'; payload: { name: string; email: string } }
@@ -22,8 +26,52 @@ type MercuryActionRequest =
   | { action: 'updateRecipient'; payload: { recipientId: string; input: Record<string, unknown> } }
   | { action: 'sendMoney'; payload: { accountId: string; input: MercurySendMoneyInput } };
 
-function getMercuryClient(): MercuryClient {
-  const apiKey = process.env.MERCURY_API_KEY?.trim();
+type MercuryActionRequest = MercuryActionPayload & {
+  accessMode?: MercuryAccessMode;
+};
+
+type MercuryResolvedConfig = {
+  apiKey: string;
+  environment: MercuryEnvironment;
+  baseUrl?: string;
+};
+
+async function resolveMercuryConfig(
+  request: Request,
+  payload: MercuryActionRequest,
+): Promise<MercuryResolvedConfig> {
+  const accessMode = payload.accessMode ?? 'local';
+
+  if (accessMode === 'tour') {
+    const apiKey = process.env.MERCURY_SANDBOX_API_KEY?.trim() ?? '';
+    if (!apiKey) {
+      throw new Error('Missing MERCURY_SANDBOX_API_KEY environment variable.');
+    }
+
+    return {
+      apiKey,
+      environment: 'sandbox',
+      baseUrl:
+        process.env.MERCURY_SANDBOX_BASE_URL?.trim() ||
+        'https://api-sandbox.mercury.com/api/v1',
+    };
+  }
+
+  if (accessMode === 'hosted') {
+    const authUserId = await requireAuthUserId(request);
+    const apiKey = await getDecryptedMercuryApiKeyForUser(authUserId);
+    if (!apiKey) {
+      throw new Error('No Mercury API key is saved for this account.');
+    }
+
+    return {
+      apiKey,
+      environment: 'production',
+      baseUrl: process.env.MERCURY_BASE_URL?.trim() || undefined,
+    };
+  }
+
+  const apiKey = process.env.MERCURY_API_KEY?.trim() ?? '';
   const environment = (process.env.MERCURY_ENVIRONMENT?.trim() ||
     'production') as MercuryEnvironment;
   const baseUrl = process.env.MERCURY_BASE_URL?.trim();
@@ -32,10 +80,18 @@ function getMercuryClient(): MercuryClient {
     throw new Error('Missing MERCURY_API_KEY environment variable.');
   }
 
-  return createMercuryClient({
+  return {
     apiKey,
     environment,
     baseUrl: baseUrl || undefined,
+  };
+}
+
+function getMercuryClient(config: MercuryResolvedConfig): MercuryClient {
+  return createMercuryClient({
+    apiKey: config.apiKey,
+    environment: config.environment,
+    baseUrl: config.baseUrl,
   });
 }
 
@@ -234,15 +290,19 @@ async function sendMoney(
   return Response.json({ transaction: transaction as MercuryTransaction });
 }
 
-async function testConnection(client: MercuryClient): Promise<Response> {
+async function testConnection(
+  client: MercuryClient,
+  environment: MercuryEnvironment,
+): Promise<Response> {
   await client.accounts.list({ limit: 1 });
-  const environment = process.env.MERCURY_ENVIRONMENT?.trim() || 'production';
   return Response.json({ ok: true, environment });
 }
 
-async function testInvoiceAccess(client: MercuryClient): Promise<Response> {
+async function testInvoiceAccess(
+  client: MercuryClient,
+  environment: MercuryEnvironment,
+): Promise<Response> {
   await client.ar.invoices.list({ limit: 1 });
-  const environment = process.env.MERCURY_ENVIRONMENT?.trim() || 'production';
   return Response.json({ ok: true, environment });
 }
 
@@ -269,10 +329,12 @@ async function ensureCustomer(
 export async function POST(request: Request): Promise<Response> {
   let payload: MercuryActionRequest;
   let client: MercuryClient;
+  let config: MercuryResolvedConfig;
 
   try {
     payload = await parseRequestPayload(request);
-    client = getMercuryClient();
+    config = await resolveMercuryConfig(request, payload);
+    client = getMercuryClient(config);
   } catch (error) {
     return Response.json(
       { error: error instanceof Error ? error.message : 'Invalid request.' },
@@ -283,9 +345,9 @@ export async function POST(request: Request): Promise<Response> {
   try {
     switch (payload.action) {
       case 'testConnection':
-        return await testConnection(client);
+        return await testConnection(client, config.environment);
       case 'testInvoiceAccess':
-        return await testInvoiceAccess(client);
+        return await testInvoiceAccess(client, config.environment);
       case 'ensureCustomer':
         return await ensureCustomer(client, payload.payload);
       case 'listAccounts':
