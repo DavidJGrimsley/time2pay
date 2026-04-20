@@ -221,7 +221,6 @@ export async function testMercuryCredentialForUser(authUserId: string): Promise<
   const client = createMercuryClient({
     apiKey,
     environment: 'production',
-    baseUrl: process.env.MERCURY_BASE_URL?.trim() || undefined,
   });
 
   await client.accounts.list({ limit: 1 });

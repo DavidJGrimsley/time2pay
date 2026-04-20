@@ -67,24 +67,12 @@ async function resolveMercuryConfig(
     return {
       apiKey,
       environment: 'production',
-      baseUrl: process.env.MERCURY_BASE_URL?.trim() || undefined,
     };
   }
 
-  const apiKey = process.env.MERCURY_API_KEY?.trim() ?? '';
-  const environment = (process.env.MERCURY_ENVIRONMENT?.trim() ||
-    'production') as MercuryEnvironment;
-  const baseUrl = process.env.MERCURY_BASE_URL?.trim();
-
-  if (!apiKey) {
-    throw new Error('Missing MERCURY_API_KEY environment variable.');
-  }
-
-  return {
-    apiKey,
-    environment,
-    baseUrl: baseUrl || undefined,
-  };
+  throw new Error(
+    'Mercury production actions require hosted mode with a saved Mercury API key, or tour mode with sandbox credentials.',
+  );
 }
 
 function getMercuryClient(config: MercuryResolvedConfig): MercuryClient {

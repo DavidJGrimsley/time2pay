@@ -22,7 +22,7 @@ git clone https://github.com/DavidJGrimsley/time2pay
 cd time2pay
 npm ci
 Copy-Item .env.example .env
-# edit .env and set MERCURY_API_KEY
+# edit .env and set hosted/Supabase vars; signed-in users save Mercury keys in Profile
 npm run build:web
 npm run serve:prod:env
 ```
@@ -36,7 +36,7 @@ git clone https://github.com/DavidJGrimsley/time2pay
 cd time2pay
 npm ci
 cp .env.example .env
-# edit .env and set MERCURY_API_KEY
+# edit .env and set hosted/Supabase vars; signed-in users save Mercury keys in Profile
 npm run build:web
 npm run serve:prod:env
 ```
@@ -47,8 +47,9 @@ Open `http://localhost:3000`.
 
 Set these in `.env`:
 
-- `MERCURY_API_KEY` (required to use your bank account): your Mercury API key
-- `MERCURY_BASE_URL` (optional): defaults to `https://api.mercury.com/api/v1`
+- `MERCURY_API_KEY_ENCRYPTION_SECRET` (required in hosted mode): server-side secret used to encrypt signed-in users' saved Mercury API keys in Supabase
+- `MERCURY_SANDBOX_API_KEY` (required for tour mode Mercury flows): Mercury sandbox API key
+- `MERCURY_SANDBOX_BASE_URL` (required for tour mode Mercury flows): defaults to `https://api-sandbox.mercury.com/api/v1`
 - `GITHUB_CLIENT_SECRET` (optional): server-side GitHub OAuth app client secret
 - `EXPO_PUBLIC_GITHUB_CLIENT_ID` (optional): GitHub OAuth app client id used by the client UI and server token exchange
 - `EXPO_PUBLIC_TIME2PAY_DATA_MODE` (optional): `local` (default) or `hosted`
@@ -71,7 +72,8 @@ Plesk note:
 - Set `EXPO_PUBLIC_TIME2PAY_DATA_MODE=hosted` in your Plesk Node app environment for hosted deployments, or provide it via `.env.plesk`.
 - If this is missing or set to `local`, hosted auth/data flows are intentionally disabled.
 
-If `MERCURY_API_KEY` is missing, `/api/mercury` returns `400`.
+If a signed-in hosted user has no saved Mercury API key, Mercury production actions return `400`.
+If `MERCURY_SANDBOX_API_KEY` is missing, tour mode Mercury actions return `400`.
 If GitHub OAuth env vars are missing, `/api/github` returns `501` and the Sign in with GitHub button is hidden.
 If hosted env vars are missing while `EXPO_PUBLIC_TIME2PAY_DATA_MODE=hosted`, startup fails fast.
 If deprecated hosted env vars are present in hosted mode (`EXPO_PUBLIC_HOSTED_API_BASE_URL`, `EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_URL`, `EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_PATH`, `EXPO_PUBLIC_MERCURY_PROXY_PATH`, `SITE_ORIGIN`), startup fails fast.
@@ -141,14 +143,15 @@ Use this for fast UI iteration. For production-equivalent API-route/PWA checks, 
 
 ## Self-Hosting (Each User Uses Their Own Key)
 
-Each user can run their own local or VPS instance with their own `.env` and Mercury key.
+Production Mercury access is now user-scoped in hosted mode. Each signed-in user saves their own Mercury production API key in **Profile -> Integrations**, where Time2Pay encrypts it before storing it in Supabase.
 
 1. Clone repo and install deps: `npm ci`
 2. Create `.env` from `.env.example`
-3. Set user-specific `MERCURY_API_KEY`
-4. Build: `npm run build:web`
-5. Start: `npm run serve:prod:env`
-6. Open app and test via **Invoices -> Test Mercury Connection**
+3. Set hosted/Supabase vars and `MERCURY_API_KEY_ENCRYPTION_SECRET`
+4. Run `npm run db:migrate`
+5. Build: `npm run build:web`
+6. Start: `npm run serve:prod:env`
+7. Sign in, save your Mercury production API key in **Profile -> Integrations**, then use the Mercury invoice builder
 
 Update flow:
 
@@ -185,8 +188,6 @@ PowerShell example:
 
 ```powershell
 $env:PORT="3030"
-$env:MERCURY_API_KEY="<their-own-key>"
-$env:MERCURY_BASE_URL="https://api.mercury.com/api/v1"
 npm run serve:prod
 ```
 
@@ -211,7 +212,7 @@ Notes:
 - Import replaces current local data for that browser origin.
 - You can enable/disable a pre-import rollback backup in the same section.
 - Backups include profile, clients, projects, tasks, sessions, breaks, invoices, and timer selection.
-- Mercury API keys are server-side env vars and are not part of backup files.
+- Mercury API keys are encrypted hosted credentials and are not part of local backup files.
 
 ## Plesk Deployment (Node App)
 
@@ -226,8 +227,9 @@ Use Plesk as the deployment target, but deploy the repository into the Node app 
    - Document Root: `<application-root>/dist/client`
    - Startup File: `server.js`
 4. Configure env vars in each Plesk app:
-   - required app/server vars such as `MERCURY_API_KEY`
-   - optional runtime vars such as `MERCURY_BASE_URL` and `PORT`
+   - required app/server vars such as `MERCURY_API_KEY_ENCRYPTION_SECRET`
+   - tour/demo vars such as `MERCURY_SANDBOX_API_KEY` and `MERCURY_SANDBOX_BASE_URL`
+   - optional runtime vars such as `PORT`
    - `EXPO_PUBLIC_SITE_ORIGIN` set to the matching domain for that environment
    - if Plesk does not expose those vars to Git Additional deployment actions, place a single `.env.plesk` file in the app root so both build scripts and `server.js` can read it
 5. In each Plesk Git repository settings page, enable **Additional deployment actions** and use:

@@ -27,6 +27,26 @@ const createMercuryClientMock = vi.fn(() => ({
   sendMoney: { send: sendMoneyMock },
 }));
 
+function mockHostedMercuryCredential(apiKey = 'user_mercury_key') {
+  vi.doMock('@/server/db/_shared/auth', () => ({
+    requireAuthUserId: vi.fn().mockResolvedValue('user-1'),
+  }));
+  vi.doMock('@/server/mercury/credentials', () => ({
+    getDecryptedMercuryApiKeyForUser: vi.fn().mockResolvedValue(apiKey),
+  }));
+}
+
+function hostedMercuryRequest(body: Record<string, unknown>): Request {
+  return new Request('http://localhost/api/mercury', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer supabase-token',
+    },
+    body: JSON.stringify({ ...body, accessMode: 'hosted' }),
+  });
+}
+
 vi.mock('@mr.dj2u/mercury', () => ({
   buildMercuryLineItems: buildMercuryLineItemsMock,
   createMercuryClient: createMercuryClientMock,
@@ -52,27 +72,22 @@ describe('/api/mercury POST', () => {
     createMercuryClientMock.mockClear();
     vi.doUnmock('@/server/db/_shared/auth');
     vi.doUnmock('@/server/mercury/credentials');
-    process.env.MERCURY_API_KEY = 'test_key';
-    process.env.MERCURY_ENVIRONMENT = 'sandbox';
-    process.env.MERCURY_BASE_URL = 'https://api-sandbox.mercury.com/api/v1';
+    delete process.env.MERCURY_API_KEY;
+    delete process.env.MERCURY_ENVIRONMENT;
+    delete process.env.MERCURY_BASE_URL;
     process.env.MERCURY_SANDBOX_API_KEY = '';
     process.env.MERCURY_SANDBOX_BASE_URL = '';
   });
 
   it('verifies invoice access against Mercury AR', async () => {
+    mockHostedMercuryCredential();
     invoiceListMock.mockResolvedValue({ items: [] });
     const { POST } = await import('@/app/api/mercury+api');
 
-    const response = await POST(
-      new Request('http://localhost/api/mercury', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'testInvoiceAccess' }),
-      }),
-    );
+    const response = await POST(hostedMercuryRequest({ action: 'testInvoiceAccess' }));
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ ok: true, environment: 'sandbox' });
+    await expect(response.json()).resolves.toEqual({ ok: true, environment: 'production' });
     expect(invoiceListMock).toHaveBeenCalledWith({ limit: 1 });
   });
 
@@ -101,33 +116,18 @@ describe('/api/mercury POST', () => {
 
   it('uses the signed-in hosted user Mercury key instead of sandbox credentials', async () => {
     process.env.MERCURY_SANDBOX_API_KEY = 'sandbox_key';
-    process.env.MERCURY_BASE_URL = 'https://api.mercury.com/api/v1';
-    vi.doMock('@/server/db/_shared/auth', () => ({
-      requireAuthUserId: vi.fn().mockResolvedValue('user-1'),
-    }));
-    vi.doMock('@/server/mercury/credentials', () => ({
-      getDecryptedMercuryApiKeyForUser: vi.fn().mockResolvedValue('user_mercury_key'),
-    }));
+    mockHostedMercuryCredential();
     accountsListMock.mockResolvedValue({ items: [] });
     const { POST } = await import('@/app/api/mercury+api');
 
-    const response = await POST(
-      new Request('http://localhost/api/mercury', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: 'Bearer supabase-token',
-        },
-        body: JSON.stringify({ action: 'testConnection', accessMode: 'hosted' }),
-      }),
-    );
+    const response = await POST(hostedMercuryRequest({ action: 'testConnection' }));
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true, environment: 'production' });
     expect(createMercuryClientMock).toHaveBeenCalledWith({
       apiKey: 'user_mercury_key',
       environment: 'production',
-      baseUrl: 'https://api.mercury.com/api/v1',
+      baseUrl: undefined,
     });
   });
 
@@ -159,17 +159,14 @@ describe('/api/mercury POST', () => {
   });
 
   it('ensures a Mercury customer for client-sync flows', async () => {
+    mockHostedMercuryCredential();
     ensureCustomerMock.mockResolvedValue('customer_789');
     const { POST } = await import('@/app/api/mercury+api');
 
     const response = await POST(
-      new Request('http://localhost/api/mercury', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'ensureCustomer',
-          payload: { name: 'Acme Co', email: 'billing@acme.test' },
-        }),
+      hostedMercuryRequest({
+        action: 'ensureCustomer',
+        payload: { name: 'Acme Co', email: 'billing@acme.test' },
       }),
     );
 
@@ -182,17 +179,14 @@ describe('/api/mercury POST', () => {
   });
 
   it('creates a recipient through the Mercury proxy route', async () => {
+    mockHostedMercuryCredential();
     recipientCreateMock.mockResolvedValue({ id: 'recipient_1', name: 'Studio Ops' });
     const { POST } = await import('@/app/api/mercury+api');
 
     const response = await POST(
-      new Request('http://localhost/api/mercury', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'createRecipient',
-          payload: { name: 'Studio Ops', emails: ['ops@studio.test'] },
-        }),
+      hostedMercuryRequest({
+        action: 'createRecipient',
+        payload: { name: 'Studio Ops', emails: ['ops@studio.test'] },
       }),
     );
 
@@ -207,6 +201,7 @@ describe('/api/mercury POST', () => {
   });
 
   it('resolves paymentMethod from the selected recipient when send money omits it', async () => {
+    mockHostedMercuryCredential();
     recipientGetMock.mockResolvedValue({
       id: 'recipient_22',
       name: 'Studio Ops',
@@ -216,21 +211,17 @@ describe('/api/mercury POST', () => {
     const { POST } = await import('@/app/api/mercury+api');
 
     const response = await POST(
-      new Request('http://localhost/api/mercury', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'sendMoney',
-          payload: {
-            accountId: 'account_1',
-            input: {
-              idempotencyKey: 'idem_1',
-              recipientId: 'recipient_22',
-              amount: 20,
-              memo: 'For funnsies',
-            },
+      hostedMercuryRequest({
+        action: 'sendMoney',
+        payload: {
+          accountId: 'account_1',
+          input: {
+            idempotencyKey: 'idem_1',
+            recipientId: 'recipient_22',
+            amount: 20,
+            memo: 'For funnsies',
           },
-        }),
+        },
       }),
     );
 

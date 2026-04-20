@@ -43,8 +43,21 @@ export function InvoicesOverview() {
         : 'hosted'
       : 'local';
   const needsHostedMercuryCredential = accessMode === 'hosted' && isAuthenticated;
+  const mercuryRequiresHostedMode = accessMode === 'local';
+  const mercuryRequiresSignIn = accessMode === 'hosted' && !isAuthenticated;
   const mercuryCredentialReady =
-    !needsHostedMercuryCredential || Boolean(mercuryCredentialStatus?.configured);
+    accessMode === 'tour' ||
+    (needsHostedMercuryCredential && Boolean(mercuryCredentialStatus?.configured));
+  const mercurySetupTitle = mercuryRequiresHostedMode
+    ? 'Hosted mode required'
+    : mercuryRequiresSignIn
+      ? 'Sign in required'
+      : 'Mercury API key required';
+  const mercurySetupMessage = mercuryRequiresHostedMode
+    ? 'Mercury production actions now use the signed-in user key saved in Supabase. Switch to hosted mode, or use tour mode for sandbox credentials.'
+    : mercuryRequiresSignIn
+      ? 'Sign in before using the Mercury invoice builder.'
+      : 'Save your Mercury production API key in Profile before using the Mercury invoice builder.';
 
   useEffect(() => {
     let active = true;
@@ -119,15 +132,17 @@ export function InvoicesOverview() {
           ) : null}
           {builderMode === 'mercury' && !isLoadingMercuryCredentialStatus && !mercuryCredentialReady ? (
             <View className="gap-3 rounded-xl border border-border bg-card p-4">
-              <Text className="text-lg font-bold text-heading">Mercury API key required</Text>
-              <Text className="text-sm text-muted">
-                Save your Mercury production API key in Profile before using the Mercury invoice builder.
-              </Text>
-              <Link href={'/profile' as Href} asChild>
-                <Pressable className="self-start rounded-md bg-secondary px-4 py-2">
-                  <Text className="font-semibold text-white">Open Profile</Text>
-                </Pressable>
-              </Link>
+              <Text className="text-lg font-bold text-heading">{mercurySetupTitle}</Text>
+              <Text className="text-sm text-muted">{mercurySetupMessage}</Text>
+              {!mercuryRequiresHostedMode ? (
+                <Link href={(mercuryRequiresSignIn ? '/sign-in' : '/profile') as Href} asChild>
+                  <Pressable className="self-start rounded-md bg-secondary px-4 py-2">
+                    <Text className="font-semibold text-white">
+                      {mercuryRequiresSignIn ? 'Sign In' : 'Open Profile'}
+                    </Text>
+                  </Pressable>
+                </Link>
+              ) : null}
             </View>
           ) : null}
           {builderMode === 'mercury' && mercuryCredentialReady && !isLoadingMercuryCredentialStatus ? (
