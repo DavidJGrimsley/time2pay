@@ -62,7 +62,7 @@ jobs:
     needs: quality
     if: github.event_name == 'push' && github.ref == 'refs/heads/test'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -101,14 +101,14 @@ jobs:
             --site-url "$SITE_URL" \
             --not-before "$DEPLOY_STARTED_AT" \
             --interval-ms 10000 \
-            --timeout-ms 360000
+            --timeout-ms 600000
 
   deploy_production:
     name: Deploy Production
     needs: quality
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -147,4 +147,4 @@ jobs:
             --site-url "$SITE_URL" \
             --not-before "$DEPLOY_STARTED_AT" \
             --interval-ms 10000 \
-            --timeout-ms 360000
+            --timeout-ms 600000
