@@ -64,12 +64,12 @@ Set these in `.env`:
 - `PORT` (optional): defaults to `3000`
 
 Environment file convention:
-- Plesk deploy/build scripts read `.env.plesk`.
-- `server.js` also reads `.env.plesk` for runtime startup on Plesk.
-- Keep `.env.test` and `.env.production` as minimal key reference files for Plesk values.
+- Build, startup, Drizzle, and migration scripts load the first env file found in this order: `.env`, `.env.test`, `.env.production`.
+- Use `.env` for local development.
+- Put exactly one deployment env file in each Plesk app root: `.env.test` for staging/test/temp domains, or `.env.production` for the production domain.
 
 Plesk note:
-- Set `EXPO_PUBLIC_TIME2PAY_DATA_MODE=hosted` in your Plesk Node app environment for hosted deployments, or provide it via `.env.plesk`.
+- Set `EXPO_PUBLIC_TIME2PAY_DATA_MODE=hosted` in the selected env file or in the Plesk Node app environment.
 - If this is missing or set to `local`, hosted auth/data flows are intentionally disabled.
 
 If a signed-in hosted user has no saved Mercury API key, Mercury production actions return `400`.
@@ -182,7 +182,7 @@ Notes:
 - OAuth exchange is handled server-side by `POST /api/github`.
 - If OAuth env vars are not configured, the Sign in with GitHub button is not shown.
 
-### Node <20 fallback (no `--env-file`)
+### Shell Env Override Example
 
 PowerShell example:
 
@@ -231,7 +231,7 @@ Use Plesk as the deployment target, but deploy the repository into the Node app 
    - tour/demo vars such as `MERCURY_SANDBOX_API_KEY` and `MERCURY_SANDBOX_BASE_URL`
    - optional runtime vars such as `PORT`
    - `EXPO_PUBLIC_SITE_ORIGIN` set to the matching domain for that environment
-   - if Plesk does not expose those vars to Git Additional deployment actions, place a single `.env.plesk` file in the app root so both build scripts and `server.js` can read it
+   - if Plesk does not expose those vars to Git Additional deployment actions, place a single env file in the app root: `.env.test` for staging or `.env.production` for production
 5. In each Plesk Git repository settings page, enable **Additional deployment actions** and use:
 
 ```sh
@@ -273,13 +273,13 @@ Notes:
 - `npm run icons:sync` - sync icon assets into `public/`
 - `npm run build:web:deploy` - web export + service worker generation (CI/Plesk-safe)
 - `npm run build:web` - icons sync + deploy build
-- `npm run serve:prod` - run production server (env from shell)
-- `npm run serve:prod:env` - run production server with `.env` (Node 20+)
+- `npm run serve:prod` - run production server with the first env file found: `.env`, `.env.test`, then `.env.production`
+- `npm run serve:prod:env` - same as `serve:prod`; kept as a compatibility alias
 - `npm run typecheck` - TypeScript type checks
 - `npm run lint` - lint codebase
 
 ## Security Notes
 
-- Mercury key is server-side env only (not entered in Profile UI).
-- Do not commit `.env`.
+- Signed-in users save production Mercury API keys in Profile; Time2Pay encrypts them before storing them in Supabase.
+- Do not commit `.env`, `.env.test`, `.env.production`, or any other secret-bearing env file.
 - Rotate keys if a server or machine is compromised.
