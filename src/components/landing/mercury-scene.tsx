@@ -1,6 +1,8 @@
 import { createElement, type PropsWithChildren } from 'react';
 import {
   Image,
+  Pressable,
+  Text,
   View,
   type LayoutChangeEvent,
 } from 'react-native';
@@ -13,6 +15,7 @@ import Animated, {
 import {
   mercuryBullets,
   mercuryCallout,
+  MERCURY_REFERRAL_URL,
   type LandingBullet,
 } from '../../content/landing-content';
 import {
@@ -36,6 +39,7 @@ type MercurySceneProps = {
   viewportHeight: number;
   viewportWidth: number;
   onLayout?: (event: LayoutChangeEvent) => void;
+  onOpenLink?: (href: string) => void;
 };
 
 function StickyFrame({
@@ -142,6 +146,7 @@ export function MercuryScene({
   viewportHeight,
   viewportWidth,
   onLayout,
+  onOpenLink,
 }: MercurySceneProps) {
   const isShortViewport = viewportHeight < 900;
   const isVeryShortViewport = viewportHeight < 780;
@@ -292,12 +297,36 @@ export function MercuryScene({
                     </SemanticText>
                   </Animated.View>
 
-                  <Image
-                    source={{ uri: MERCURY_LOGO_HORIZONTAL }}
-                    style={{ width: logoWidth, height: isCompactScene ? 48 : 72 }}
-                    resizeMode="contain"
-                    accessibilityLabel="Mercury wordmark"
-                  />
+                  <View className="flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <Image
+                      source={{ uri: MERCURY_LOGO_HORIZONTAL }}
+                      style={{ width: logoWidth, height: isCompactScene ? 48 : 72 }}
+                      resizeMode="contain"
+                      accessibilityLabel="Mercury wordmark"
+                    />
+
+                    {onOpenLink ? (
+                      <Animated.View style={badgeStyle} className="md:self-start">
+                        <Pressable
+                          className="rounded-[22px] px-4 py-3"
+                          style={{
+                            width: isCompactScene ? 260 : 300,
+                            backgroundColor: MERCURY_NAVY,
+                            borderWidth: 1,
+                            borderColor: MERCURY_NAVY,
+                          }}
+                          onPress={() => onOpenLink(MERCURY_REFERRAL_URL)}
+                        >
+                          <Text
+                            className="text-center text-sm font-semibold text-white"
+                            style={{ lineHeight: 20 }}
+                          >
+                            Sign up for a Mercury Business Account through Time2Pay
+                          </Text>
+                        </Pressable>
+                      </Animated.View>
+                    ) : null}
+                  </View>
 
                   <View className={isCompactScene ? 'gap-3' : 'gap-4'}>
                     <SemanticText
@@ -327,33 +356,6 @@ export function MercuryScene({
                         {paragraph}
                       </SemanticText>
                     ))}
-                  </View>
-
-                  <View
-                    className={`rounded-[28px] border px-5 ${isCompactScene ? 'py-3.5' : 'py-4'}`}
-                    style={{
-                      borderColor: MERCURY_LINE,
-                      backgroundColor: MERCURY_SURFACE,
-                    }}
-                  >
-                    <View className="gap-2">
-                      <SemanticText
-                        as="p"
-                        className="text-xs font-bold uppercase tracking-[2px]"
-                        style={{ color: MERCURY_NAVY, opacity: 0.56 }}
-                      >
-                        Direction of travel
-                      </SemanticText>
-                      <SemanticText
-                        as="p"
-                        className={isCompactScene ? 'text-sm leading-6' : 'text-base leading-7'}
-                        style={{ color: MERCURY_NAVY, opacity: 0.82 }}
-                      >
-                        {isCompactScene
-                          ? mercuryCallout.body[1]
-                          : 'Time2Pay is being shaped as a Mercury-connected invoicing and payment workspace, with more bank-aware product depth still to come.'}
-                      </SemanticText>
-                    </View>
                   </View>
                 </View>
               </Animated.View>

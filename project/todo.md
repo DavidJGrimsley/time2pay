@@ -83,6 +83,10 @@ Client = GH Organization
 Project = GH Repo
 Task = GH Branch
 Notes = GH Commit message)
+- [ ] Add GitHub pull request functionality to sessions:
+- [ ] Add an optional PR field/link alongside the existing commit field so a user can include commit and PR proof on the same session
+- [ ] Use the GitHub API as much as possible for PR lookup/autocomplete because hosted users may already be signed in with GitHub or have a saved token
+- [ ] Carry PR metadata into session display, invoice previews, PDFs, exports/backups, and hosted/local data models
 - [x] Add support for project-based pricing where a project is created, and we can clock in and track our time, but also the project has milestones that we create such as what's below. This should let us send these invoices at certain milestones. Maybe the milestone is a checklist or something and we mark it as complete and then it creates an invoice for us to review... something like that.
   - [x] Add `/projects` route + navigation entry with responsive Projects workspace UI
   - [x] Add project pricing modes (`hourly`/`milestone`) with total fee, hourly rate, and milestone template support
@@ -147,12 +151,18 @@ Milestone Payments:
 
 ### Monetization Direction (Current)
 - [x] Referral-first OSS model (free core app + Mercury referral focus)
-- [x] Keep hosted mode available as convenience/distribution advantage, not immediate paid gate
-- [ ] Re-evaluate paid hosted tiers only after hosted auth/tour stability and referral conversion data
+- [x] Keep self-hosted core available for free
+- [ ] Implement $1/month hosted Time2Pay billing and entitlement checks for the default hosted plan
+- [ ] Implement one-time $10 lifetime hosted membership for existing Mercury business customers and users whose Mercury referral does not qualify
+- [ ] Implement/operationalize free lifetime hosted access after a verified and qualified Mercury signup through Time2Pay
+- [ ] Track Mercury referral onboarding status, including the 90-day deposit/onboarding window once requirements are finalized
+- [ ] Add entitlement state for successful referral, failed/expired referral, existing Mercury customer $10 lifetime, $10 fallback lifetime, and $1/month subscription
+- [ ] Re-evaluate additional paid hosted tiers only after hosted auth/tour stability and referral conversion data
 
 ### Mercury API Key Security (Hosted SaaS)
-- [ ] Keep Mercury API keys server-side only (never in client JS, never in local profile UI)
-- [ ] Encrypt keys at rest with envelope encryption (KMS-managed master key + per-record data key)
+- [x] Keep hosted Mercury production API keys server-side only for Mercury API calls
+- [x] Encrypt saved hosted Mercury keys at rest with the current app-managed encryption secret
+- [ ] Upgrade Mercury key encryption to envelope encryption (KMS-managed master key + per-record data key)
 - [ ] Decrypt only inside backend route handlers when proxying Mercury requests
 - [ ] Add key rotation flow (user can replace key, old encrypted value retired)
 - [ ] Redact secrets in logs and add audit trail for key create/update/delete events

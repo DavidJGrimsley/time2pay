@@ -37,6 +37,7 @@ import {
 import { readTrimmedPublicRuntimeConfigValue } from '@/services/runtime-config';
 import { isHostedMode } from '@/services/runtime-mode';
 import { requireConfiguredSiteOrigin, resolveBrowserSiteOrigin } from '@/services/site-origin';
+import { signOutSupabase } from '@/services/supabase-client';
 import { showActionErrorAlert, showSystemConfirm, showValidationAlert } from '@/services/system-alert';
 import { useAuthUiStore } from '@/stores/auth-ui-store';
 
@@ -164,6 +165,7 @@ export function ProfileOverview() {
   const [isSavingIntegrations, setIsSavingIntegrations] = useState(false);
   const [isExportingData, setIsExportingData] = useState(false);
   const [isImportingData, setIsImportingData] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const [createSafetyBackupBeforeImport, setCreateSafetyBackupBeforeImport] = useState(true);
   const [sectionStatus, setSectionStatus] = useState<SectionStatusNotice | null>(null);
 
@@ -751,6 +753,23 @@ export function ProfileOverview() {
     }
   }
 
+  async function handleSignOut(): Promise<void> {
+    clearSectionStatus('general');
+    setIsSigningOut(true);
+
+    try {
+      await signOutSupabase();
+      showStatus('general', { message: 'Signed out.', tone: 'success' });
+      router.replace('/' as never);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to sign out.';
+      showActionErrorAlert(message);
+      showStatus('general', { message, tone: 'error' });
+    } finally {
+      setIsSigningOut(false);
+    }
+  }
+
   const backupBusy =
     isLoading ||
     isSavingBusiness ||
@@ -1073,6 +1092,22 @@ export function ProfileOverview() {
           <InlineNotice tone={sectionStatus.tone} message={sectionStatus.message} />
         ) : null}
       </View>
+
+      {isHostedMode() && isAuthenticated ? (
+        <View className="items-end pt-2">
+          <Pressable
+            className={`rounded-md border border-danger px-4 py-2 ${isSigningOut ? 'opacity-70' : ''}`}
+            onPress={() => {
+              handleSignOut().catch(() => undefined);
+            }}
+            disabled={isSigningOut}
+          >
+            <Text className="text-center font-semibold text-danger">
+              {isSigningOut ? 'Signing out...' : 'Sign Out'}
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
         </View>
       </View>
 

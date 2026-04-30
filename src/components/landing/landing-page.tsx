@@ -1,11 +1,13 @@
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
+import { Octicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Image,
   Pressable,
   ScrollView,
   Text,
+  useColorScheme,
   View,
   type LayoutChangeEvent,
 } from 'react-native';
@@ -19,9 +21,12 @@ import Animated, {
 import {
   ctaSection,
   footerLinks,
+  githubBullets,
   heroSection,
   MERCURY_REFERRAL_URL,
+  pricingBullets,
   workflowSection,
+  type LandingBullet,
   type LandingCta,
 } from '../../content/landing-content';
 import { useAuthUiStore } from '@/stores/auth-ui-store';
@@ -84,16 +89,16 @@ function HeroStage({
 }) {
   const workflowSteps = [
     {
-      title: 'Track',
-      body: 'Run the timer, add notes, and keep session history readable.',
+      title: 'Connect GitHub',
+      body: 'Start from a repo URL or connected GitHub access and map owner, repo, and branch into your customer, project, and task records.',
     },
     {
-      title: 'Review',
-      body: 'Clean up billable work by client, project, and task before invoicing.',
+      title: 'Track the work',
+      body: 'Keep the timer, notes, commits, and pull requests tied to the same billable session while the work is moving.',
     },
     {
-      title: 'Invoice',
-      body: 'Generate totals, export PDFs, and keep payment context close.',
+      title: 'Show the proof',
+      body: 'Carry that GitHub context into invoices and PDFs so the client can trace billed time back to shipped work.',
     },
   ];
 
@@ -105,22 +110,18 @@ function HeroStage({
       >
         <View className="flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <View className="flex-row items-center gap-3 md:max-w-[520px]">
-            <View className="h-12 w-12 items-center justify-center rounded-[16px] bg-primary/30">
-              <Image
-                source={{ uri: '/images/time2payLogo.png' }}
-                style={{ width: 28, height: 28 }}
-                accessibilityLabel="Time2Pay logo"
-              />
+            <View className="h-12 w-12 items-center justify-center rounded-[16px] bg-[#24292f]">
+              <Octicons name="mark-github" size={24} color="#ffffff" />
             </View>
             <View>
-              <Text className="text-sm font-semibold text-heading">Daily Workflow</Text>
-              <Text className="text-sm text-muted">From active work to invoice export</Text>
+              <Text className="text-sm font-semibold text-heading">GitHub integration</Text>
+              <Text className="text-sm text-muted">Optional developer workflow for repo-aware billing proof</Text>
             </View>
           </View>
 
-          <View className="self-start rounded-full bg-secondary px-3 py-1.5">
-            <SemanticText as="span" className="text-xs font-bold uppercase tracking-[2px] text-white">
-              Local first
+          <View className="self-start rounded-full border border-border bg-background px-3 py-1.5">
+            <SemanticText as="span" className="text-xs font-bold uppercase tracking-[2px] text-muted">
+              Optional for developers
             </SemanticText>
           </View>
         </View>
@@ -152,18 +153,113 @@ function HeroStage({
         <View className={`mt-5 flex-col gap-3 border-t border-border ${compact ? 'pt-4' : 'pt-5'} md:flex-row md:items-center md:justify-between`}>
           <View>
             <SemanticText as="p" className="text-xs font-bold uppercase tracking-[2px] text-muted">
-              Best paired
+              GitHub-aware sessions
             </SemanticText>
             <SemanticText as="h3" className={`${compact ? 'text-base' : 'text-lg'} mt-1 font-semibold text-heading`}>
-              Mercury + Time2Pay
+              Commits and pull requests can stay attached to the work
             </SemanticText>
           </View>
           <SemanticText as="p" className={`text-sm text-muted ${compact ? 'leading-5 md:max-w-[360px]' : 'leading-6 md:max-w-[320px]'}`}>
-            Mercury is where the invoice workflow gets deeper banking context and more room to grow into a complete operating loop.
+            Use pasted URLs or connected GitHub access so invoice reviews and PDFs can carry the context without making non-developers use GitHub at all.
           </SemanticText>
         </View>
       </View>
     </Animated.View>
+  );
+}
+
+function BulletGrid({
+  bullets,
+  compact,
+  dark = false,
+  onPress,
+}: {
+  bullets: LandingBullet[];
+  compact: boolean;
+  dark?: boolean;
+  onPress?: (href: string) => void;
+}) {
+  return (
+    <View className={`flex-row flex-wrap justify-between ${compact ? 'gap-3' : 'gap-4'}`}>
+      {bullets.map((bullet) => (
+        <View
+          key={bullet.id}
+          className={`rounded-[24px] border px-5 ${compact ? 'py-4' : 'py-5'}`}
+          style={{
+            width: compact ? '100%' : '31.8%',
+            minHeight: compact ? 132 : 168,
+            borderColor: dark ? 'rgba(255, 255, 255, 0.3)' : undefined,
+            backgroundColor: dark ? 'rgba(255, 255, 255, 0.08)' : undefined,
+          }}
+        >
+          <View
+            className="flex-1 gap-4"
+            style={{ justifyContent: bullet.cta && onPress ? 'space-between' : 'flex-start' }}
+          >
+            <View className="gap-3">
+              <SemanticText
+                as="h3"
+                className={`${compact ? 'text-lg' : 'text-xl'} font-bold leading-tight ${dark ? 'text-white' : 'text-heading'}`}
+              >
+                {bullet.title}
+              </SemanticText>
+              <SemanticText
+                as="p"
+                className={`${compact ? 'text-sm leading-6' : 'text-base leading-7'} ${dark ? 'text-white' : 'text-muted'}`}
+                style={dark ? { opacity: 0.78 } : undefined}
+              >
+                {bullet.body}
+              </SemanticText>
+            </View>
+
+            {bullet.cta && onPress ? (
+              <Pressable
+                className={
+                  bullet.cta.kind === 'primary'
+                    ? 'self-end rounded-full bg-primary px-4 py-2.5'
+                    : 'self-end rounded-full border border-border bg-background px-4 py-2.5'
+                }
+                onPress={() => {
+                  if (bullet.cta) {
+                    onPress(bullet.cta.href);
+                  }
+                }}
+              >
+                <Text className="text-sm font-semibold text-heading">
+                  {bullet.cta.label}
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function PricingHighlight({ compact }: { compact: boolean }) {
+  return (
+    <View
+      className={`w-full overflow-hidden rounded-[30px] border border-border bg-card ${compact ? 'p-5' : 'p-6 md:p-8'}`}
+      style={{ boxShadow: '0 24px 60px rgba(15, 23, 42, 0.1)' }}
+    >
+      <View className="gap-3 md:max-w-[640px]">
+        <SemanticText as="p" className="text-xs font-bold uppercase tracking-[2px] text-muted">
+          Hosted Time2Pay
+        </SemanticText>
+        <View className="flex-row flex-wrap items-end gap-2">
+          <SemanticText as="p" className="text-[56px] font-bold leading-none text-heading md:text-[72px]">
+            $1
+          </SemanticText>
+          <SemanticText as="p" className="pb-2 text-lg font-semibold text-muted">
+            /month
+          </SemanticText>
+        </View>
+        <SemanticText as="p" className="text-base leading-7 text-foreground">
+          Simple hosted access for contractors who want the app managed, connected, and ready from the browser. Pay $1/month for as long or as little as you need it, choose a one-time $10 lifetime membership if you are already a Mercury business customer or a referral does not qualify, or get hosted access free after a successful Mercury referral through Time2Pay.
+        </SemanticText>
+      </View>
+    </View>
   );
 }
 
@@ -200,6 +296,7 @@ function CtaButtons({
 
 export function LandingPage() {
   const router = useRouter();
+  const colorScheme = useColorScheme();
   const { dataMode, hostedMode, resolved: dataModeResolved } = useResolvedDataMode();
   const isAuthenticated = useAuthUiStore((state) => state.isAuthenticated);
   const startTour = useAuthUiStore((state) => state.startTour);
@@ -211,6 +308,8 @@ export function LandingPage() {
 
   const viewportWidth = width > 0 ? width : 1280;
   const viewportHeight = height > 0 ? height : 900;
+  const isDark = colorScheme === 'dark';
+  const footerThemeColor = isDark ? '#f8f7f3' : '#1a1f16';
   const isDesktopViewport = viewportWidth >= 768;
   const isShortViewport = viewportHeight < 880;
   const isVeryShortViewport = viewportHeight < 760;
@@ -435,6 +534,14 @@ export function LandingPage() {
         </View>
       </LandingSection>
 
+      <FeaturesScene
+        scrollY={scrollY}
+        layout={sectionLayouts.features}
+        viewportHeight={viewportHeight}
+        viewportWidth={viewportWidth}
+        onLayout={(event) => registerSectionLayout('features', event)}
+      />
+
       <LandingSection
         id={workflowSection.id}
         eyebrow={workflowSection.eyebrow}
@@ -445,17 +552,12 @@ export function LandingPage() {
         onLayout={(event) => registerSectionLayout(workflowSection.id, event)}
         sectionStyle={workflowMotion}
       >
-        <SectionBody paragraphs={workflowSection.body} compact={sectionBodyCompact} />
-        <HeroStage style={workflowPanelFloatStyle} compact={isShortViewport} stepCardStyle={workflowStepStyle} />
+        <View className="gap-8">
+          <SectionBody paragraphs={workflowSection.body} compact={sectionBodyCompact} />
+          <HeroStage style={workflowPanelFloatStyle} compact={isShortViewport} stepCardStyle={workflowStepStyle} />
+          <BulletGrid bullets={githubBullets} compact={viewportWidth < 920 || isShortViewport} />
+        </View>
       </LandingSection>
-
-      <FeaturesScene
-        scrollY={scrollY}
-        layout={sectionLayouts.features}
-        viewportHeight={viewportHeight}
-        viewportWidth={viewportWidth}
-        onLayout={(event) => registerSectionLayout('features', event)}
-      />
 
       <MercuryScene
         scrollY={scrollY}
@@ -463,6 +565,7 @@ export function LandingPage() {
         viewportHeight={viewportHeight}
         viewportWidth={viewportWidth}
         onLayout={(event) => registerSectionLayout('mercury-callout', event)}
+        onOpenLink={handleRoute}
       />
 
       <LandingSection
@@ -474,28 +577,30 @@ export function LandingPage() {
         minHeight={baseSectionMinHeight}
         onLayout={(event) => registerSectionLayout(ctaSection.id, event)}
         sectionStyle={ctaMotion}
+        backgroundStyle={
+          process.env.EXPO_OS === 'web'
+            ? ({
+                backgroundColor: footerThemeColor,
+                backgroundImage:
+                  isDark
+                    ? 'linear-gradient(180deg, rgba(143, 212, 154, 0.92) 0%, rgba(201, 232, 206, 0.82) 38%, rgba(233, 242, 234, 0.92) 72%, #f8f7f3 95%, #f8f7f3 100%)'
+                    : 'linear-gradient(180deg, rgba(175, 228, 183, 0.9) 0%, rgba(115, 145, 121, 0.72) 38%, rgba(46, 54, 42, 0.82) 72%, #1a1f16 95%, #1a1f16 100%)',
+              } as const)
+            : undefined
+        }
         eyebrowClassName="text-white"
         titleClassName="text-white"
-        eyebrowStyle={{ opacity: 0.72 }}
+        eyebrowStyle={{ opacity: 0.9, color: '#f2f7ef' }}
+        titleStyle={{ color: '#f7fbf5' }}
       >
-        <View className="items-start gap-8 md:items-center">
-          <SectionBody
-            paragraphs={ctaSection.body}
-            textClassName="text-white md:text-center"
-            textStyle={{ opacity: 0.8 }}
-            compact={sectionBodyCompact}
+        <View className="gap-8">
+          <PricingHighlight compact={isShortViewport} />
+          <BulletGrid
+            bullets={pricingBullets}
+            compact={viewportWidth < 920 || isShortViewport}
+            dark
+            onPress={handleRoute}
           />
-          <CtaButtons ctas={ctaSection.ctas} onPress={handleRoute} centered />
-          <View className="w-full rounded-[28px] border border-white px-5 py-4 md:max-w-[760px]">
-            <View className="gap-3 md:flex-row md:justify-between">
-              <SemanticText as="h3" className="text-base font-semibold text-white">
-                What unlocks after profile setup
-              </SemanticText>
-              <SemanticText as="p" className="text-sm leading-6 text-white" style={{ opacity: 0.76 }}>
-                Timer actions, session workflows, invoice sender details, and the normal dashboard path.
-              </SemanticText>
-            </View>
-          </View>
         </View>
       </LandingSection>
 
