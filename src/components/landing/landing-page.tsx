@@ -49,6 +49,17 @@ import { SemanticText } from './semantic-elements';
 
 type PercentageWidth = '100%' | '48.5%' | '31.8%';
 
+// GitHub brand colors for the workflow section card
+const GH_CANVAS = '#0d1117';
+const GH_OVERLAY = '#161b22';
+const GH_SUBTLE = '#21262d';
+const GH_BORDER = '#30363d';
+const GH_FG = '#e6edf3';
+const GH_MUTED = '#8b949e';
+const GH_SUCCESS_BG = 'rgba(35, 134, 54, 0.15)';
+const GH_SUCCESS_BORDER = 'rgba(35, 134, 54, 0.40)';
+const GH_SUCCESS_FG = '#3fb950';
+
 function SectionBody({
   paragraphs,
   textClassName,
@@ -87,60 +98,98 @@ function HeroStage({
   compact: boolean;
   stepCardStyle: { width: PercentageWidth };
 }) {
-  const workflowSteps = [
+  const workflowSteps: { icon: React.ComponentProps<typeof Octicons>['name']; title: string; body: string }[] = [
     {
-      title: 'Connect GitHub',
-      body: 'Start from a repo URL or connected GitHub access and map owner, repo, and branch into your customer, project, and task records.',
+      icon: 'repo',
+      title: 'Link a repo',
+      body: 'Paste a GitHub URL or connect repo access. Time2Pay creates the project and task records automatically.',
     },
     {
-      title: 'Track the work',
-      body: 'Keep the timer, notes, commits, and pull requests tied to the same billable session while the work is moving.',
+      icon: 'stopwatch',
+      title: 'Track your hours',
+      body: 'Start the timer and your active branch becomes the task. Hours stay labeled as the work moves.',
     },
     {
-      title: 'Show the proof',
-      body: 'Carry that GitHub context into invoices and PDFs so the client can trace billed time back to shipped work.',
+      icon: 'paper-airplane',
+      title: 'Invoice with proof',
+      body: 'Commits and pull requests travel with the invoice so clients can verify exactly what they paid for.',
     },
   ];
 
   return (
     <Animated.View className="w-full" style={style}>
       <View
-        className={`overflow-hidden rounded-[32px] border border-border bg-card ${compact ? 'p-5 md:p-6' : 'p-6 md:p-8'}`}
-        style={{ boxShadow: '0 24px 60px rgba(15, 23, 42, 0.12)' }}
+        className={`overflow-hidden rounded-[32px] ${compact ? 'p-5 md:p-6' : 'p-6 md:p-8'}`}
+        style={{
+          backgroundColor: GH_CANVAS,
+          borderWidth: 1,
+          borderColor: GH_BORDER,
+          boxShadow: '0 24px 60px rgba(1, 4, 9, 0.40)',
+        }}
       >
         <View className="flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <View className="flex-row items-center gap-3 md:max-w-[520px]">
-            <View className="h-12 w-12 items-center justify-center rounded-[16px] bg-[#24292f]">
-              <Octicons name="mark-github" size={24} color="#ffffff" />
+            <View
+              className="h-12 w-12 items-center justify-center rounded-[16px]"
+              style={{ backgroundColor: GH_OVERLAY, borderWidth: 1, borderColor: GH_BORDER }}
+            >
+              <Octicons name="mark-github" size={24} color={GH_FG} />
             </View>
             <View>
-              <Text className="text-sm font-semibold text-heading">GitHub integration</Text>
-              <Text className="text-sm text-muted">Optional developer workflow for repo-aware billing proof</Text>
+              <Text className="text-sm font-semibold" style={{ color: GH_FG }}>
+                GitHub integration
+              </Text>
+              <Text className="text-sm" style={{ color: GH_MUTED }}>
+                Repo-aware billing proof for developers
+              </Text>
             </View>
           </View>
 
-          <View className="self-start rounded-full border border-border bg-background px-3 py-1.5">
-            <SemanticText as="span" className="text-xs font-bold uppercase tracking-[2px] text-muted">
+          <View
+            className="self-start rounded-full px-3 py-1.5"
+            style={{
+              backgroundColor: GH_SUCCESS_BG,
+              borderWidth: 1,
+              borderColor: GH_SUCCESS_BORDER,
+            }}
+          >
+            <SemanticText
+              as="span"
+              className="text-xs font-bold uppercase tracking-[2px]"
+              style={{ color: GH_SUCCESS_FG }}
+            >
               Optional for developers
             </SemanticText>
           </View>
         </View>
 
         <View className={`mt-5 flex-row flex-wrap justify-between ${compact ? 'gap-2.5' : 'gap-3'}`}>
-          {workflowSteps.map((step, index) => (
+          {workflowSteps.map((step) => (
             <View key={step.title} style={stepCardStyle}>
               <View
-                className={`rounded-[24px] border border-border bg-background ${compact ? 'px-4 py-3.5' : 'px-4 py-4'}`}
+                className={`rounded-[24px] ${compact ? 'px-4 py-3.5' : 'px-4 py-4'}`}
+                style={{ backgroundColor: GH_OVERLAY, borderWidth: 1, borderColor: GH_BORDER }}
               >
                 <View className={`gap-3 ${stepCardStyle.width === '100%' ? 'md:flex-row md:items-start' : ''}`}>
-                  <View className="h-10 w-10 items-center justify-center rounded-full bg-primary">
-                    <Text className="text-sm font-bold text-heading">0{index + 1}</Text>
+                  <View
+                    className="h-9 w-9 items-center justify-center rounded-md"
+                    style={{ backgroundColor: GH_SUBTLE }}
+                  >
+                    <Octicons name={step.icon} size={16} color={GH_MUTED} />
                   </View>
                   <View className="flex-1 gap-1">
-                    <SemanticText as="h3" className={`${compact ? 'text-base' : 'text-lg'} font-semibold text-heading`}>
+                    <SemanticText
+                      as="h3"
+                      className={`${compact ? 'text-base' : 'text-lg'} font-semibold`}
+                      style={{ color: GH_FG }}
+                    >
                       {step.title}
                     </SemanticText>
-                    <SemanticText as="p" className={`${compact ? 'text-sm leading-5' : 'text-sm leading-6'} text-muted`}>
+                    <SemanticText
+                      as="p"
+                      className={compact ? 'text-sm leading-5' : 'text-sm leading-6'}
+                      style={{ color: GH_MUTED }}
+                    >
                       {step.body}
                     </SemanticText>
                   </View>
@@ -150,17 +199,35 @@ function HeroStage({
           ))}
         </View>
 
-        <View className={`mt-5 flex-col gap-3 border-t border-border ${compact ? 'pt-4' : 'pt-5'} md:flex-row md:items-center md:justify-between`}>
+        <View
+          className={`mt-5 flex-col gap-3 ${compact ? 'pt-4' : 'pt-5'} md:flex-row md:items-center md:justify-between`}
+          style={{ borderTopWidth: 1, borderTopColor: GH_BORDER }}
+        >
           <View>
-            <SemanticText as="p" className="text-xs font-bold uppercase tracking-[2px] text-muted">
-              GitHub-aware sessions
-            </SemanticText>
-            <SemanticText as="h3" className={`${compact ? 'text-base' : 'text-lg'} mt-1 font-semibold text-heading`}>
-              Commits and pull requests can stay attached to the work
+            <View className="flex-row items-center gap-2">
+              <Octicons name="git-commit" size={13} color={GH_MUTED} />
+              <SemanticText
+                as="p"
+                className="text-xs font-bold uppercase tracking-[2px]"
+                style={{ color: GH_MUTED }}
+              >
+                GitHub-aware sessions
+              </SemanticText>
+            </View>
+            <SemanticText
+              as="h3"
+              className={`${compact ? 'text-base' : 'text-lg'} mt-1 font-semibold`}
+              style={{ color: GH_FG }}
+            >
+              Commits and pull requests stay attached to the session
             </SemanticText>
           </View>
-          <SemanticText as="p" className={`text-sm text-muted ${compact ? 'leading-5 md:max-w-[360px]' : 'leading-6 md:max-w-[320px]'}`}>
-            Use pasted URLs or connected GitHub access so invoice reviews and PDFs can carry the context without making non-developers use GitHub at all.
+          <SemanticText
+            as="p"
+            className={`text-sm ${compact ? 'leading-5 md:max-w-[360px]' : 'leading-6 md:max-w-[320px]'}`}
+            style={{ color: GH_MUTED }}
+          >
+            Paste a URL or connect repo access. Invoice PDFs carry the commit context so clients can verify what shipped—without needing a GitHub account.
           </SemanticText>
         </View>
       </View>
@@ -256,7 +323,7 @@ function PricingHighlight({ compact }: { compact: boolean }) {
           </SemanticText>
         </View>
         <SemanticText as="p" className="text-base leading-7 text-foreground">
-          Simple hosted access for contractors who want the app managed, connected, and ready from the browser. Pay $1/month for as long or as little as you need it, choose a one-time $10 lifetime membership if you are already a Mercury business customer or a referral does not qualify, or get hosted access free after a successful Mercury referral through Time2Pay.
+          Month-to-month access for contractors who want sign-in, cloud storage, and Mercury integration managed for them. Pay $1/month and cancel whenever. Or pay a one-time $10 for lifetime access—free if you sign up for Mercury through Time2Pay and your referral qualifies.
         </SemanticText>
       </View>
     </View>

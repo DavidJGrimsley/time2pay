@@ -3,6 +3,7 @@ import {
   Image,
   Pressable,
   Text,
+  useColorScheme,
   View,
   type LayoutChangeEvent,
 } from 'react-native';
@@ -148,6 +149,7 @@ export function MercuryScene({
   onLayout,
   onOpenLink,
 }: MercurySceneProps) {
+  const isDark = useColorScheme() === 'dark';
   const isShortViewport = viewportHeight < 900;
   const isVeryShortViewport = viewportHeight < 780;
   const isPinnedScene = process.env.EXPO_OS === 'web' && viewportWidth >= 920 && viewportHeight >= 760;
@@ -311,15 +313,15 @@ export function MercuryScene({
                           className="rounded-[22px] px-4 py-3"
                           style={{
                             width: isCompactScene ? 260 : 300,
-                            backgroundColor: MERCURY_NAVY,
+                            backgroundColor: isDark ? '#ffffff' : MERCURY_NAVY,
                             borderWidth: 1,
-                            borderColor: MERCURY_NAVY,
+                            borderColor: isDark ? MERCURY_LINE : MERCURY_NAVY,
                           }}
                           onPress={() => onOpenLink(MERCURY_REFERRAL_URL)}
                         >
                           <Text
-                            className="text-center text-sm font-semibold text-white"
-                            style={{ lineHeight: 20 }}
+                            className="text-center text-sm font-semibold"
+                            style={{ lineHeight: 20, color: isDark ? MERCURY_NAVY : '#ffffff' }}
                           >
                             Sign up for a Mercury Business Account through Time2Pay
                           </Text>

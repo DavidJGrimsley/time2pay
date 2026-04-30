@@ -9,7 +9,7 @@ import {
 import { resolveSiteOrigin } from '@/services/site-origin';
 
 const LANDING_SOCIAL_IMAGE_ALT =
-  'Time2Pay logo for GitHub-connected contractor invoicing and Mercury-ready billing.';
+  'Time2Pay – time tracking and invoicing app for freelancers and independent contractors.';
 
 export function buildSoftwareApplicationJsonLd(input: {
   landingUrl: string;
@@ -22,8 +22,9 @@ export function buildSoftwareApplicationJsonLd(input: {
     description: LANDING_SEO_DESCRIPTION,
     url: input.landingUrl,
     image: input.socialImageUrl,
-    operatingSystem: 'Web, PWA',
+    operatingSystem: 'Web, PWA, iOS, Android',
     applicationCategory: 'BusinessApplication',
+    applicationSubCategory: 'Time Tracking, Invoicing',
     author: {
       '@type': 'Person',
       name: 'David J. Grimsley',
@@ -55,6 +56,7 @@ export function LandingSeoHead() {
     <Head>
       <title>{LANDING_SEO_TITLE}</title>
       <meta name="description" content={LANDING_SEO_DESCRIPTION} />
+      <meta name="keywords" content="time tracking, invoicing app, contractor billing, subcontractor time tracker, clock in software, freelance invoicing, contractor time tracking, invoice software, GitHub invoicing, Mercury payments" />
       <meta name="author" content="David J. Grimsley" />
       <meta name="robots" content="index,follow" />
       <meta property="og:title" content={LANDING_SEO_TITLE} />
