@@ -34,6 +34,7 @@ type LandingSectionProps = PropsWithChildren<{
   density?: keyof typeof densityClasses;
   minHeight?: number;
   onLayout?: (event: LayoutChangeEvent) => void;
+  backgroundStyle?: StyleProp<ViewStyle>;
   sectionStyle?: StyleProp<ViewStyle>;
   eyebrowClassName?: string;
   titleClassName?: string;
@@ -49,6 +50,7 @@ export function LandingSection({
   density = 'default',
   minHeight,
   onLayout,
+  backgroundStyle,
   sectionStyle,
   eyebrowClassName,
   titleClassName,
@@ -63,7 +65,7 @@ export function LandingSection({
       nativeID={id}
       onLayout={onLayout}
       className={`relative w-full border-b border-border ${toneClasses[tone]}`}
-      style={{ minHeight, scrollMarginTop: 88 } as ViewStyle}
+      style={[{ minHeight, scrollMarginTop: 88 } as ViewStyle, backgroundStyle]}
     >
       <Animated.View
         className={densityClass.container}

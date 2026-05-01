@@ -350,9 +350,9 @@ export default function RootLayout() {
       return;
     }
 
-    if (isAuthenticated && pathname === '/sign-in') {
+    if (isAuthenticated && (pathname === '/sign-in' || pathname === '/')) {
       logRuntimeDiagnostic('auth.redirect.to.dashboard', {
-        reason: 'already-authenticated',
+        reason: pathname === '/' ? 'authenticated-public-root' : 'already-authenticated',
       });
       router.replace('/dashboard');
     }

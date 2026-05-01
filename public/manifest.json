@@ -2,7 +2,7 @@
   "id": "/",
   "name": "Time2Pay",
   "short_name": "Time2Pay",
-  "description": "Track client time and generate invoices from one place.",
+  "description": "Self-hostable contractor invoicing with GitHub commit and PR tracking, Mercury-ready invoice drafts, $1/month hosted access, and $10 lifetime options.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
