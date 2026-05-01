@@ -10,6 +10,7 @@ import {
   useColorScheme,
   View,
   type LayoutChangeEvent,
+  type ViewStyle,
 } from 'react-native';
 import Animated, {
   Easing,
@@ -652,7 +653,7 @@ export function LandingPage() {
                   isDark
                     ? 'linear-gradient(180deg, rgba(143, 212, 154, 0.92) 0%, rgba(201, 232, 206, 0.82) 38%, rgba(233, 242, 234, 0.92) 72%, #f8f7f3 95%, #f8f7f3 100%)'
                     : 'linear-gradient(180deg, rgba(175, 228, 183, 0.9) 0%, rgba(115, 145, 121, 0.72) 38%, rgba(46, 54, 42, 0.82) 72%, #1a1f16 95%, #1a1f16 100%)',
-              } as const)
+              } as unknown as ViewStyle)
             : undefined
         }
         eyebrowClassName="text-white"
