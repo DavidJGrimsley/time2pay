@@ -296,6 +296,80 @@ export async function updateSession(input: {
   }
 }
 
+export async function deleteSession(sessionId: string): Promise<void> {
+  if (!sessionId.trim()) {
+    throw new Error('Session id is required.');
+  }
+
+  const db = await getDb();
+  const session = await db.getFirstAsync<
+    Pick<Session, 'id' | 'end_time' | 'invoice_id' | 'deleted_at'>
+  >(
+    `SELECT id, end_time, invoice_id, deleted_at
+     FROM sessions
+     WHERE id = ?`,
+    sessionId,
+  );
+
+  if (!session || session.deleted_at !== null) {
+    throw new Error('Session not found.');
+  }
+  if (!session.end_time) {
+    throw new Error('Only completed sessions can be deleted.');
+  }
+  if (session.invoice_id !== null) {
+    throw new Error('Invoiced sessions cannot be deleted.');
+  }
+
+  const linkedInvoice = await db.getFirstAsync<{ id: string }>(
+    `SELECT id
+     FROM invoice_session_links
+     WHERE session_id = ?
+     LIMIT 1`,
+    sessionId,
+  );
+  if (linkedInvoice) {
+    throw new Error('Sessions attached to invoice history cannot be deleted.');
+  }
+
+  const timestamp = nowIso();
+  await db.execAsync('BEGIN;');
+  try {
+    await db.runAsync(
+      `UPDATE session_breaks
+         SET deleted_at = ?,
+             updated_at = ?
+       WHERE session_id = ?
+         AND deleted_at IS NULL`,
+      timestamp,
+      timestamp,
+      sessionId,
+    );
+
+    const result = await db.runAsync(
+      `UPDATE sessions
+         SET deleted_at = ?,
+             updated_at = ?
+       WHERE id = ?
+         AND deleted_at IS NULL
+         AND invoice_id IS NULL
+         AND end_time IS NOT NULL`,
+      timestamp,
+      timestamp,
+      sessionId,
+    );
+
+    if (result.changes === 0) {
+      throw new Error('Unable to delete session.');
+    }
+
+    await db.execAsync('COMMIT;');
+  } catch (error) {
+    await db.execAsync('ROLLBACK;');
+    throw error;
+  }
+}
+
 export async function listSessions(): Promise<Session[]> {
   const db = await getDb();
   return db.getAllAsync<Session>(

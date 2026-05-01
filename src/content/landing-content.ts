@@ -21,6 +21,7 @@ export type LandingBullet = {
   id: string;
   title: string;
   body: string;
+  cta?: LandingCta;
 };
 
 export type LandingSection = {
@@ -33,105 +34,167 @@ export type LandingSection = {
 
 export const TIME2PAY_GITHUB_URL = 'https://github.com/DavidJGrimsley/time2pay';
 export const DAVID_GRIMSLEY_PORTFOLIO_URL = 'https://DavidJGrimsley.com';
+export const MERCURY_REFERRAL_URL = 'https://mercury.com/partner/time2pay';
+export const TIME2PAY_SOCIAL_IMAGE_PATH = '/images/time2payLogo.png';
+
+export const LANDING_SEO_TITLE =
+  'Time2Pay – Time Tracking & Invoicing App for Freelancers and Subcontractors';
+export const LANDING_SEO_DESCRIPTION =
+  'Clock in, track hours by client and project, and send professional invoices in minutes. Time2Pay is a time tracking and invoicing app for freelancers and independent contractors—starting at $1/month or $10 lifetime, with GitHub proof of work and one-click Mercury payments.';
 
 export const heroSection: LandingSection = {
   id: 'hero',
-  eyebrow: 'Local-first contractor workflow',
-  title: 'Track the work. Build the invoice. Keep control.',
+  eyebrow: 'Time tracking & invoicing for contractors',
+  title: 'Time2Pay',
   body: [
-    'Time2Pay keeps time tracking, invoicing, and client-ready records in one workflow built for freelancers and solo operators.',
-    'Run it yourself, keep your data local, and move from live sessions to invoice exports without handing your business process to a third-party platform.',
+    'Clock in when work starts, keep hours organized by client and project, and build invoices from your actual time records—not a spreadsheet you reconstructed after the fact.',
+    'Get started for $1/month, or self-host for free. Mercury business customers get lifetime access free.',
   ],
 };
 
 export const workflowSection: LandingSection = {
   id: 'workflow',
-  eyebrow: 'Workflow Preview',
-  title: 'The operating loop before you even touch the dashboard.',
+  eyebrow: 'GitHub · Optional for developers',
+  title: 'Bill against the work you actually did.',
   body: [
-    'This is the compact path the app is built around: track live work, clean up what matters, and turn it into invoice-ready output without leaving the flow.',
+    'Link a repo, start a timer, and your commits and pull requests follow the session. When the invoice is ready, clients can trace every billed hour back to the code that shipped.',
+    "Don't use GitHub? The time tracking and invoicing workflow works exactly the same without it.",
   ],
 };
 
 export const featuresSection: LandingSection = {
   id: 'features',
   eyebrow: 'How It Works',
-  title: 'A short path from tracked hours to money collected.',
+  title: 'Track time, build invoices, get paid.',
   body: [
-    'The flow is intentionally compact: start the timer, clean up sessions, turn work into invoices, and keep banking context close when you need it.',
+    'Clock in, keep sessions organized by client and project, and generate branded invoices ready to email—or create Mercury invoices your clients can pay with one click.',
   ],
 };
 
 export const features: LandingFeature[] = [
   {
     id: 'timer',
-    eyebrow: '01  Live timer',
-    title: 'Track sessions while the work is happening.',
-    body: 'Start and stop the timer quickly, capture breaks, and keep notes attached to the actual session instead of recreating the day later.',
-    detail: 'Manual edits stay available when reality does not match the clock.',
-  },
-  {
-    id: 'sessions',
-    eyebrow: '02  Session organization',
-    title: 'Group work by client, project, and task.',
-    body: 'Time2Pay keeps the records readable enough to review before billing, which matters when you need to defend hours or revisit scope.',
-    detail: 'The profile gate ensures the business identity shown on invoices is filled in first.',
+    eyebrow: '01  Time tracking',
+    title: 'Capture billable hours while the work is happening.',
+    body: 'Start the timer, add manual sessions when needed, capture breaks, and keep notes tied to the client work—not an app you check separately.',
+    detail: 'Sessions stay editable because billable time rarely follows a perfect stopwatch.',
   },
   {
     id: 'invoices',
-    eyebrow: '03  Invoice pipeline',
-    title: 'Turn sessions into invoice totals without a second spreadsheet.',
-    body: 'Build invoices from tracked work, generate PDFs, and prepare payment-facing output with the sender and recipient information already in place.',
-    detail: 'The goal is less re-entry and fewer opportunities for billing mistakes.',
+    eyebrow: '02  Invoice pipeline',
+    title: 'Build invoices from your time records, not memory.',
+    body: 'Generate branded invoices ready to email, or create Mercury invoices your clients can pay with one click—without rebuilding the work history by hand.',
+    detail: 'You keep the review step before anything is sent.',
+  },
+  {
+    id: 'github-proof',
+    eyebrow: '03  Work records',
+    title: 'Keep every billable hour tied to the right client and project.',
+    body: 'Clean customer, project, and task records keep your hours organized before they ever become an invoice.',
+    detail: 'Commit links and pull request context can follow sessions into invoice previews and PDFs when you need them.',
+  },
+];
+
+export const githubBullets: LandingBullet[] = [
+  {
+    id: 'repo-start',
+    title: 'Start from a URL',
+    body: 'Paste a repo or commit URL and Time2Pay creates the customer, project, and task records for you.',
+  },
+  {
+    id: 'branch-context',
+    title: 'Work stays tied to the code',
+    body: 'Your active branch becomes the task context so billable hours stay labeled as the work moves.',
+  },
+  {
+    id: 'commit-links',
+    title: 'Clients see what shipped',
+    body: 'Commit messages and pull request links appear on sessions and invoices so clients can verify what they paid for.',
   },
 ];
 
 export const mercuryCallout: LandingSection = {
   id: 'mercury-callout',
-  eyebrow: 'Mercury Pairing',
-  title: 'Mercury is where the operating loop gets more powerful.',
+  eyebrow: 'Mercury Integration',
+  title: 'One-click invoicing for Mercury business accounts.',
   body: [
-    'Time2Pay is being shaped around a Mercury-connected workflow where invoice state, payment context, and operator visibility live closer to the bank account.',
-    'This is the early version of that story. As more Mercury API features land, this section will grow into a stronger partnership and demo surface.',
+    'Connect your Mercury account and turn tracked sessions into invoices your clients can pay with one click. The review step stays in the flow—you see exactly where money is going before it moves.',
+    "Mercury contacts, account context, and payment workflows stay visible beside the invoice so you're not switching tabs to see where you stand.",
   ],
   ctas: [
-    { label: 'Finish Profile Setup', href: '/profile', kind: 'primary' },
+    { label: 'Sign Up Through Time2Pay', href: MERCURY_REFERRAL_URL, kind: 'primary' },
+    { label: 'Start Hosted for $1/month', href: '/profile', kind: 'primary' },
     { label: 'Self-Host for Free', href: TIME2PAY_GITHUB_URL, kind: 'secondary' },
   ],
 };
 
 export const mercuryBullets: LandingBullet[] = [
   {
+    id: 'secure-key',
+    title: 'One-click payment',
+    body: "Create a local invoice and a Mercury invoice at the same time. Clients pay with one click—you stay in control of what gets sent.",
+  },
+  {
+    id: 'drafts',
+    title: 'Review before anything moves',
+    body: 'Check the destination account, line items, and delivery before sending. The confirm step stays visible in the flow.',
+  },
+  {
+    id: 'bank-context',
+    title: 'Contacts already synced',
+    body: "Mercury customer contacts appear in your client list so you're not re-entering billing info for repeat clients.",
+  },
+  {
     id: 'payments',
-    title: 'Bank-aware invoicing',
-    body: 'Mercury account context is where invoice delivery, payment tracking, and visibility start to feel like one connected flow.',
+    title: 'Balances in view',
+    body: "See Mercury account context beside your billing work so you're not switching tabs to check where you stand.",
+  },
+];
+
+export const pricingSection: LandingSection = {
+  id: 'pricing',
+  eyebrow: 'Pricing',
+  title: '$1/month, $10 lifetime, or free with Mercury.',
+  body: [
+    'Time2Pay keeps the core app self-hostable for operators who want full control. Hosted Time2Pay is simple: pay $1/month for as long or as little as you need it, or pay a one-time $10 lifetime membership.',
+    'Sign up for a Mercury business account through Time2Pay and get free lifetime hosted access after the referral qualifies. If the window closes, you can still choose the $10 membership or the monthly plan.',
+  ],
+  ctas: [
+    { label: 'Start Hosted for $1/month', href: '/profile', kind: 'primary' },
+    { label: 'Sign Up Through Time2Pay', href: MERCURY_REFERRAL_URL, kind: 'primary' },
+    { label: 'Self-Host for Free', href: TIME2PAY_GITHUB_URL, kind: 'secondary' },
+  ],
+};
+
+export const pricingBullets: LandingBullet[] = [
+  {
+    id: 'mercury-lifetime',
+    title: 'Free lifetime with Mercury',
+    body: 'Sign up for Mercury through Time2Pay and get free lifetime hosted access after your referral qualifies.',
+    cta: { label: 'Sign Up Through Time2Pay', href: MERCURY_REFERRAL_URL, kind: 'primary' },
   },
   {
-    id: 'reconciliation',
-    title: 'Stronger finance-side leverage',
-    body: 'The strongest version of Time2Pay is a Mercury-connected workspace that keeps billing and money movement closer together.',
+    id: 'hosted',
+    title: '$1/month',
+    body: 'Pay month to month, cancel whenever. Includes hosted sign-in, cloud data storage, and Mercury integration.',
+    cta: { label: 'Start Hosted for $1/month', href: '/profile', kind: 'primary' },
   },
   {
-    id: 'roadmap',
-    title: 'Partnership-ready roadmap',
-    body: 'This section is positioned for the next Mercury API additions, demos, and collaboration conversations.',
-  },
-  {
-    id: 'more',
-    title: 'More to come',
-    body: 'More Mercury depth is coming as the banking features and product surface expand.',
+    id: 'self-host',
+    title: 'Self-host for free',
+    body: 'Run it yourself from the open-source repo. No subscription, no account required.',
+    cta: { label: 'Self-Host for Free', href: TIME2PAY_GITHUB_URL, kind: 'secondary' },
   },
 ];
 
 export const ctaSection: LandingSection = {
   id: 'cta',
   eyebrow: 'Get Started',
-  title: 'Set up your business identity once, then get to work.',
-  body: [
-    'Returning users go straight to the dashboard after profile completion. First-time users should start by filling in the basic business details that unlock the rest of the app.',
-  ],
+  title: 'Track time and invoice clients starting at $1/month.',
+  body: [],
   ctas: [
-    { label: "Let's Get Started", href: '/profile', kind: 'primary' },
+    { label: 'Start Hosted for $1/month', href: '/profile', kind: 'primary' },
+    { label: 'Sign Up Through Time2Pay', href: MERCURY_REFERRAL_URL, kind: 'primary' },
     { label: 'Self-Host for Free', href: TIME2PAY_GITHUB_URL, kind: 'secondary' },
   ],
 };

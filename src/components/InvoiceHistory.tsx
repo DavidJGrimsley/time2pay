@@ -2,6 +2,7 @@ import * as Linking from 'expo-linking';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import {
+  deleteInvoice,
   getUserProfile,
   initializeDatabase,
   listInvoices,
@@ -17,10 +18,11 @@ import {
   type InvoiceComputation,
 } from '@/services/invoice';
 import { InlineNotice, type NoticeTone } from '@/components/inline-notice';
-import { showActionErrorAlert, showValidationAlert } from '@/services/system-alert';
+import { showActionErrorAlert, showSystemConfirm, showValidationAlert } from '@/services/system-alert';
 
 type InvoiceHistoryProps = {
   refreshKey: number;
+  onInvoiceDeleted?: () => void;
 };
 
 type StatusNotice = {
@@ -124,7 +126,7 @@ async function buildExportableInvoice(invoice: InvoiceWithClient): Promise<{
   };
 }
 
-export function InvoiceHistory({ refreshKey }: InvoiceHistoryProps) {
+export function InvoiceHistory({ refreshKey, onInvoiceDeleted }: InvoiceHistoryProps) {
   const [invoices, setInvoices] = useState<InvoiceWithClient[]>([]);
   const [status, setStatus] = useState<StatusNotice>({
     message: 'Loading saved invoices...',
@@ -243,6 +245,39 @@ export function InvoiceHistory({ refreshKey }: InvoiceHistoryProps) {
     }
   }
 
+  async function handleDeleteInvoice(invoice: InvoiceWithClient): Promise<void> {
+    const confirmed = await showSystemConfirm({
+      title: 'Delete Draft Invoice?',
+      message:
+        `Invoice ${invoice.id} will be removed from Saved Invoices, and any billed sessions linked to it will become uninvoiced again so you can edit them and rebuild the invoice.`,
+      confirmLabel: 'Delete Draft',
+      cancelLabel: 'Keep Draft',
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    setActiveInvoiceId(invoice.id);
+    setStatus({ message: `Deleting draft invoice ${invoice.id}...`, tone: 'neutral' });
+
+    try {
+      await deleteInvoice(invoice.id);
+      await loadInvoices();
+      setStatus({
+        message: `Deleted draft invoice ${invoice.id}. Linked sessions can be invoiced again.`,
+        tone: 'success',
+      });
+      onInvoiceDeleted?.();
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to delete invoice draft.';
+      showActionErrorAlert(message);
+      setStatus({ message, tone: 'error' });
+    } finally {
+      setActiveInvoiceId(null);
+    }
+  }
+
   return (
     <View className="gap-3 rounded-xl bg-card p-4">
       <View className="flex-row items-center justify-between">
@@ -258,6 +293,7 @@ export function InvoiceHistory({ refreshKey }: InvoiceHistoryProps) {
 
       {invoices.map((invoice) => {
         const isBusy = activeInvoiceId === invoice.id;
+        const canDeleteDraft = !invoice.mercury_invoice_id && invoice.status === 'draft';
         return (
           <View key={invoice.id} className="gap-2 rounded-md border border-border bg-background p-3">
             <Text className="font-semibold text-heading">
@@ -304,7 +340,9 @@ export function InvoiceHistory({ refreshKey }: InvoiceHistoryProps) {
                     {isBusy
                       ? 'Working...'
                       : invoice.mercury_invoice_id
-                        ? 'Open Mercury Invoice'
+                        ? invoice.status === 'draft'
+                          ? 'Open Mercury Draft'
+                          : 'Open Mercury Invoice'
                         : 'Open Payment Link'}
                   </Text>
                 </Pressable>
@@ -318,6 +356,17 @@ export function InvoiceHistory({ refreshKey }: InvoiceHistoryProps) {
                   {isBusy ? 'Working...' : 'Compose Email'}
                 </Text>
               </Pressable>
+              {canDeleteDraft ? (
+                <Pressable
+                  className="rounded-md border border-danger/40 bg-danger/10 px-3 py-2"
+                  onPress={() => handleDeleteInvoice(invoice)}
+                  disabled={isBusy}
+                >
+                  <Text className="font-semibold text-danger">
+                    {isBusy ? 'Working...' : 'Delete Draft'}
+                  </Text>
+                </Pressable>
+              ) : null}
             </View>
           </View>
         );

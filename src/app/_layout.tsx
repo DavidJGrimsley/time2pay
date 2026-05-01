@@ -12,6 +12,8 @@ import {
   isHostedMode,
   resolveAppAccessMode,
 } from '@/services/runtime-mode';
+import { syncGitHubProviderTokenToHostedProfile } from '@/services/github-auth';
+import { syncPendingMercuryReferralClick } from '@/services/mercury-referrals';
 import { getSupabaseSession, onSupabaseAuthStateChange } from '@/services/supabase-client';
 import { ensureTourDemoData } from '@/services/tour-demo';
 import { useAuthUiStore } from '@/stores/auth-ui-store';
@@ -20,6 +22,8 @@ import '../../global.css';
 export const unstable_settings = {
   anchor: 'index',
 };
+
+const AUTH_BOOTSTRAP_TIMEOUT_MS = 5000;
 
 if (Platform.OS === 'web' && typeof window !== 'undefined') {
   try {
@@ -110,28 +114,98 @@ export default function RootLayout() {
     }
 
     let isActive = true;
+    let authBootstrapTimeoutId: ReturnType<typeof setTimeout> | undefined;
+    let authStateObserved = false;
+    const syncGitHubProviderToken = (
+      session: Awaited<ReturnType<typeof getSupabaseSession>>,
+      source: 'bootstrap' | 'auth-state',
+    ): void => {
+      syncGitHubProviderTokenToHostedProfile(session)
+        .then((status) => {
+          if (status === 'skipped') {
+            return;
+          }
+
+          logRuntimeDiagnostic('auth.githubToken.sync', {
+            source,
+            status,
+            hasSessionUser: Boolean(session?.user),
+          });
+        })
+        .catch((error) => {
+          logRuntimeDiagnostic(
+            'auth.githubToken.sync.error',
+            {
+              source,
+              message: errorMessage(error),
+            },
+            { level: 'warn' },
+          );
+        });
+    };
     logRuntimeDiagnostic('auth.bootstrap.session.read.start', {
       hostedMode,
     });
 
-    getSupabaseSession()
-      .then((session) => {
+    const sessionRead = Promise.race([
+      getSupabaseSession().then((session) => ({
+        status: 'resolved' as const,
+        session,
+      })),
+      new Promise<{ status: 'timeout' }>((resolve) => {
+        authBootstrapTimeoutId = setTimeout(
+          () => resolve({ status: 'timeout' }),
+          AUTH_BOOTSTRAP_TIMEOUT_MS,
+        );
+      }),
+    ]);
+
+    sessionRead
+      .then((result) => {
         if (!isActive) {
           return;
         }
 
+        clearTimeout(authBootstrapTimeoutId);
+
+        if (result.status === 'timeout') {
+          if (authStateObserved) {
+            logRuntimeDiagnostic('auth.bootstrap.session.read.timeout.ignored', {
+              reason: 'auth-state-already-observed',
+              timeoutMs: AUTH_BOOTSTRAP_TIMEOUT_MS,
+            });
+            return;
+          }
+
+          logRuntimeDiagnostic(
+            'auth.bootstrap.session.read.timeout',
+            {
+              timeoutMs: AUTH_BOOTSTRAP_TIMEOUT_MS,
+            },
+            { level: 'warn' },
+          );
+          syncHostedAuth({
+            ready: true,
+            authenticated: false,
+          });
+          return;
+        }
+
         logRuntimeDiagnostic('auth.bootstrap.session.read.success', {
-          hasSessionUser: Boolean(session?.user),
+          hasSessionUser: Boolean(result.session?.user),
         });
+        syncGitHubProviderToken(result.session, 'bootstrap');
         syncHostedAuth({
           ready: true,
-          authenticated: Boolean(session?.user),
+          authenticated: Boolean(result.session?.user),
         });
       })
       .catch((error) => {
         if (!isActive) {
           return;
         }
+
+        clearTimeout(authBootstrapTimeoutId);
 
         logRuntimeDiagnostic(
           'auth.bootstrap.session.read.error',
@@ -151,10 +225,12 @@ export default function RootLayout() {
         return;
       }
 
+      authStateObserved = true;
       logRuntimeDiagnostic('auth.bootstrap.state.changed', {
         event,
         hasSessionUser: Boolean(session?.user),
       });
+      syncGitHubProviderToken(session, 'auth-state');
       syncHostedAuth({
         ready: true,
         authenticated: Boolean(session?.user),
@@ -163,10 +239,27 @@ export default function RootLayout() {
 
     return () => {
       isActive = false;
+      clearTimeout(authBootstrapTimeoutId);
       logRuntimeDiagnostic('auth.bootstrap.cleanup');
       unsubscribe();
     };
   }, [hostedMode, resetForLocalMode, syncHostedAuth]);
+
+  useEffect(() => {
+    if (!hostedMode || !authReady || !isAuthenticated) {
+      return;
+    }
+
+    syncPendingMercuryReferralClick().catch((error) => {
+      logRuntimeDiagnostic(
+        'mercury.referral.pendingSync.error',
+        {
+          message: errorMessage(error),
+        },
+        { level: 'warn' },
+      );
+    });
+  }, [authReady, hostedMode, isAuthenticated]);
 
   useEffect(() => {
     let isActive = true;
@@ -257,9 +350,9 @@ export default function RootLayout() {
       return;
     }
 
-    if (isAuthenticated && pathname === '/sign-in') {
+    if (isAuthenticated && (pathname === '/sign-in' || pathname === '/')) {
       logRuntimeDiagnostic('auth.redirect.to.dashboard', {
-        reason: 'already-authenticated',
+        reason: pathname === '/' ? 'authenticated-public-root' : 'already-authenticated',
       });
       router.replace('/dashboard');
     }

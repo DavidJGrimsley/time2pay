@@ -12,23 +12,44 @@ const sendMoneyMock = vi.fn();
 const buildMercuryLineItemsMock = vi.fn((payload) => payload.lineItems ?? []);
 const findBestCheckingAccountMock = vi.fn(() => ({ id: 'account_best' }));
 const toDayStringMock = vi.fn((input: string) => input.slice(0, 10));
+const createMercuryClientMock = vi.fn(() => ({
+  accounts: { list: accountsListMock },
+  ar: {
+    invoices: { list: invoiceListMock, create: invoiceCreateMock },
+    customers: { ensureCustomer: ensureCustomerMock },
+  },
+  recipients: {
+    list: recipientsListMock,
+    create: recipientCreateMock,
+    update: recipientUpdateMock,
+    get: recipientGetMock,
+  },
+  sendMoney: { send: sendMoneyMock },
+}));
+
+function mockHostedMercuryCredential(apiKey = 'user_mercury_key') {
+  vi.doMock('@/server/db/_shared/auth', () => ({
+    requireAuthUserId: vi.fn().mockResolvedValue('user-1'),
+  }));
+  vi.doMock('@/server/mercury/credentials', () => ({
+    getDecryptedMercuryApiKeyForUser: vi.fn().mockResolvedValue(apiKey),
+  }));
+}
+
+function hostedMercuryRequest(body: Record<string, unknown>): Request {
+  return new Request('http://localhost/api/mercury', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer supabase-token',
+    },
+    body: JSON.stringify({ ...body, accessMode: 'hosted' }),
+  });
+}
 
 vi.mock('@mr.dj2u/mercury', () => ({
   buildMercuryLineItems: buildMercuryLineItemsMock,
-  createMercuryClient: vi.fn(() => ({
-    accounts: { list: accountsListMock },
-    ar: {
-      invoices: { list: invoiceListMock, create: invoiceCreateMock },
-      customers: { ensureCustomer: ensureCustomerMock },
-    },
-    recipients: {
-      list: recipientsListMock,
-      create: recipientCreateMock,
-      update: recipientUpdateMock,
-      get: recipientGetMock,
-    },
-    sendMoney: { send: sendMoneyMock },
-  })),
+  createMercuryClient: createMercuryClientMock,
   findBestCheckingAccount: findBestCheckingAccountMock,
   toDayString: toDayStringMock,
 }));
@@ -48,40 +69,130 @@ describe('/api/mercury POST', () => {
     buildMercuryLineItemsMock.mockClear();
     findBestCheckingAccountMock.mockClear();
     toDayStringMock.mockClear();
-    process.env.MERCURY_API_KEY = 'test_key';
-    process.env.MERCURY_ENVIRONMENT = 'sandbox';
-    process.env.MERCURY_BASE_URL = 'https://api-sandbox.mercury.com/api/v1';
+    createMercuryClientMock.mockClear();
+    vi.doUnmock('@/server/db/_shared/auth');
+    vi.doUnmock('@/server/mercury/credentials');
+    delete process.env.MERCURY_API_KEY;
+    delete process.env.MERCURY_ENVIRONMENT;
+    delete process.env.MERCURY_BASE_URL;
+    process.env.MERCURY_SANDBOX_API_KEY = '';
+    process.env.MERCURY_SANDBOX_BASE_URL = '';
   });
 
   it('verifies invoice access against Mercury AR', async () => {
+    mockHostedMercuryCredential();
     invoiceListMock.mockResolvedValue({ items: [] });
+    const { POST } = await import('@/app/api/mercury+api');
+
+    const response = await POST(hostedMercuryRequest({ action: 'testInvoiceAccess' }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true, environment: 'production' });
+    expect(invoiceListMock).toHaveBeenCalledWith({ limit: 1 });
+  });
+
+  it('uses Mercury sandbox credentials only in tour mode', async () => {
+    process.env.MERCURY_SANDBOX_API_KEY = 'sandbox_key';
+    process.env.MERCURY_SANDBOX_BASE_URL = 'https://api-sandbox.mercury.com/api/v1';
+    accountsListMock.mockResolvedValue({ items: [] });
     const { POST } = await import('@/app/api/mercury+api');
 
     const response = await POST(
       new Request('http://localhost/api/mercury', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'testInvoiceAccess' }),
+        body: JSON.stringify({ action: 'testConnection', accessMode: 'tour' }),
       }),
     );
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true, environment: 'sandbox' });
-    expect(invoiceListMock).toHaveBeenCalledWith({ limit: 1 });
+    expect(createMercuryClientMock).toHaveBeenCalledWith({
+      apiKey: 'sandbox_key',
+      environment: 'sandbox',
+      baseUrl: 'https://api-sandbox.mercury.com/api/v1',
+    });
   });
 
-  it('ensures a Mercury customer for client-sync flows', async () => {
-    ensureCustomerMock.mockResolvedValue('customer_789');
+  it('uses the signed-in hosted user Mercury key instead of sandbox credentials', async () => {
+    process.env.MERCURY_SANDBOX_API_KEY = 'sandbox_key';
+    mockHostedMercuryCredential();
+    accountsListMock.mockResolvedValue({ items: [] });
+    const { POST } = await import('@/app/api/mercury+api');
+
+    const response = await POST(hostedMercuryRequest({ action: 'testConnection' }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true, environment: 'production' });
+    expect(createMercuryClientMock).toHaveBeenCalledWith({
+      apiKey: 'user_mercury_key',
+      environment: 'production',
+      baseUrl: undefined,
+    });
+  });
+
+  it('uses the signed-in hosted user key when a bearer request asks for tour mode', async () => {
+    process.env.MERCURY_SANDBOX_API_KEY = 'sandbox_key';
+    mockHostedMercuryCredential('user_mercury_key');
+    accountsListMock.mockResolvedValue({ items: [] });
     const { POST } = await import('@/app/api/mercury+api');
 
     const response = await POST(
       new Request('http://localhost/api/mercury', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'ensureCustomer',
-          payload: { name: 'Acme Co', email: 'billing@acme.test' },
-        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer supabase-token',
+        },
+        body: JSON.stringify({ action: 'testConnection', accessMode: 'tour' }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true, environment: 'production' });
+    expect(createMercuryClientMock).toHaveBeenCalledWith({
+      apiKey: 'user_mercury_key',
+      environment: 'production',
+      baseUrl: undefined,
+    });
+  });
+
+  it('returns a clear error when signed-in hosted mode has no saved Mercury key', async () => {
+    vi.doMock('@/server/db/_shared/auth', () => ({
+      requireAuthUserId: vi.fn().mockResolvedValue('user-1'),
+    }));
+    vi.doMock('@/server/mercury/credentials', () => ({
+      getDecryptedMercuryApiKeyForUser: vi.fn().mockResolvedValue(null),
+    }));
+    const { POST } = await import('@/app/api/mercury+api');
+
+    const response = await POST(
+      new Request('http://localhost/api/mercury', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer supabase-token',
+        },
+        body: JSON.stringify({ action: 'testConnection', accessMode: 'hosted' }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: 'No Mercury API key is saved for this account.',
+    });
+    expect(createMercuryClientMock).not.toHaveBeenCalled();
+  });
+
+  it('ensures a Mercury customer for client-sync flows', async () => {
+    mockHostedMercuryCredential();
+    ensureCustomerMock.mockResolvedValue('customer_789');
+    const { POST } = await import('@/app/api/mercury+api');
+
+    const response = await POST(
+      hostedMercuryRequest({
+        action: 'ensureCustomer',
+        payload: { name: 'Acme Co', email: 'billing@acme.test' },
       }),
     );
 
@@ -94,17 +205,14 @@ describe('/api/mercury POST', () => {
   });
 
   it('creates a recipient through the Mercury proxy route', async () => {
+    mockHostedMercuryCredential();
     recipientCreateMock.mockResolvedValue({ id: 'recipient_1', name: 'Studio Ops' });
     const { POST } = await import('@/app/api/mercury+api');
 
     const response = await POST(
-      new Request('http://localhost/api/mercury', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'createRecipient',
-          payload: { name: 'Studio Ops', emails: ['ops@studio.test'] },
-        }),
+      hostedMercuryRequest({
+        action: 'createRecipient',
+        payload: { name: 'Studio Ops', emails: ['ops@studio.test'] },
       }),
     );
 
@@ -119,6 +227,7 @@ describe('/api/mercury POST', () => {
   });
 
   it('resolves paymentMethod from the selected recipient when send money omits it', async () => {
+    mockHostedMercuryCredential();
     recipientGetMock.mockResolvedValue({
       id: 'recipient_22',
       name: 'Studio Ops',
@@ -128,21 +237,17 @@ describe('/api/mercury POST', () => {
     const { POST } = await import('@/app/api/mercury+api');
 
     const response = await POST(
-      new Request('http://localhost/api/mercury', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'sendMoney',
-          payload: {
-            accountId: 'account_1',
-            input: {
-              idempotencyKey: 'idem_1',
-              recipientId: 'recipient_22',
-              amount: 20,
-              memo: 'For funnsies',
-            },
+      hostedMercuryRequest({
+        action: 'sendMoney',
+        payload: {
+          accountId: 'account_1',
+          input: {
+            idempotencyKey: 'idem_1',
+            recipientId: 'recipient_22',
+            amount: 20,
+            memo: 'For funnsies',
           },
-        }),
+        },
       }),
     );
 

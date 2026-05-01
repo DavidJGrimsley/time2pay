@@ -1,6 +1,6 @@
 import { getSupabaseClient, getSupabaseUser, requireSupabaseUserId } from '@/services/supabase-client';
 import type { UserProfile } from '@/database/hosted/types';
-import { requireConfiguredSiteOrigin } from '@/services/site-origin';
+import { requireConfiguredSiteOrigin, resolveBrowserSiteOrigin } from '@/services/site-origin';
 
 export function nowIso(): string {
   return new Date().toISOString();
@@ -19,37 +19,95 @@ export type UserProfileRow = {
   updated_at: string;
 };
 
+function toNullableNonEmptyString(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+function isDuplicateProfileInsertError(error: { code?: string } | null): boolean {
+  return error?.code === '23505';
+}
+
 export async function ensureHostedProfileRow(userId: string): Promise<void> {
   const supabase = getSupabaseClient();
   const authUser = await getSupabaseUser();
   const metadata = (authUser?.user_metadata ?? {}) as Record<string, unknown>;
   const metadataName =
-    typeof metadata.full_name === 'string'
-      ? metadata.full_name
-      : typeof metadata.name === 'string'
-        ? metadata.name
-        : typeof metadata.user_name === 'string'
-          ? metadata.user_name
-          : null;
+    toNullableNonEmptyString(metadata.full_name) ??
+    toNullableNonEmptyString(metadata.name) ??
+    toNullableNonEmptyString(metadata.user_name);
+  const metadataEmail = toNullableNonEmptyString(authUser?.email);
   const timestamp = nowIso();
 
-  const { error } = await supabase.from('user_profiles').upsert(
-    {
+  const readExistingRow = async () =>
+    supabase
+      .from('user_profiles')
+      .select('auth_user_id,full_name,email')
+      .eq('auth_user_id', userId)
+      .maybeSingle();
+
+  const { data: existingRow, error: existingRowError } = await readExistingRow();
+
+  if (existingRowError) {
+    throw new Error(existingRowError.message);
+  }
+
+  let profileRow = existingRow;
+
+  if (!profileRow) {
+    const { error: insertError } = await supabase.from('user_profiles').insert({
       auth_user_id: userId,
       id: 'me',
       full_name: metadataName,
-      email: authUser?.email ?? null,
+      email: metadataEmail,
       created_at: timestamp,
       updated_at: timestamp,
-    },
-    {
-      onConflict: 'auth_user_id',
-      ignoreDuplicates: true,
-    },
-  );
+    });
 
-  if (error) {
-    throw new Error(error.message);
+    if (insertError) {
+      if (!isDuplicateProfileInsertError(insertError)) {
+        throw new Error(insertError.message);
+      }
+
+      const { data: duplicateRow, error: duplicateRowError } = await readExistingRow();
+      if (duplicateRowError) {
+        throw new Error(duplicateRowError.message);
+      }
+
+      if (!duplicateRow) {
+        return;
+      }
+
+      profileRow = duplicateRow;
+    } else {
+      return;
+    }
+  }
+
+  const nextFullName = toNullableNonEmptyString(profileRow.full_name) ?? metadataName;
+  const nextEmail = toNullableNonEmptyString(profileRow.email) ?? metadataEmail;
+  const shouldUpdate =
+    nextFullName !== (profileRow.full_name ?? null) || nextEmail !== (profileRow.email ?? null);
+
+  if (!shouldUpdate) {
+    return;
+  }
+
+  const { error: updateError } = await supabase
+    .from('user_profiles')
+    .update({
+      full_name: nextFullName,
+      email: nextEmail,
+      updated_at: timestamp,
+    })
+    .eq('auth_user_id', userId);
+
+  if (updateError) {
+    throw new Error(updateError.message);
   }
 }
 
@@ -96,7 +154,8 @@ export function byId<T extends { id: string }>(rows: T[]): Map<string, T> {
 
 function resolveHostedWriteUrl(path: string): string {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  return new URL(normalizedPath, requireConfiguredSiteOrigin()).toString();
+  requireConfiguredSiteOrigin();
+  return new URL(normalizedPath, resolveBrowserSiteOrigin()).toString();
 }
 
 export async function callHostedWriteRoute(
@@ -125,8 +184,20 @@ export async function callHostedWriteRoute(
   });
 
   if (!response.ok) {
-    const body = (await response.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? 'Hosted write route failed.');
+    const responseText = await response.text().catch(() => '');
+    let body: { error?: string } = {};
+    if (responseText) {
+      try {
+        body = (JSON.parse(responseText) as { error?: string }) ?? {};
+      } catch {
+        body = {};
+      }
+    }
+    const serverMessage =
+      typeof body.error === 'string' && body.error.trim()
+        ? body.error.trim()
+        : responseText.trim();
+    throw new Error(serverMessage || `Hosted write route failed (HTTP ${response.status}).`);
   }
 }
 

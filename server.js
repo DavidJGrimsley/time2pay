@@ -5,16 +5,9 @@ const compression = require('compression');
 const express = require('express');
 const morgan = require('morgan');
 const { createRequestHandler } = require('expo-server/adapter/express');
+const { loadFirstEnvFile } = require('./scripts/env-loader.cjs');
 
-const envFilePath = path.join(__dirname, '.env');
-if (fs.existsSync(envFilePath)) {
-  try {
-    // Local convenience: allow `node server.js` to pick up `.env` without extra flags.
-    require('dotenv').config({ path: envFilePath });
-  } catch {
-    // no-op; runtime env vars may still be provided externally
-  }
-}
+loadFirstEnvFile({ cwd: __dirname, prefix: '[startup]' });
 
 process.env.NODE_ENV = process.env.NODE_ENV || 'production';
 
@@ -113,11 +106,101 @@ function assertHostedRuntimeEnvHealth() {
   console.log('[startup] Hosted mode env looks configured (strict contract passed).');
 }
 
+function buildRequestUrl(req) {
+  const host = req.get('host') || `localhost:${port}`;
+  const protocol = req.protocol || 'http';
+  return new URL(req.originalUrl || req.url, `${protocol}://${host}`).toString();
+}
+
+function buildRequestHeaders(req) {
+  const headers = new Headers();
+
+  for (const [key, value] of Object.entries(req.headers)) {
+    if (Array.isArray(value)) {
+      headers.set(key, value.join(', '));
+      continue;
+    }
+
+    if (typeof value === 'string') {
+      headers.set(key, value);
+    }
+  }
+
+  return headers;
+}
+
+function buildRouteParams(route, match) {
+  const groups = match?.groups || {};
+  if (!route?.routeKeys || typeof route.routeKeys !== 'object') {
+    return groups;
+  }
+
+  return Object.entries(route.routeKeys).reduce((params, [paramName, groupName]) => {
+    params[paramName] = groups[groupName] ?? groups[paramName];
+    return params;
+  }, {});
+}
+
+async function handleDirectDbApiRoute(req, res, next) {
+  const pathname = req.path || req.url;
+  const matchedRoute = dbApiRoutes.find((route) => route.regex.test(pathname));
+
+  if (!matchedRoute) {
+    next();
+    return;
+  }
+
+  try {
+    const routeModulePath = path.join(serverBuildDir, matchedRoute.file);
+    const routeModule = require(routeModulePath);
+    const methodHandler = routeModule?.[req.method];
+
+    if (typeof methodHandler !== 'function') {
+      res.status(405).json({ error: `Unsupported method: ${req.method}` });
+      return;
+    }
+
+    const requestBody =
+      req.method === 'GET' || req.method === 'HEAD'
+        ? undefined
+        : JSON.stringify(req.body ?? {});
+
+    const request = new Request(buildRequestUrl(req), {
+      method: req.method,
+      headers: buildRequestHeaders(req),
+      body: requestBody,
+    });
+
+    const match = pathname.match(matchedRoute.regex);
+    const response = await methodHandler(request, {
+      params: buildRouteParams(matchedRoute, match),
+    });
+
+    res.status(response.status);
+    response.headers.forEach((value, key) => {
+      res.setHeader(key, value);
+    });
+
+    res.send(await response.text());
+  } catch (error) {
+    console.error('Direct DB API route failed:', error);
+    next(error);
+  }
+}
+
 assertBuildArtifact(clientBuildDir, 'Client build directory');
 assertBuildArtifact(serverBuildDir, 'Server build directory');
 assertBuildArtifact(routesManifestPath, 'Generated Expo routes manifest');
 assertBuildArtifact(buildCommitMarkerPath, 'Build commit marker');
 assertHostedRuntimeEnvHealth();
+
+const routesManifest = JSON.parse(fs.readFileSync(routesManifestPath, 'utf8'));
+const dbApiRoutes = (routesManifest.apiRoutes || [])
+  .filter((route) => typeof route?.page === 'string' && route.page.startsWith('api/db/'))
+  .map((route) => ({
+    ...route,
+    regex: new RegExp(route.namedRegex),
+  }));
 
 app.disable('x-powered-by');
 app.use(compression());
@@ -143,6 +226,9 @@ app.get('/__time2pay_build.txt', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.sendFile(buildCommitMarkerPath);
 });
+
+app.use('/api/db', express.json({ limit: '1mb' }));
+app.all('/api/db/{*route}', handleDirectDbApiRoute);
 
 app.use(
   express.static(clientBuildDir, {

@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { promises as fs } from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
-import dotenv from 'dotenv';
 import {
   clientBuildDir,
   discoverApiRouteSources,
@@ -9,6 +9,9 @@ import {
   serverBuildDir,
   toPosixPath,
 } from './web-output-utils.mjs';
+
+const require = createRequire(import.meta.url);
+const { readFirstEnvFile } = require('./env-loader.cjs');
 
 const WINDOWS_ACCESS_VIOLATION_EXIT_CODES = new Set([3221225477, -1073741819]);
 const STRICT_LOCAL_MODE_BUILD_FLAG = 'TIME2PAY_FAIL_BUILD_IF_LOCAL';
@@ -18,35 +21,8 @@ function isTruthy(value) {
   return /^(1|true|yes|on)$/i.test(value.trim());
 }
 
-async function loadPreferredBuildEnvFile() {
-  const candidateFiles = ['.env.build', '.env'];
-  const existingCandidates = [];
-
-  for (const fileName of candidateFiles) {
-    const filePath = path.join(repoRoot, fileName);
-    const exists = await fs
-      .access(filePath)
-      .then(() => true)
-      .catch(() => false);
-    if (exists) {
-      existingCandidates.push({ fileName, filePath });
-    }
-  }
-
-  if (existingCandidates.length === 0) {
-    return { envFromFile: {}, sourceFile: null };
-  }
-
-  const envFromFile = {};
-  for (const candidate of [...existingCandidates].reverse()) {
-    Object.assign(envFromFile, dotenv.parse(await fs.readFile(candidate.filePath, 'utf8')));
-  }
-
-  return { envFromFile, sourceFile: existingCandidates[0].fileName };
-}
-
 async function resolveBuildEnvironment() {
-  const { envFromFile, sourceFile } = await loadPreferredBuildEnvFile();
+  const { envFromFile, sourceFile } = readFirstEnvFile({ cwd: repoRoot });
 
   const resolvedEnv = {
     ...envFromFile,
@@ -58,8 +34,14 @@ async function resolveBuildEnvironment() {
   const modeSource = process.env.EXPO_PUBLIC_TIME2PAY_DATA_MODE?.trim()
     ? 'process.env'
     : envFromFile.EXPO_PUBLIC_TIME2PAY_DATA_MODE?.trim()
-      ? sourceFile ?? '.env'
+      ? sourceFile ?? 'env file'
       : 'default(local)';
+
+  if (sourceFile) {
+    console.log(`[export-web] Loaded ${sourceFile}`);
+  } else {
+    console.log('[export-web] No env file found (checked .env, .env.test, .env.production).');
+  }
 
   console.log(
     `[export-web] Resolved EXPO_PUBLIC_TIME2PAY_DATA_MODE=${resolvedMode} (source: ${modeSource})`,

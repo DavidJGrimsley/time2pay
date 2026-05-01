@@ -19,8 +19,13 @@ import { GitHubCommitBadge } from '@/components/github-commit-badge';
 import { InlineNotice, type NoticeTone } from '@/components/inline-notice';
 import { useStableWindowDimensions } from '@/hooks/use-stable-window-dimensions';
 import { prettifyBranchName } from '@/services/github';
-import { listRuntimeSessions, updateRuntimeSession } from '@/services/session-runtime';
-import { showActionErrorAlert, showBlockedAlert, showValidationAlert } from '@/services/system-alert';
+import { deleteRuntimeSession, listRuntimeSessions, updateRuntimeSession } from '@/services/session-runtime';
+import {
+  showActionErrorAlert,
+  showBlockedAlert,
+  showSystemConfirm,
+  showValidationAlert,
+} from '@/services/system-alert';
 
 const EMPTY_PICKER_VALUE = '';
 const CREATE_CLIENT_PICKER_VALUE = '__create_client__';
@@ -275,6 +280,7 @@ export function SessionList() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<StatusNotice | null>(null);
 
@@ -653,6 +659,54 @@ export function SessionList() {
     }
   }
 
+  async function handleDeleteSession(session: Session): Promise<void> {
+    setError(null);
+    setStatus(null);
+
+    if (session.invoice_id) {
+      const message = 'Invoiced sessions cannot be deleted.';
+      showBlockedAlert(message);
+      setStatus({ message, tone: 'error' });
+      return;
+    }
+
+    if (!session.end_time) {
+      const message = 'Only completed sessions can be deleted.';
+      showBlockedAlert(message);
+      setStatus({ message, tone: 'error' });
+      return;
+    }
+
+    const confirmed = await showSystemConfirm({
+      title: 'Delete session?',
+      message: [
+        `${session.client_name ?? session.client}`,
+        `${new Date(session.start_time).toLocaleString()} - ${formatDuration(session.duration)}`,
+        '',
+        'This removes the session from your uninvoiced list and cannot be undone.',
+      ].join('\n'),
+      confirmLabel: 'Delete',
+      cancelLabel: 'Cancel',
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingSessionId(session.id);
+    try {
+      await deleteRuntimeSession(session.id);
+      await load();
+      setStatus({ message: 'Session deleted.', tone: 'success' });
+    } catch (deleteError: unknown) {
+      const message = deleteError instanceof Error ? deleteError.message : 'Failed to delete session.';
+      showActionErrorAlert(message);
+      setStatus({ message, tone: 'error' });
+    } finally {
+      setDeletingSessionId(null);
+    }
+  }
+
   return (
     <View className="gap-4">
       <View className="gap-2">
@@ -692,6 +746,7 @@ export function SessionList() {
               <Text className="text-lg font-bold text-heading">{weekGroup.label}</Text>
               {weekGroup.sessions.map((session) => {
                 const isInvoiced = session.invoice_id !== null;
+                const canDeleteSession = !isInvoiced && Boolean(session.end_time);
                 const cardClass = isInvoiced
                   ? 'gap-2 rounded-md border border-invoiced-surface bg-invoiced-surface p-3'
                   : 'gap-2 rounded-md border border-border bg-background p-3';
@@ -714,9 +769,24 @@ export function SessionList() {
                           {session.project_name ?? 'No project'} | {session.task_name ?? 'No task'}
                         </Text>
                       </View>
-                      <Pressable className={buttonClass} onPress={() => openEditModal(session)}>
-                        <Text className={buttonTextClass}>Edit</Text>
-                      </Pressable>
+                      <View className="flex-row gap-2">
+                        <Pressable className={buttonClass} onPress={() => openEditModal(session)}>
+                          <Text className={buttonTextClass}>Edit</Text>
+                        </Pressable>
+                        {canDeleteSession ? (
+                          <Pressable
+                            className="rounded-md border border-danger px-3 py-1"
+                            onPress={() => {
+                              handleDeleteSession(session).catch(() => undefined);
+                            }}
+                            disabled={deletingSessionId === session.id}
+                          >
+                            <Text className="text-sm font-semibold text-danger">
+                              {deletingSessionId === session.id ? 'Deleting...' : 'Delete'}
+                            </Text>
+                          </Pressable>
+                        ) : null}
+                      </View>
                     </View>
 
                     <Text className={metaTextClass}>{new Date(session.start_time).toLocaleString()}</Text>

@@ -1,6 +1,6 @@
 import { Octicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { Platform, Pressable, Text, TextInput, View } from 'react-native';
 import { InlineNotice, type NoticeTone } from '@/components/inline-notice';
 import { logRuntimeDiagnostic } from '@/services/runtime-diagnostics';
 import { signInWithGitHubOAuth, signInWithMagicLink } from '@/services/supabase-client';
@@ -19,6 +19,7 @@ export function HostedAuthGate({ onTourExperience }: HostedAuthGateProps) {
   const [isSendingMagicLink, setIsSendingMagicLink] = useState(false);
   const [isGitHubRedirecting, setIsGitHubRedirecting] = useState(false);
   const [status, setStatus] = useState<StatusNotice | null>(null);
+  const isWebGitHubOAuthAvailable = Platform.OS === 'web';
 
   async function handleMagicLinkSignIn(): Promise<void> {
     setIsSendingMagicLink(true);
@@ -79,7 +80,7 @@ export function HostedAuthGate({ onTourExperience }: HostedAuthGateProps) {
       <View className="w-full max-w-xl gap-4 rounded-2xl bg-card p-6">
         <Text className="text-3xl font-extrabold text-heading">Sign in to Time2Pay</Text>
         <Text className="text-sm text-muted">
-          Hosted mode requires authentication. Use email magic link or GitHub to continue.
+          Hosted mode requires authentication. Use email magic link or GitHub on web to continue.
         </Text>
 
         <TextInput
@@ -104,21 +105,28 @@ export function HostedAuthGate({ onTourExperience }: HostedAuthGateProps) {
           </Text>
         </Pressable>
 
-        <Pressable
-          className="self-center rounded-full border px-4 py-2"
-          style={{ borderColor: '#ffffff', backgroundColor: '#24292f' }}
-          onPress={() => {
-            handleGitHubSignIn().catch(() => undefined);
-          }}
-          disabled={isSendingMagicLink || isGitHubRedirecting}
-        >
-          <View className="flex-row items-center gap-2">
-            <Octicons name="mark-github" size={16} color="#ffffff" />
-            <Text className="font-semibold" style={{ color: '#ffffff' }}>
-              {isGitHubRedirecting ? 'Redirecting to GitHub...' : 'Continue with GitHub'}
-            </Text>
-          </View>
-        </Pressable>
+        {isWebGitHubOAuthAvailable ? (
+          <Pressable
+            className="self-center rounded-full border px-4 py-2"
+            style={{ borderColor: '#ffffff', backgroundColor: '#24292f' }}
+            onPress={() => {
+              handleGitHubSignIn().catch(() => undefined);
+            }}
+            disabled={isSendingMagicLink || isGitHubRedirecting}
+          >
+            <View className="flex-row items-center gap-2">
+              <Octicons name="mark-github" size={16} color="#ffffff" />
+              <Text className="font-semibold" style={{ color: '#ffffff' }}>
+                {isGitHubRedirecting ? 'Redirecting to GitHub...' : 'Continue with GitHub'}
+              </Text>
+            </View>
+          </Pressable>
+        ) : (
+          <InlineNotice
+            tone="neutral"
+            message="GitHub sign-in is web-only for now. In Expo Go/native, use the magic link flow instead."
+          />
+        )}
 
         {status ? <InlineNotice tone={status.tone} message={status.message} /> : null}
 

@@ -577,6 +577,31 @@ export const tourProvider: DbProvider = {
     const withBreakDuration = Math.max(0, rawDuration - breakDuration);
     current.sessions[index] = { ...existing, client: client.name, client_id: input.client_id, project_id: input.project_id, task_id: input.task_id, start_time: input.start_time, end_time: input.end_time, duration: withBreakDuration, notes: input.notes ?? null, updated_at: nowIso() };
   },
+  async deleteSession(sessionId) {
+    const current = getState();
+    const index = current.sessions.findIndex((item) => item.id === sessionId && item.deleted_at === null);
+    if (index < 0) {
+      throw new Error('Session not found.');
+    }
+    const session = current.sessions[index];
+    if (!session.end_time) {
+      throw new Error('Only completed sessions can be deleted.');
+    }
+    if (session.invoice_id !== null) {
+      throw new Error('Invoiced sessions cannot be deleted.');
+    }
+    if (current.invoiceSessionLinks.some((item) => item.session_id === sessionId)) {
+      throw new Error('Sessions attached to invoice history cannot be deleted.');
+    }
+
+    const timestamp = nowIso();
+    current.sessions[index] = { ...session, deleted_at: timestamp, updated_at: timestamp };
+    current.sessionBreaks = current.sessionBreaks.map((item) =>
+      item.session_id === sessionId && item.deleted_at === null
+        ? { ...item, deleted_at: timestamp, updated_at: timestamp }
+        : item,
+    );
+  },
   async listSessions() {
     return getState().sessions.filter((item) => item.deleted_at === null).map(decorateSession).sort((left, right) => (left.start_time < right.start_time ? 1 : -1));
   },
@@ -674,6 +699,28 @@ export const tourProvider: DbProvider = {
       updated_at: timestamp,
       deleted_at: null,
     });
+  },
+  async deleteInvoice(invoiceId) {
+    const current = getState();
+    const invoice = current.invoices.find((item) => item.id === invoiceId && item.deleted_at === null);
+    if (!invoice) {
+      throw new Error('Invoice not found');
+    }
+    if (invoice.mercury_invoice_id) {
+      throw new Error('Mercury-backed invoices must be reviewed in Mercury and cannot be deleted locally.');
+    }
+    if (invoice.status !== 'draft') {
+      throw new Error('Only draft invoices can be deleted.');
+    }
+
+    const timestamp = nowIso();
+    current.invoices = current.invoices.map((item) =>
+      item.id === invoiceId ? { ...item, deleted_at: timestamp, updated_at: timestamp } : item,
+    );
+    current.sessions = current.sessions.map((item) =>
+      item.invoice_id === invoiceId ? { ...item, invoice_id: null, updated_at: timestamp } : item,
+    );
+    current.invoiceSessionLinks = current.invoiceSessionLinks.filter((item) => item.invoice_id !== invoiceId);
   },
   async listInvoices() {
     const current = getState();

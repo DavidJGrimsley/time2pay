@@ -1,5 +1,6 @@
 import {
   addManualSession,
+  deleteSession,
   initializeDatabase,
   isSessionPaused,
   listSessions,
@@ -146,4 +147,9 @@ export async function updateRuntimeSession(input: {
     end_time: input.endTimeIso,
     notes: input.notes ?? null,
   });
+}
+
+export async function deleteRuntimeSession(sessionId: string): Promise<void> {
+  await ensureDatabaseReady();
+  await deleteSession(sessionId);
 }

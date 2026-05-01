@@ -47,9 +47,18 @@ Core principles:
   1. `npm run db:generate`
   2. `npm run db:migrate`
 
+### Monetization strategy
+- Self-hosted Time2Pay core remains free/open source.
+- Hosted Time2Pay default plan is planned as $1/month forever.
+- Existing Mercury business customers, and users whose Mercury referral does not qualify, can pay a one-time $10 lifetime hosted membership.
+- Successful Mercury signups through Time2Pay receive free lifetime hosted access after the referral is verified and qualified.
+- If a user signs up for Mercury through Time2Pay but does not complete the required onboarding deposits within the 90-day window, they can choose the $10 lifetime membership or the $1/month hosted plan.
+- Billing, entitlement checks, referral qualification, and final Mercury onboarding/deposit requirements are still implementation work tracked in `project/todo.md`.
+
 ## Integrations
 - Mercury API (server-side only): invoice generation, payment links, bank info, transaction monitoring
 - GitHub OAuth for hosted sign-in and integration workflows
+- GitHub workflow mapping: customer = owner/org, project = repo, task = branch; commits are supported as session proof, and pull request support is planned
 - PayPal link support in invoice output
 
 ## Data Domains

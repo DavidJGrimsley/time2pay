@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import { z, type ZodType } from 'zod';
 import { requireAuthUserId } from '@/server/db/_shared/auth';
 import { withWriteDb, type WriteDb } from '@/server/db/_shared/db';
@@ -17,6 +18,14 @@ function parseJsonError(error: unknown): string {
     return error.message;
   }
   return 'Invalid payload.';
+}
+
+async function ensureServerHostedProfileRow(db: WriteDb, authUserId: string): Promise<void> {
+  await db.execute(sql`
+    insert into user_profiles (auth_user_id)
+    values (${authUserId}::uuid)
+    on conflict (auth_user_id) do nothing
+  `);
 }
 
 async function parseBody<T>(request: Request, schema: ZodType<T>): Promise<T> {
@@ -59,7 +68,10 @@ export async function handleDbWrite<T>(
   }
 
   try {
-    await withWriteDb((db) => operation(db, authUserId, payload));
+    await withWriteDb(async (db) => {
+      await ensureServerHostedProfileRow(db, authUserId);
+      await operation(db, authUserId, payload);
+    });
     return Response.json({ ok: true });
   } catch (error) {
     console.error('Hosted DB write route failed:', error);

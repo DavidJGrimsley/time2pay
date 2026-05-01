@@ -22,7 +22,7 @@ git clone https://github.com/DavidJGrimsley/time2pay
 cd time2pay
 npm ci
 Copy-Item .env.example .env
-# edit .env and set MERCURY_API_KEY
+# edit .env and set hosted/Supabase vars; signed-in users save Mercury keys in Profile
 npm run build:web
 npm run serve:prod:env
 ```
@@ -36,7 +36,7 @@ git clone https://github.com/DavidJGrimsley/time2pay
 cd time2pay
 npm ci
 cp .env.example .env
-# edit .env and set MERCURY_API_KEY
+# edit .env and set hosted/Supabase vars; signed-in users save Mercury keys in Profile
 npm run build:web
 npm run serve:prod:env
 ```
@@ -47,8 +47,9 @@ Open `http://localhost:3000`.
 
 Set these in `.env`:
 
-- `MERCURY_API_KEY` (required to use your bank account): your Mercury API key
-- `MERCURY_BASE_URL` (optional): defaults to `https://api.mercury.com/api/v1`
+- `MERCURY_API_KEY_ENCRYPTION_SECRET` (required in hosted mode): server-side secret used to encrypt signed-in users' saved Mercury API keys in Supabase
+- `MERCURY_SANDBOX_API_KEY` (required for tour mode Mercury flows): Mercury sandbox API key
+- `MERCURY_SANDBOX_BASE_URL` (required for tour mode Mercury flows): defaults to `https://api-sandbox.mercury.com/api/v1`
 - `GITHUB_CLIENT_SECRET` (optional): server-side GitHub OAuth app client secret
 - `EXPO_PUBLIC_GITHUB_CLIENT_ID` (optional): GitHub OAuth app client id used by the client UI and server token exchange
 - `EXPO_PUBLIC_TIME2PAY_DATA_MODE` (optional): `local` (default) or `hosted`
@@ -56,21 +57,22 @@ Set these in `.env`:
 - `TIME2PAY_FAIL_BUILD_IF_LOCAL` (optional): when truthy (`1/true/yes/on`), blocks web export if data mode resolves to `local`
 - `EXPO_PUBLIC_SUPABASE_URL` (required in hosted mode)
 - `EXPO_PUBLIC_SUPABASE_ANON_KEY` (required in hosted mode)
-- `SUPABASE_SERVICE_ROLE_KEY` (required for server-side admin operations)
 - `DATABASE_URL` (recommended for Drizzle migrations and runtime SQL clients; Supabase pooler, usually `6543`)
 - `DATABASE_DIRECT_URL` (optional direct database host/port, usually `5432`, only if your network supports direct connectivity)
 - `DRIZZLE_DATABASE_URL` (optional): explicit override used by Drizzle CLI (`db:migrate`, `db:check`, etc.)
 - `PORT` (optional): defaults to `3000`
 
 Environment file convention:
-- Build scripts now prefer `.env.build` and fall back to `.env`.
-- Keep `.env.test` and `.env.production` as minimal key reference files for Plesk values.
+- Build, startup, Drizzle, and migration scripts load the first env file found in this order: `.env`, `.env.test`, `.env.production`.
+- Use `.env` for local development.
+- Put exactly one deployment env file in each Plesk app root: `.env.test` for staging/test/temp domains, or `.env.production` for the production domain.
 
 Plesk note:
-- Set `EXPO_PUBLIC_TIME2PAY_DATA_MODE=hosted` in your Plesk Node app environment for hosted deployments.
+- Set `EXPO_PUBLIC_TIME2PAY_DATA_MODE=hosted` in the selected env file or in the Plesk Node app environment.
 - If this is missing or set to `local`, hosted auth/data flows are intentionally disabled.
 
-If `MERCURY_API_KEY` is missing, `/api/mercury` returns `400`.
+If a signed-in hosted user has no saved Mercury API key, Mercury production actions return `400`.
+If `MERCURY_SANDBOX_API_KEY` is missing, tour mode Mercury actions return `400`.
 If GitHub OAuth env vars are missing, `/api/github` returns `501` and the Sign in with GitHub button is hidden.
 If hosted env vars are missing while `EXPO_PUBLIC_TIME2PAY_DATA_MODE=hosted`, startup fails fast.
 If deprecated hosted env vars are present in hosted mode (`EXPO_PUBLIC_HOSTED_API_BASE_URL`, `EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_URL`, `EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_PATH`, `EXPO_PUBLIC_MERCURY_PROXY_PATH`, `SITE_ORIGIN`), startup fails fast.
@@ -140,14 +142,15 @@ Use this for fast UI iteration. For production-equivalent API-route/PWA checks, 
 
 ## Self-Hosting (Each User Uses Their Own Key)
 
-Each user can run their own local or VPS instance with their own `.env` and Mercury key.
+Production Mercury access is now user-scoped in hosted mode. Each signed-in user saves their own Mercury production API key in **Profile -> Integrations**, where Time2Pay encrypts it before storing it in Supabase.
 
 1. Clone repo and install deps: `npm ci`
 2. Create `.env` from `.env.example`
-3. Set user-specific `MERCURY_API_KEY`
-4. Build: `npm run build:web`
-5. Start: `npm run serve:prod:env`
-6. Open app and test via **Invoices -> Test Mercury Connection**
+3. Set hosted/Supabase vars and `MERCURY_API_KEY_ENCRYPTION_SECRET`
+4. Run `npm run db:migrate`
+5. Build: `npm run build:web`
+6. Start: `npm run serve:prod:env`
+7. Sign in, save your Mercury production API key in **Profile -> Integrations**, then use the Mercury invoice builder
 
 Update flow:
 
@@ -178,14 +181,12 @@ Notes:
 - OAuth exchange is handled server-side by `POST /api/github`.
 - If OAuth env vars are not configured, the Sign in with GitHub button is not shown.
 
-### Node <20 fallback (no `--env-file`)
+### Shell Env Override Example
 
 PowerShell example:
 
 ```powershell
 $env:PORT="3030"
-$env:MERCURY_API_KEY="<their-own-key>"
-$env:MERCURY_BASE_URL="https://api.mercury.com/api/v1"
 npm run serve:prod
 ```
 
@@ -210,7 +211,7 @@ Notes:
 - Import replaces current local data for that browser origin.
 - You can enable/disable a pre-import rollback backup in the same section.
 - Backups include profile, clients, projects, tasks, sessions, breaks, invoices, and timer selection.
-- Mercury API keys are server-side env vars and are not part of backup files.
+- Mercury API keys are encrypted hosted credentials and are not part of local backup files.
 
 ## Plesk Deployment (Node App)
 
@@ -225,9 +226,11 @@ Use Plesk as the deployment target, but deploy the repository into the Node app 
    - Document Root: `<application-root>/dist/client`
    - Startup File: `server.js`
 4. Configure env vars in each Plesk app:
-   - required app/server vars such as `MERCURY_API_KEY`
-   - optional runtime vars such as `MERCURY_BASE_URL` and `PORT`
+   - required app/server vars such as `MERCURY_API_KEY_ENCRYPTION_SECRET`
+   - tour/demo vars such as `MERCURY_SANDBOX_API_KEY` and `MERCURY_SANDBOX_BASE_URL`
+   - optional runtime vars such as `PORT`
    - `EXPO_PUBLIC_SITE_ORIGIN` set to the matching domain for that environment
+   - if Plesk does not expose those vars to Git Additional deployment actions, place a single env file in the app root: `.env.test` for staging or `.env.production` for production
 5. In each Plesk Git repository settings page, enable **Additional deployment actions** and use:
 
 ```sh
@@ -269,13 +272,13 @@ Notes:
 - `npm run icons:sync` - sync icon assets into `public/`
 - `npm run build:web:deploy` - web export + service worker generation (CI/Plesk-safe)
 - `npm run build:web` - icons sync + deploy build
-- `npm run serve:prod` - run production server (env from shell)
-- `npm run serve:prod:env` - run production server with `.env` (Node 20+)
+- `npm run serve:prod` - run production server with the first env file found: `.env`, `.env.test`, then `.env.production`
+- `npm run serve:prod:env` - same as `serve:prod`; kept as a compatibility alias
 - `npm run typecheck` - TypeScript type checks
 - `npm run lint` - lint codebase
 
 ## Security Notes
 
-- Mercury key is server-side env only (not entered in Profile UI).
-- Do not commit `.env`.
+- Signed-in users save production Mercury API keys in Profile; Time2Pay encrypts them before storing them in Supabase.
+- Do not commit `.env`, `.env.test`, `.env.production`, or any other secret-bearing env file.
 - Rotate keys if a server or machine is compromised.

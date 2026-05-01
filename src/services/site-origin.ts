@@ -1,6 +1,7 @@
 import { readTrimmedPublicRuntimeConfigValue } from '@/services/runtime-config';
 
 const DEFAULT_SITE_ORIGIN = 'https://time2pay.app';
+const LOOPBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
 
 function trimTrailingSlash(value: string): string {
   return value.replace(/\/+$/, '');
@@ -28,27 +29,74 @@ function parseAbsoluteSiteOrigin(rawOrigin: string): string {
   return trimTrailingSlash(parsed.origin);
 }
 
-export function requireConfiguredSiteOrigin(): string {
+function readConfiguredSiteOrigin(): string {
   const configuredOrigin = readTrimmedPublicRuntimeConfigValue('EXPO_PUBLIC_SITE_ORIGIN');
+  return configuredOrigin ? parseAbsoluteSiteOrigin(configuredOrigin) : '';
+}
+
+function readRuntimeWindowOrigin(): string {
+  if (typeof window !== 'undefined' && typeof window.location?.origin === 'string') {
+    const runtimeOrigin = window.location.origin.trim();
+    if (runtimeOrigin) {
+      try {
+        return parseAbsoluteSiteOrigin(runtimeOrigin);
+      } catch {
+        return '';
+      }
+    }
+  }
+
+  return '';
+}
+
+function isLoopbackOrigin(origin: string): boolean {
+  if (!origin) {
+    return false;
+  }
+
+  try {
+    return LOOPBACK_HOSTNAMES.has(new URL(origin).hostname);
+  } catch {
+    return false;
+  }
+}
+
+export function requireConfiguredSiteOrigin(): string {
+  const configuredOrigin = readConfiguredSiteOrigin();
   if (!configuredOrigin) {
     throw new Error('Hosted mode requires EXPO_PUBLIC_SITE_ORIGIN.');
   }
 
-  return parseAbsoluteSiteOrigin(configuredOrigin);
+  return configuredOrigin;
 }
 
 export function resolveSiteOrigin(): string {
-  const configuredOrigin = readTrimmedPublicRuntimeConfigValue('EXPO_PUBLIC_SITE_ORIGIN');
-  const explicitOrigin = configuredOrigin ? parseAbsoluteSiteOrigin(configuredOrigin) : '';
+  const explicitOrigin = readConfiguredSiteOrigin();
   if (explicitOrigin) {
     return explicitOrigin;
   }
 
-  if (typeof window !== 'undefined' && typeof window.location?.origin === 'string') {
-    const runtimeOrigin = trimTrailingSlash(window.location.origin.trim());
-    if (runtimeOrigin) {
-      return runtimeOrigin;
-    }
+  const runtimeOrigin = readRuntimeWindowOrigin();
+  if (runtimeOrigin) {
+    return runtimeOrigin;
+  }
+
+  return DEFAULT_SITE_ORIGIN;
+}
+
+export function resolveBrowserSiteOrigin(): string {
+  const runtimeOrigin = readRuntimeWindowOrigin();
+  if (isLoopbackOrigin(runtimeOrigin)) {
+    return runtimeOrigin;
+  }
+
+  const explicitOrigin = readConfiguredSiteOrigin();
+  if (explicitOrigin) {
+    return explicitOrigin;
+  }
+
+  if (runtimeOrigin) {
+    return runtimeOrigin;
   }
 
   return DEFAULT_SITE_ORIGIN;

@@ -14,23 +14,23 @@ export function LandingHeader({ onOpenSignIn, onTourExperience }: LandingHeaderP
       style={{ boxShadow: '0 10px 30px rgba(15, 23, 42, 0.06)' }}
     >
       <View
-        className="mx-auto w-full flex-row items-center justify-between gap-4"
+        className="mx-auto w-full flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4"
         style={{ maxWidth: 1120 }}
       >
         <View className="gap-1">
           <Text className="text-lg font-bold text-heading md:text-xl">Time2Pay</Text>
-          <Text className="text-xs uppercase tracking-[2px] text-muted">Time tracking for self-hosted billing</Text>
+          <Text className="text-xs uppercase tracking-[2px] text-muted">Time tracking and invoicing for contractors</Text>
         </View>
 
-        <View className="flex-row items-center gap-2">
+        <View className="w-full flex-row items-center gap-2 md:w-auto">
           <Pressable
-            className="rounded-full border border-border bg-background px-3 py-2"
+            className="flex-1 rounded-full border border-border bg-background px-3 py-2 md:flex-none"
             onPress={onTourExperience}
           >
-            <Text className="text-sm font-semibold text-heading">Tour the App</Text>
+            <Text className="text-center text-sm font-semibold text-heading">Tour the App</Text>
           </Pressable>
-          <Pressable className="rounded-full bg-primary px-3 py-2" onPress={onOpenSignIn}>
-            <Text className="text-sm font-semibold text-heading">Sign In</Text>
+          <Pressable className="flex-1 rounded-full bg-primary px-3 py-2 md:flex-none" onPress={onOpenSignIn}>
+            <Text className="text-center text-sm font-semibold text-heading">Sign In</Text>
           </Pressable>
         </View>
       </View>

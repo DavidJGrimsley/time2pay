@@ -225,6 +225,12 @@ export function updateSession(
   return provider().updateSession(...args);
 }
 
+export function deleteSession(
+  ...args: Parameters<typeof local.deleteSession>
+): ReturnType<typeof local.deleteSession> {
+  return provider().deleteSession(...args);
+}
+
 export function listSessions(
   ...args: Parameters<typeof local.listSessions>
 ): ReturnType<typeof local.listSessions> {
@@ -247,6 +253,12 @@ export function createInvoice(
   ...args: Parameters<typeof local.createInvoice>
 ): ReturnType<typeof local.createInvoice> {
   return provider().createInvoice(...args);
+}
+
+export function deleteInvoice(
+  ...args: Parameters<typeof local.deleteInvoice>
+): ReturnType<typeof local.deleteInvoice> {
+  return provider().deleteInvoice(...args);
 }
 
 export function listInvoices(

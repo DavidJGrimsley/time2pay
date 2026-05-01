@@ -1,5 +1,16 @@
-import 'dotenv/config';
+import { createRequire } from 'node:module';
 import { defineConfig } from 'drizzle-kit';
+
+const require = createRequire(import.meta.url);
+const { loadFirstEnvFile } = require('./scripts/env-loader.cjs') as {
+  loadFirstEnvFile: (options?: {
+    cwd?: string;
+    prefix?: string;
+    logger?: (message: string) => void;
+  }) => void;
+};
+
+loadFirstEnvFile({ cwd: process.cwd(), prefix: '[drizzle]' });
 
 const databaseUrl =
   process.env.DRIZZLE_DATABASE_URL?.trim() ||

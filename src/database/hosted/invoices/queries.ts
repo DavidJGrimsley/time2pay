@@ -165,6 +165,12 @@ export function assignSessionsToInvoice(sessionIds: string[], invoiceId: string)
   });
 }
 
+export function deleteInvoice(invoiceId: string): Promise<void> {
+  return callHostedWriteRoute('/api/db/invoices/delete', {
+    invoiceId,
+  });
+}
+
 export function createInvoiceSessionLinks(input: {
   invoiceId: string;
   sessionIds: string[];

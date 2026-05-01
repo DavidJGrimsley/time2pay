@@ -7,7 +7,7 @@ export function AppLoadingShell() {
         <Text className="text-sm font-bold uppercase tracking-[2px] text-muted">Time2Pay</Text>
         <Text className="text-center text-3xl font-bold text-heading">Loading your workspace...</Text>
         <Text className="text-center text-base leading-7 text-foreground">
-          Checking whether you already finished your business profile.
+          Restoring your session and getting your workspace ready.
         </Text>
       </View>
     </View>

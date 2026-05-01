@@ -1,9 +1,12 @@
+import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { handleDbWrite } from '@/server/db/_shared/route';
 import { conflict, forbidden, notFound } from '@/server/db/_shared/errors';
 import { requireAuthUserId } from '@/server/db/_shared/auth';
 import { withWriteDb } from '@/server/db/_shared/db';
+
+const express = require('express') as any;
 
 vi.mock('@/server/db/_shared/auth', () => ({
   requireAuthUserId: vi.fn(),
@@ -64,7 +67,9 @@ describe('handleDbWrite', () => {
   it('maps domain errors to status codes', async () => {
     requireAuthUserIdMock.mockResolvedValue('user-1');
     withWriteDbMock.mockImplementation(async (work) =>
-      work({} as Parameters<typeof work>[0]),
+      work({
+        execute: vi.fn().mockResolvedValue({ rows: [] }),
+      } as unknown as Parameters<typeof work>[0]),
     );
 
     const conflictResponse = await handleDbWrite(
@@ -102,5 +107,46 @@ describe('handleDbWrite', () => {
       },
     );
     expect(notFoundResponse.status).toBe(404);
+  });
+
+  it('matches nested /api/db routes with the Express wildcard syntax used by server.js', async () => {
+    const app = express();
+    let matchedUrl: string | null = null;
+
+    app.use('/api/db', express.json({ limit: '1mb' }));
+    app.all('/api/db/{*route}', (req: any, res: any) => {
+      matchedUrl = req.originalUrl;
+      res.status(204).end();
+    });
+    app.use((_req: any, res: any) => {
+      res.status(404).end();
+    });
+
+    const server = app.listen(0);
+
+    try {
+      const { port } = server.address() as AddressInfo;
+      const response = await fetch(`http://127.0.0.1:${port}/api/db/invoices/delete`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ id: 'invoice-1' }),
+      });
+
+      expect(response.status).toBe(204);
+      expect(matchedUrl).toBe('/api/db/invoices/delete');
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error?: Error | null) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+
+          resolve();
+        });
+      });
+    }
   });
 });

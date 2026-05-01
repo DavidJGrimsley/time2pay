@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { requireConfiguredSiteOrigin, resolveSiteOrigin } from '@/services/site-origin';
+import {
+  requireConfiguredSiteOrigin,
+  resolveBrowserSiteOrigin,
+  resolveSiteOrigin,
+} from '@/services/site-origin';
 
 const ORIGINAL_ENV = {
   EXPO_PUBLIC_SITE_ORIGIN: process.env.EXPO_PUBLIC_SITE_ORIGIN,
@@ -20,6 +24,24 @@ describe('site-origin', () => {
     expect(resolveSiteOrigin()).toBe('https://staging.time2pay.app');
   });
 
+  it('prefers the current loopback browser origin for local web testing', () => {
+    process.env.EXPO_PUBLIC_SITE_ORIGIN = 'https://staging.time2pay.app/';
+    (globalThis as Record<string, unknown>).window = {
+      location: { origin: 'http://localhost:8081' },
+    };
+
+    expect(resolveBrowserSiteOrigin()).toBe('http://localhost:8081');
+  });
+
+  it('keeps the configured site origin for non-local browser origins', () => {
+    process.env.EXPO_PUBLIC_SITE_ORIGIN = 'https://time2pay.app/';
+    (globalThis as Record<string, unknown>).window = {
+      location: { origin: 'https://preview.time2pay.app' },
+    };
+
+    expect(resolveBrowserSiteOrigin()).toBe('https://time2pay.app');
+  });
+
   it('falls back to the current window origin when the env var is missing', () => {
     process.env.EXPO_PUBLIC_SITE_ORIGIN = '';
     (globalThis as Record<string, unknown>).window = {
@@ -27,6 +49,7 @@ describe('site-origin', () => {
     };
 
     expect(resolveSiteOrigin()).toBe('http://localhost:3000');
+    expect(resolveBrowserSiteOrigin()).toBe('http://localhost:3000');
   });
 
   it('uses the production origin fallback when no explicit origin is available', () => {

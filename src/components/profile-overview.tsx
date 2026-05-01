@@ -19,10 +19,25 @@ import {
   parseAndValidateBackup,
   restoreBackup,
 } from '@/services/data-backup';
+import { getCurrentGitHubSessionState, type GitHubSessionState } from '@/services/github-auth';
 import { InlineNotice, type NoticeTone } from '@/components/inline-notice';
+import {
+  deleteMercuryApiKey,
+  getMercuryCredentialStatus,
+  saveMercuryApiKey,
+  testMercuryApiKey,
+  type MercuryCredentialStatus,
+} from '@/services/mercury-credentials';
+import {
+  getMercuryReferralStatus,
+  MERCURY_REFERRAL_URL,
+  trackMercuryReferralClick,
+  type MercuryReferralStatus,
+} from '@/services/mercury-referrals';
 import { readTrimmedPublicRuntimeConfigValue } from '@/services/runtime-config';
 import { isHostedMode } from '@/services/runtime-mode';
-import { requireConfiguredSiteOrigin } from '@/services/site-origin';
+import { requireConfiguredSiteOrigin, resolveBrowserSiteOrigin } from '@/services/site-origin';
+import { signOutSupabase } from '@/services/supabase-client';
 import { showActionErrorAlert, showSystemConfirm, showValidationAlert } from '@/services/system-alert';
 import { useAuthUiStore } from '@/stores/auth-ui-store';
 
@@ -32,7 +47,7 @@ const GITHUB_PAT_DOCS_URL =
   'https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens';
 const GITHUB_OAUTH_AUTHORIZE_URL = 'https://github.com/login/oauth/authorize';
 const GITHUB_OAUTH_PROXY_PATH = '/api/github';
-const GITHUB_OAUTH_SCOPE = 'repo,read:user';
+const GITHUB_OAUTH_SCOPE = 'repo read:user';
 const GITHUB_OAUTH_STATE_KEY = 'time2pay_github_oauth_state';
 
 type StatusNotice = {
@@ -150,6 +165,7 @@ export function ProfileOverview() {
   const [isSavingIntegrations, setIsSavingIntegrations] = useState(false);
   const [isExportingData, setIsExportingData] = useState(false);
   const [isImportingData, setIsImportingData] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const [createSafetyBackupBeforeImport, setCreateSafetyBackupBeforeImport] = useState(true);
   const [sectionStatus, setSectionStatus] = useState<SectionStatusNotice | null>(null);
 
@@ -159,14 +175,39 @@ export function ProfileOverview() {
   const [businessPhone, setBusinessPhone] = useState('');
   const [businessEmail, setBusinessEmail] = useState('');
   const [githubPat, setGithubPat] = useState('');
+  const [mercuryApiKey, setMercuryApiKey] = useState('');
+  const [mercuryCredentialStatus, setMercuryCredentialStatus] =
+    useState<MercuryCredentialStatus | null>(null);
+  const [isSavingMercuryKey, setIsSavingMercuryKey] = useState(false);
+  const [isTestingMercuryKey, setIsTestingMercuryKey] = useState(false);
+  const [isDeletingMercuryKey, setIsDeletingMercuryKey] = useState(false);
+  const [mercuryReferralStatus, setMercuryReferralStatus] =
+    useState<MercuryReferralStatus | null>(null);
+  const [isOpeningMercuryReferral, setIsOpeningMercuryReferral] = useState(false);
   const [showIntegrations, setShowIntegrations] = useState(true);
+  const [showAdvancedGitHubOptions, setShowAdvancedGitHubOptions] = useState(false);
   const [showPatInfoModal, setShowPatInfoModal] = useState(false);
   const [isSigningInWithGitHub, setIsSigningInWithGitHub] = useState(false);
+  const [githubSessionState, setGitHubSessionState] = useState<GitHubSessionState>({
+    isGitHubSession: false,
+    providerToken: null,
+    displayName: null,
+  });
   const tourModeEnabled = useAuthUiStore((state) => state.tourModeEnabled);
+  const isAuthenticated = useAuthUiStore((state) => state.isAuthenticated);
   const shouldRouteAuthIntegrationsToSignIn = isHostedMode() && tourModeEnabled;
+  const shouldShowHostedMercuryCredentials = isHostedMode() && isAuthenticated && !tourModeEnabled;
 
   const githubClientId = readTrimmedPublicRuntimeConfigValue('EXPO_PUBLIC_GITHUB_CLIENT_ID');
-  const isGitHubOAuthEnabled = process.env.EXPO_OS === 'web' && Boolean(githubClientId);
+  const isGitHubOAuthEnabled = Platform.OS === 'web' && Boolean(githubClientId);
+  const hasSavedGitHubToken = githubPat.trim().length > 0;
+  const hasGitHubSessionToken =
+    githubSessionState.isGitHubSession && Boolean(githubSessionState.providerToken?.trim());
+  const hasGitHubRepoAccess = hasGitHubSessionToken || hasSavedGitHubToken;
+  const shouldShowManualGitHubSyncButton =
+    isGitHubOAuthEnabled &&
+    !hasSavedGitHubToken &&
+    (!githubSessionState.isGitHubSession || !githubSessionState.providerToken);
 
   const showStatus = useCallback((section: ProfileStatusSection, notice: StatusNotice): void => {
     setSectionStatus({ section, ...notice });
@@ -187,11 +228,12 @@ export function ProfileOverview() {
   const resolveGitHubOAuthRedirectUri = useCallback((): string | null => {
     if (isHostedMode()) {
       try {
-        return new URL('/profile', requireConfiguredSiteOrigin()).toString();
+        requireConfiguredSiteOrigin();
+        return new URL('/profile', resolveBrowserSiteOrigin()).toString();
       } catch (error) {
         if (typeof console !== 'undefined' && typeof console.error === 'function') {
           console.error(
-            'Failed to resolve GitHub OAuth redirect URI from EXPO_PUBLIC_SITE_ORIGIN:',
+            'Failed to resolve GitHub OAuth redirect URI from the active site origin:',
             error,
           );
         }
@@ -216,9 +258,63 @@ export function ProfileOverview() {
     setGithubPat(profile.github_pat ?? '');
   }, []);
 
+  const refreshGitHubSessionState = useCallback(async (): Promise<void> => {
+    setGitHubSessionState(await getCurrentGitHubSessionState());
+  }, []);
+
+  const refreshMercuryCredentialStatus = useCallback(async (): Promise<void> => {
+    if (!shouldShowHostedMercuryCredentials) {
+      setMercuryCredentialStatus(null);
+      return;
+    }
+
+    try {
+      setMercuryCredentialStatus(await getMercuryCredentialStatus());
+    } catch (error: unknown) {
+      setMercuryCredentialStatus({ configured: false, keyLastFour: null, updatedAt: null });
+      if (typeof console !== 'undefined' && typeof console.warn === 'function') {
+        console.warn('Failed to load Mercury credential status:', error);
+      }
+    }
+  }, [shouldShowHostedMercuryCredentials]);
+
+  const refreshMercuryReferralStatus = useCallback(async (): Promise<void> => {
+    if (!shouldShowHostedMercuryCredentials) {
+      setMercuryReferralStatus(null);
+      return;
+    }
+
+    try {
+      setMercuryReferralStatus(await getMercuryReferralStatus());
+    } catch (error: unknown) {
+      setMercuryReferralStatus(null);
+      if (typeof console !== 'undefined' && typeof console.warn === 'function') {
+        console.warn('Failed to load Mercury referral status:', error);
+      }
+    }
+  }, [shouldShowHostedMercuryCredentials]);
+
   useEffect(() => {
     initializeDatabase()
-      .then(() => Promise.all([loadProfileData()]))
+      .then(async () => {
+        const [profileResult, githubResult, mercuryCredentialResult, mercuryReferralResult] =
+          await Promise.allSettled([
+          loadProfileData(),
+          refreshGitHubSessionState(),
+          refreshMercuryCredentialStatus(),
+          refreshMercuryReferralStatus(),
+        ]);
+
+        for (const result of [githubResult, mercuryCredentialResult, mercuryReferralResult]) {
+          if (result.status === 'rejected' && typeof console !== 'undefined') {
+            console.warn('Optional profile integration load failed:', result.reason);
+          }
+        }
+
+        if (profileResult.status === 'rejected') {
+          throw profileResult.reason;
+        }
+      })
       .catch((error: unknown) => {
         showStatus('general', {
           message: error instanceof Error ? error.message : 'Failed to load profile.',
@@ -226,7 +322,13 @@ export function ProfileOverview() {
         });
       })
       .finally(() => setIsLoading(false));
-  }, [loadProfileData, showStatus]);
+  }, [
+    loadProfileData,
+    refreshGitHubSessionState,
+    refreshMercuryCredentialStatus,
+    refreshMercuryReferralStatus,
+    showStatus,
+  ]);
 
   useEffect(() => {
     if (!isGitHubOAuthEnabled || typeof window === 'undefined') {
@@ -329,7 +431,7 @@ export function ProfileOverview() {
           return;
         }
 
-        await loadProfileData();
+        await Promise.all([loadProfileData(), refreshGitHubSessionState()]);
         const display = githubUser.name?.trim() || githubUser.login?.trim() || 'GitHub account';
         showStatus('integrations', {
           tone: 'success',
@@ -355,6 +457,7 @@ export function ProfileOverview() {
   }, [
     isGitHubOAuthEnabled,
     loadProfileData,
+    refreshGitHubSessionState,
     resolveGitHubOAuthRedirectUri,
     routeAuthIntegrationsToSignIn,
     shouldRouteAuthIntegrationsToSignIn,
@@ -421,6 +524,99 @@ export function ProfileOverview() {
     }
   }
 
+  async function handleSaveMercuryKey(): Promise<void> {
+    clearSectionStatus('integrations');
+    const apiKey = mercuryApiKey.trim();
+    if (!apiKey) {
+      const message = 'Mercury API key is required.';
+      showValidationAlert(message);
+      showStatus('integrations', { message, tone: 'error' });
+      return;
+    }
+
+    setIsSavingMercuryKey(true);
+    try {
+      const nextStatus = await saveMercuryApiKey(apiKey);
+      setMercuryCredentialStatus(nextStatus);
+      setMercuryApiKey('');
+      showStatus('integrations', { message: 'Mercury API key saved.', tone: 'success' });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to save Mercury API key.';
+      showActionErrorAlert(message);
+      showStatus('integrations', { message, tone: 'error' });
+    } finally {
+      setIsSavingMercuryKey(false);
+    }
+  }
+
+  async function handleTestMercuryKey(): Promise<void> {
+    clearSectionStatus('integrations');
+    setIsTestingMercuryKey(true);
+
+    try {
+      await testMercuryApiKey();
+      await refreshMercuryCredentialStatus();
+      showStatus('integrations', { message: 'Mercury API key connected successfully.', tone: 'success' });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to test Mercury API key.';
+      showActionErrorAlert(message);
+      showStatus('integrations', { message, tone: 'error' });
+    } finally {
+      setIsTestingMercuryKey(false);
+    }
+  }
+
+  async function handleDeleteMercuryKey(): Promise<void> {
+    clearSectionStatus('integrations');
+    const confirmed = await showSystemConfirm({
+      title: 'Delete Mercury API key?',
+      message: 'This removes the saved Mercury key from your Time2Pay hosted profile.',
+      confirmLabel: 'Delete',
+      cancelLabel: 'Cancel',
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    setIsDeletingMercuryKey(true);
+    try {
+      await deleteMercuryApiKey();
+      setMercuryCredentialStatus({ configured: false, keyLastFour: null, updatedAt: null });
+      setMercuryApiKey('');
+      showStatus('integrations', { message: 'Mercury API key deleted.', tone: 'success' });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to delete Mercury API key.';
+      showActionErrorAlert(message);
+      showStatus('integrations', { message, tone: 'error' });
+    } finally {
+      setIsDeletingMercuryKey(false);
+    }
+  }
+
+  async function handleOpenMercuryReferral(): Promise<void> {
+    clearSectionStatus('integrations');
+    setIsOpeningMercuryReferral(true);
+
+    try {
+      const nextStatus = await trackMercuryReferralClick();
+      if (nextStatus) {
+        setMercuryReferralStatus(nextStatus);
+      }
+      openExternalUrl(MERCURY_REFERRAL_URL);
+      showStatus('integrations', {
+        message: 'Mercury referral visit recorded. Premium access is granted manually after qualification is verified.',
+        tone: 'success',
+      });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to record Mercury referral visit.';
+      showStatus('integrations', { message, tone: 'error' });
+      openExternalUrl(MERCURY_REFERRAL_URL);
+    } finally {
+      setIsOpeningMercuryReferral(false);
+    }
+  }
+
   function openExternalUrl(url: string, options?: { authRelated?: boolean }): void {
     if (options?.authRelated && shouldRouteAuthIntegrationsToSignIn) {
       routeAuthIntegrationsToSignIn();
@@ -456,13 +652,28 @@ export function ProfileOverview() {
       return;
     }
 
+    clearSectionStatus('integrations');
+    setIsSigningInWithGitHub(true);
+    showStatus('integrations', {
+      tone: 'neutral',
+      message: 'Redirecting to GitHub so you can approve repository sync.',
+    });
+
     const authorizeUrl = new URL(GITHUB_OAUTH_AUTHORIZE_URL);
     authorizeUrl.searchParams.set('client_id', githubClientId);
     authorizeUrl.searchParams.set('redirect_uri', redirectUri);
     authorizeUrl.searchParams.set('scope', GITHUB_OAUTH_SCOPE);
     authorizeUrl.searchParams.set('state', oauthState);
 
-    window.location.assign(authorizeUrl.toString());
+    try {
+      window.location.assign(authorizeUrl.toString());
+    } catch (error) {
+      setIsSigningInWithGitHub(false);
+      showStatus('integrations', {
+        tone: 'error',
+        message: error instanceof Error ? error.message : 'Failed to open GitHub OAuth.',
+      });
+    }
   }
 
   async function handleExportData(): Promise<void> {
@@ -539,6 +750,23 @@ export function ProfileOverview() {
       }
     } finally {
       setIsImportingData(false);
+    }
+  }
+
+  async function handleSignOut(): Promise<void> {
+    clearSectionStatus('general');
+    setIsSigningOut(true);
+
+    try {
+      await signOutSupabase();
+      showStatus('general', { message: 'Signed out.', tone: 'success' });
+      router.replace('/' as never);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to sign out.';
+      showActionErrorAlert(message);
+      showStatus('general', { message, tone: 'error' });
+    } finally {
+      setIsSigningOut(false);
     }
   }
 
@@ -629,74 +857,183 @@ export function ProfileOverview() {
         {showIntegrations ? (
           <View className="gap-2">
             <Text className="text-sm text-muted">
-              GitHub connection is for repository/commit access only. It does not auto-fill your
+              GitHub access is for repository and commit lookup only. It does not auto-fill your
               personal profile name or email.
             </Text>
-            {isGitHubOAuthEnabled && !githubPat.trim() ? (
+            {isGitHubOAuthEnabled ? (
               <Pressable
                 className={`self-start rounded-full border px-4 py-2 ${isSigningInWithGitHub ? 'opacity-70' : ''}`}
-                style={{ borderColor: '#ffffff', backgroundColor: '#24292f' }}
-                onPress={startGitHubOAuth}
-                disabled={isSigningInWithGitHub}
+                style={
+                  hasGitHubRepoAccess
+                    ? { borderColor: '#15803d', backgroundColor: '#166534' }
+                    : { borderColor: '#ffffff', backgroundColor: '#24292f' }
+                }
+                onPress={shouldShowManualGitHubSyncButton ? startGitHubOAuth : undefined}
+                disabled={isSigningInWithGitHub || !shouldShowManualGitHubSyncButton}
               >
                 <View className="flex-row items-center gap-2">
                   <Octicons name="mark-github" size={16} color="#ffffff" />
                   <Text className="font-semibold" style={{ color: '#ffffff' }}>
-                    {isSigningInWithGitHub ? 'Connecting GitHub...' : 'Sign in with GitHub'}
+                    {isSigningInWithGitHub
+                      ? 'Redirecting to GitHub...'
+                      : 'Sync repositories from GitHub'}
                   </Text>
+                  {hasGitHubRepoAccess ? (
+                    <View
+                      className="items-center justify-center rounded-full"
+                      style={{ width: 18, height: 18, backgroundColor: '#22c55e' }}
+                    >
+                      <Text className="text-xs font-bold" style={{ color: '#052e16' }}>
+                        ✓
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
               </Pressable>
             ) : null}
-            <View className="flex-row items-center justify-between gap-2">
-              <Text className="flex-1 text-sm text-muted">
-                Optional. Increases GitHub API rate limit from 60 to 5,000 requests/hour.
-              </Text>
-              <Pressable
-                className="h-7 w-7 items-center justify-center rounded-full border border-border bg-background"
-                onPress={() => setShowPatInfoModal(true)}
-              >
-                <Text className="text-sm font-bold text-heading">i</Text>
-              </Pressable>
-            </View>
             <Pressable
-              className="self-start rounded-full border px-4 py-2"
-              style={{ borderColor: '#d0d7de', backgroundColor: '#f6f8fa' }}
-              onPress={() => openExternalUrl(GITHUB_PAT_CREATE_URL, { authRelated: true })}
+              className="flex-row items-center justify-between rounded-md border border-border bg-background px-3 py-2"
+              onPress={() => setShowAdvancedGitHubOptions((current) => !current)}
             >
-              <View className="flex-row items-center gap-2">
-                <Octicons name="mark-github" size={16} color="#24292f" />
-                <Text className="font-semibold" style={{ color: '#24292f' }}>
-                  Create GitHub PAT
-                </Text>
-              </View>
+              <Text className="font-semibold text-heading">Advanced GitHub token options</Text>
+              <Text className="text-sm font-semibold text-secondary">
+                {showAdvancedGitHubOptions ? 'Hide' : 'Show'}
+              </Text>
             </Pressable>
-            {githubPat.trim() ? (
+            {showAdvancedGitHubOptions ? (
+              <View className="gap-2 rounded-md border border-border bg-background p-3">
+                <View className="flex-row items-center justify-between gap-2">
+                  <Text className="flex-1 text-sm text-muted">
+                    {hasGitHubSessionToken
+                      ? 'Your current GitHub sign-in already unlocks repo access. Use a PAT only if you want a manually saved fallback token on this profile.'
+                      : 'Optional. Save a PAT if you want a manual GitHub token on this profile or need repo access outside the current GitHub sign-in session.'}
+                  </Text>
+                  <Pressable
+                    className="h-7 w-7 items-center justify-center rounded-full border border-border bg-card"
+                    onPress={() => setShowPatInfoModal(true)}
+                  >
+                    <Text className="text-sm font-bold text-heading">i</Text>
+                  </Pressable>
+                </View>
+                <Pressable
+                  className="self-start rounded-full border px-4 py-2"
+                  style={{ borderColor: '#d0d7de', backgroundColor: '#f6f8fa' }}
+                  onPress={() => openExternalUrl(GITHUB_PAT_CREATE_URL, { authRelated: true })}
+                >
+                  <View className="flex-row items-center gap-2">
+                    <Octicons name="mark-github" size={16} color="#24292f" />
+                    <Text className="font-semibold" style={{ color: '#24292f' }}>
+                      Create GitHub PAT
+                    </Text>
+                  </View>
+                </Pressable>
+                <TextInput
+                  value={githubPat}
+                  onChangeText={setGithubPat}
+                  placeholder="GitHub access token or PAT (optional)"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  secureTextEntry
+                  className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
+                />
+                <Pressable
+                  className="rounded-md bg-secondary px-4 py-2"
+                  onPress={() => {
+                    handleSaveIntegrations().catch(() => undefined);
+                  }}
+                  disabled={isSavingIntegrations || isLoading}
+                >
+                  <Text className="text-center font-semibold text-white">
+                    {isSavingIntegrations ? 'Saving...' : 'Save Integrations'}
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
+            {shouldShowHostedMercuryCredentials ? (
+              <View className="gap-2 rounded-md border border-border bg-background p-3">
+                <Text className="text-sm font-semibold text-heading">Mercury production API key</Text>
+                <Text className="text-sm text-muted">
+                  {mercuryCredentialStatus?.configured
+                    ? `Saved key ending in ${mercuryCredentialStatus.keyLastFour ?? '....'}.`
+                    : 'No Mercury production key is saved for this hosted profile.'}
+                </Text>
+                <TextInput
+                  value={mercuryApiKey}
+                  onChangeText={setMercuryApiKey}
+                  placeholder="Mercury production API key"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  secureTextEntry
+                  className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
+                />
+                <View className="flex-row flex-wrap gap-2">
+                  <Pressable
+                    className="rounded-md bg-secondary px-4 py-2"
+                    onPress={() => {
+                      handleSaveMercuryKey().catch(() => undefined);
+                    }}
+                    disabled={isSavingMercuryKey || isLoading}
+                  >
+                    <Text className="text-center font-semibold text-white">
+                      {isSavingMercuryKey ? 'Saving...' : 'Save Mercury Key'}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    className="rounded-md border border-border px-4 py-2"
+                    onPress={() => {
+                      handleTestMercuryKey().catch(() => undefined);
+                    }}
+                    disabled={isTestingMercuryKey || !mercuryCredentialStatus?.configured}
+                  >
+                    <Text className="text-center font-semibold text-heading">
+                      {isTestingMercuryKey ? 'Testing...' : 'Test Key'}
+                    </Text>
+                  </Pressable>
+                  {mercuryCredentialStatus?.configured ? (
+                    <Pressable
+                      className="rounded-md border border-danger px-4 py-2"
+                      onPress={() => {
+                        handleDeleteMercuryKey().catch(() => undefined);
+                      }}
+                      disabled={isDeletingMercuryKey}
+                    >
+                      <Text className="text-center font-semibold text-danger">
+                        {isDeletingMercuryKey ? 'Deleting...' : 'Delete Key'}
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              </View>
+            ) : null}
+            {shouldShowHostedMercuryCredentials ? (
+              <View className="gap-2 rounded-md border border-border bg-background p-3">
+                <Text className="text-sm font-semibold text-heading">Mercury referral premium</Text>
+                <Text className="text-sm text-muted">
+                  {mercuryReferralStatus?.premiumAccess
+                    ? `Premium access granted${mercuryReferralStatus.premiumAccessGrantedAt ? ` on ${new Date(mercuryReferralStatus.premiumAccessGrantedAt).toLocaleDateString()}` : ''}.`
+                    : mercuryReferralStatus && mercuryReferralStatus.status !== 'none'
+                      ? `Referral status: ${mercuryReferralStatus.status.replace('_', ' ')}.`
+                      : 'No Mercury referral visit recorded for this profile yet.'}
+                </Text>
+                <Pressable
+                  className="self-start rounded-md bg-secondary px-4 py-2"
+                  onPress={() => {
+                    handleOpenMercuryReferral().catch(() => undefined);
+                  }}
+                  disabled={isOpeningMercuryReferral}
+                >
+                  <Text className="font-semibold text-white">
+                    {isOpeningMercuryReferral ? 'Opening...' : 'Open Mercury Referral'}
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
+            {isHostedMode() && tourModeEnabled ? (
               <InlineNotice
-                tone="success"
-                message="GitHub is connected. OAuth/PAT token is saved."
-                textClassName="text-xs text-success"
+                tone="neutral"
+                message="Tour mode uses Mercury sandbox credentials. Sign in to save your own production Mercury API key."
               />
             ) : null}
-            <TextInput
-              value={githubPat}
-              onChangeText={setGithubPat}
-              placeholder="GitHub Personal Access Token (optional)"
-              autoCapitalize="none"
-              autoCorrect={false}
-              secureTextEntry
-              className="rounded-md border border-border bg-background px-3 py-2 text-foreground"
-            />
-            <Pressable
-              className="rounded-md bg-secondary px-4 py-2"
-              onPress={() => {
-                handleSaveIntegrations().catch(() => undefined);
-              }}
-              disabled={isSavingIntegrations || isLoading}
-            >
-              <Text className="text-center font-semibold text-white">
-                {isSavingIntegrations ? 'Saving...' : 'Save Integrations'}
-              </Text>
-            </Pressable>
             {sectionStatus?.section === 'integrations' ? (
               <InlineNotice tone={sectionStatus.tone} message={sectionStatus.message} />
             ) : null}
@@ -755,6 +1092,22 @@ export function ProfileOverview() {
           <InlineNotice tone={sectionStatus.tone} message={sectionStatus.message} />
         ) : null}
       </View>
+
+      {isHostedMode() && isAuthenticated ? (
+        <View className="items-end pt-2">
+          <Pressable
+            className={`rounded-md border border-danger px-4 py-2 ${isSigningOut ? 'opacity-70' : ''}`}
+            onPress={() => {
+              handleSignOut().catch(() => undefined);
+            }}
+            disabled={isSigningOut}
+          >
+            <Text className="text-center font-semibold text-danger">
+              {isSigningOut ? 'Signing out...' : 'Sign Out'}
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
         </View>
       </View>
 

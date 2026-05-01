@@ -3,6 +3,7 @@ import { clients, projects, tasks } from '@/database/hosted/clients-projects/sch
 import { invoiceSessionLinks } from '@/database/hosted/invoice-session-links/schema';
 import { invoices } from '@/database/hosted/invoices/schema';
 import { milestoneChecklistItems, projectMilestones } from '@/database/hosted/milestones/schema';
+import { mercuryCredentials, mercuryReferrals } from '@/database/hosted/mercury/schema';
 import { userProfiles } from '@/database/hosted/profile/schema';
 import { sessionBreaks, sessions } from '@/database/hosted/sessions/schema';
 
@@ -16,6 +17,22 @@ export const userProfilesRelations = relations(userProfiles, ({ many }) => ({
   sessions: many(sessions),
   sessionBreaks: many(sessionBreaks),
   invoiceSessionLinks: many(invoiceSessionLinks),
+  mercuryCredentials: many(mercuryCredentials),
+  mercuryReferrals: many(mercuryReferrals),
+}));
+
+export const mercuryCredentialsRelations = relations(mercuryCredentials, ({ one }) => ({
+  userProfile: one(userProfiles, {
+    fields: [mercuryCredentials.authUserId],
+    references: [userProfiles.authUserId],
+  }),
+}));
+
+export const mercuryReferralsRelations = relations(mercuryReferrals, ({ one }) => ({
+  userProfile: one(userProfiles, {
+    fields: [mercuryReferrals.authUserId],
+    references: [userProfiles.authUserId],
+  }),
 }));
 
 export const clientsRelations = relations(clients, ({ one, many }) => ({
