@@ -40,7 +40,7 @@ export const TIME2PAY_SOCIAL_IMAGE_PATH = '/images/time2payLogo.png';
 export const LANDING_SEO_TITLE =
   'Time2Pay – Time Tracking & Invoicing App for Freelancers and Subcontractors';
 export const LANDING_SEO_DESCRIPTION =
-  'Clock in, track hours by client and project, and send professional invoices in minutes. Time2Pay is a time tracking and invoicing app for freelancers and independent contractors—with GitHub proof of work and one-click Mercury payments.';
+  'Clock in, track hours by client and project, and send professional invoices in minutes. Time2Pay is a time tracking and invoicing app for freelancers and independent contractors—starting at $1/month or $10 lifetime, with GitHub proof of work and one-click Mercury payments.';
 
 export const heroSection: LandingSection = {
   id: 'hero',

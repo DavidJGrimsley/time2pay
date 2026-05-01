@@ -33,19 +33,19 @@ describe('landing page content', () => {
 
     expect(heroSection.title).toBe('Time2Pay');
     expect(landingCopy).toContain('GitHub');
-    expect(landingCopy).toContain('map projects to repos');
+    expect(landingCopy).toContain('commits and pull requests follow the session');
     expect(landingCopy).toContain('pull requests');
-    expect(workflowSection.eyebrow).toBe('GitHub Integration (optional for developers)');
-    expect(workflowSection.title).toBe('Integrate with GitHub');
-    expect(landingCopy).toContain('Mercury invoices that are payable with the click of a button');
-    expect(landingCopy).toContain('invoices with your branding that are ready to be emailed');
+    expect(workflowSection.eyebrow).toBe('GitHub · Optional for developers');
+    expect(workflowSection.title).toBe('Bill against the work you actually did.');
+    expect(landingCopy).toContain('Mercury invoices your clients can pay with one click');
+    expect(landingCopy).toContain('branded invoices ready to email');
     expect(landingCopy).toContain('$1/month');
     expect(landingCopy).toContain('one-time $10 lifetime membership');
     expect(landingCopy).toContain('Self-Host for Free');
     expect(landingCopy).toContain('free lifetime hosted access');
     expect(features[1]?.id).toBe('invoices');
-    expect(features[1]?.body).toContain('your branding');
-    expect(features[2]?.title).toBe('Keep your billable work tied to the right customer and project.');
+    expect(features[1]?.body).toContain('branded invoices');
+    expect(features[2]?.title).toBe('Keep every billable hour tied to the right client and project.');
     expect(pricingBullets.map((bullet) => bullet.id)).toEqual([
       'mercury-lifetime',
       'hosted',
@@ -68,8 +68,8 @@ describe('landing page content', () => {
       socialImageUrl: 'https://time2pay.app/images/time2payLogo.png',
     });
 
-    expect(LANDING_SEO_TITLE).toContain('GitHub PR and Commit Invoicing');
-    expect(LANDING_SEO_DESCRIPTION).toContain('Mercury invoices that are payable with the click of a button');
+    expect(LANDING_SEO_TITLE).toContain('Time Tracking & Invoicing');
+    expect(LANDING_SEO_DESCRIPTION).toContain('one-click Mercury payments');
     expect(LANDING_SEO_DESCRIPTION).toContain('$1/month');
     expect(LANDING_SEO_DESCRIPTION).toContain('$10 lifetime');
     expect(schema).toMatchObject({
