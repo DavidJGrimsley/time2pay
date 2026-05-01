@@ -1,7 +1,7 @@
 import { Octicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Linking, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Image, Linking, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import {
   getUserProfile,
   initializeDatabase,
@@ -950,8 +950,42 @@ export function ProfileOverview() {
               </View>
             ) : null}
             {shouldShowHostedMercuryCredentials ? (
-              <View className="gap-2 rounded-md border border-border bg-background p-3">
-                <Text className="text-sm font-semibold text-heading">Mercury production API key</Text>
+              <View
+                style={{
+                  gap: 10,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: '#dce2ea',
+                  backgroundColor: '#f6f8fb',
+                  padding: 12,
+                }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Image
+                    source={{ uri: '/mercury-brand-kit/mercury-brand-kit/mercury_logo_icon.png' }}
+                    style={{ width: 20, height: 20 }}
+                    resizeMode="contain"
+                    accessibilityLabel="Mercury"
+                  />
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: '#272735' }}>
+                    Mercury production API key
+                  </Text>
+                  {mercuryCredentialStatus?.configured ? (
+                    <View
+                      style={{
+                        marginLeft: 'auto',
+                        borderRadius: 999,
+                        backgroundColor: '#d1fae5',
+                        paddingHorizontal: 8,
+                        paddingVertical: 2,
+                      }}
+                    >
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: '#065f46' }}>
+                        Connected
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
                 <Text className="text-sm text-muted">
                   {mercuryCredentialStatus?.configured
                     ? `Saved key ending in ${mercuryCredentialStatus.keyLastFour ?? '....'}.`
@@ -968,24 +1002,38 @@ export function ProfileOverview() {
                 />
                 <View className="flex-row flex-wrap gap-2">
                   <Pressable
-                    className="rounded-md bg-secondary px-4 py-2"
+                    style={{
+                      borderRadius: 8,
+                      backgroundColor: '#272735',
+                      paddingHorizontal: 16,
+                      paddingVertical: 8,
+                      opacity: isSavingMercuryKey || isLoading ? 0.6 : 1,
+                    }}
                     onPress={() => {
                       handleSaveMercuryKey().catch(() => undefined);
                     }}
                     disabled={isSavingMercuryKey || isLoading}
                   >
-                    <Text className="text-center font-semibold text-white">
+                    <Text style={{ fontWeight: '600', color: '#ffffff', fontSize: 13 }}>
                       {isSavingMercuryKey ? 'Saving...' : 'Save Mercury Key'}
                     </Text>
                   </Pressable>
                   <Pressable
-                    className="rounded-md border border-border px-4 py-2"
+                    style={{
+                      borderRadius: 8,
+                      borderWidth: 1,
+                      borderColor: '#dce2ea',
+                      backgroundColor: '#ffffff',
+                      paddingHorizontal: 16,
+                      paddingVertical: 8,
+                      opacity: isTestingMercuryKey || !mercuryCredentialStatus?.configured ? 0.5 : 1,
+                    }}
                     onPress={() => {
                       handleTestMercuryKey().catch(() => undefined);
                     }}
                     disabled={isTestingMercuryKey || !mercuryCredentialStatus?.configured}
                   >
-                    <Text className="text-center font-semibold text-heading">
+                    <Text style={{ fontWeight: '600', color: '#272735', fontSize: 13 }}>
                       {isTestingMercuryKey ? 'Testing...' : 'Test Key'}
                     </Text>
                   </Pressable>
@@ -1006,8 +1054,42 @@ export function ProfileOverview() {
               </View>
             ) : null}
             {shouldShowHostedMercuryCredentials ? (
-              <View className="gap-2 rounded-md border border-border bg-background p-3">
-                <Text className="text-sm font-semibold text-heading">Mercury referral premium</Text>
+              <View
+                style={{
+                  gap: 10,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: '#dce2ea',
+                  backgroundColor: '#f6f8fb',
+                  padding: 12,
+                }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Image
+                    source={{ uri: '/mercury-brand-kit/mercury-brand-kit/mercury_logo_icon.png' }}
+                    style={{ width: 20, height: 20 }}
+                    resizeMode="contain"
+                    accessibilityLabel="Mercury"
+                  />
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: '#272735' }}>
+                    Mercury referral premium
+                  </Text>
+                  {mercuryReferralStatus?.premiumAccess ? (
+                    <View
+                      style={{
+                        marginLeft: 'auto',
+                        borderRadius: 999,
+                        backgroundColor: '#d1fae5',
+                        paddingHorizontal: 8,
+                        paddingVertical: 2,
+                      }}
+                    >
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: '#065f46' }}>
+                        Premium
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
                 <Text className="text-sm text-muted">
                   {mercuryReferralStatus?.premiumAccess
                     ? `Premium access granted${mercuryReferralStatus.premiumAccessGrantedAt ? ` on ${new Date(mercuryReferralStatus.premiumAccessGrantedAt).toLocaleDateString()}` : ''}.`
@@ -1016,13 +1098,20 @@ export function ProfileOverview() {
                       : 'No Mercury referral visit recorded for this profile yet.'}
                 </Text>
                 <Pressable
-                  className="self-start rounded-md bg-secondary px-4 py-2"
+                  style={{
+                    alignSelf: 'flex-start',
+                    borderRadius: 8,
+                    backgroundColor: '#272735',
+                    paddingHorizontal: 16,
+                    paddingVertical: 8,
+                    opacity: isOpeningMercuryReferral ? 0.6 : 1,
+                  }}
                   onPress={() => {
                     handleOpenMercuryReferral().catch(() => undefined);
                   }}
                   disabled={isOpeningMercuryReferral}
                 >
-                  <Text className="font-semibold text-white">
+                  <Text style={{ fontWeight: '600', color: '#ffffff', fontSize: 13 }}>
                     {isOpeningMercuryReferral ? 'Opening...' : 'Open Mercury Referral'}
                   </Text>
                 </Pressable>

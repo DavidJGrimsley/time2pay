@@ -1,6 +1,7 @@
 import { Text, View } from 'react-native';
 import { useStableWindowDimensions } from '@/hooks/use-stable-window-dimensions';
 import { ControlledMercurySendMoneyWorkflow } from '@/components/controlled-mercury-send-money-workflow';
+import { MercuryKeyGate } from '@/components/mercury-key-gate';
 import { mercuryUiAdapter } from '@/services/mercury-ui-adapters';
 import { showActionErrorAlert } from '@/services/system-alert';
 
@@ -22,10 +23,12 @@ export function PaymentsOverview() {
       </Text>
       <View className="items-center">
         <View className="w-full gap-3" style={contentWidthStyle}>
-          <ControlledMercurySendMoneyWorkflow
-            adapter={mercuryUiAdapter}
-            onError={showActionErrorAlert}
-          />
+          <MercuryKeyGate>
+            <ControlledMercurySendMoneyWorkflow
+              adapter={mercuryUiAdapter}
+              onError={showActionErrorAlert}
+            />
+          </MercuryKeyGate>
         </View>
       </View>
     </View>

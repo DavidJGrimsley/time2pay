@@ -12,7 +12,7 @@ const { loadFirstEnvFile } = require('./env-loader.cjs');
 
 loadFirstEnvFile({ cwd: process.cwd(), prefix: '[db:migrate]' });
 
-const URL_PRECEDENCE = ['DRIZZLE_DATABASE_URL', 'DATABASE_URL', 'DATABASE_DIRECT_URL'];
+const URL_PRECEDENCE = ['DATABASE_DIRECT_URL', 'DATABASE_URL'];
 const chosenEnvKey = URL_PRECEDENCE.find((key) => process.env[key]?.trim());
 const selectedUrl = chosenEnvKey ? process.env[chosenEnvKey]?.trim() : '';
 
@@ -188,7 +188,7 @@ try {
   console.error('[db:migrate] Migration failed.');
   if (error?.code === 'ENOTFOUND') {
     console.error(
-      `[db:migrate] Host resolution failed for "${host}". If this is a direct URL, switch to the pooler URL on port 6543.`
+      `[db:migrate] Host resolution failed for "${host}". Check DATABASE_DIRECT_URL — use the Supabase session pooler (same pooler host, port 5432, no ?pgbouncer param) rather than the db.<project>.supabase.co direct URL.`
     );
   } else if (String(error?.message || '').includes('Tenant or user not found')) {
     console.error(
