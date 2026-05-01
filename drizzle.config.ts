@@ -13,9 +13,8 @@ const { loadFirstEnvFile } = require('./scripts/env-loader.cjs') as {
 loadFirstEnvFile({ cwd: process.cwd(), prefix: '[drizzle]' });
 
 const databaseUrl =
-  process.env.DRIZZLE_DATABASE_URL?.trim() ||
-  process.env.DATABASE_URL?.trim() ||
   process.env.DATABASE_DIRECT_URL?.trim() ||
+  process.env.DATABASE_URL?.trim() ||
   'postgresql://postgres:postgres@localhost:5432/postgres';
 
 export default defineConfig({
