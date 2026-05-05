@@ -180,3 +180,9 @@ Milestone Payments:
 - [ ] Keep hosted SaaS operations/private services proprietary (billing, managed backups, multi-tenant infra)
 - [ ] Choose OSS license for core (default candidate: MIT) and document what is not included
 - [ ] Add `LICENSE`, `CONTRIBUTING.md`, and `SECURITY.md` before public launch
+
+
+## Other Cleanup random TODOs
+- [ ] change all animations from the stupid thing where its popping the whole parent view and changing size. it's re rendering too much and the springy animation is just terrible. Let's do some smooth growing of parent views and fading in and out of components.
+- [ ] Mercury Invoicing should not be visible unless the user has mercury ar api unlocked (by having a plus or greate plan) I thought I implemented this before, we should check the functionality before we show the invoice by checking their api key
+- [ ] often when navigating to a specific page with the top nav bar, the app just forces me to the dashboard instead of the page i clicked. the second click will take me to the page I want to go to. Our navigation bar should live in our tabs _layout file and not individual files!

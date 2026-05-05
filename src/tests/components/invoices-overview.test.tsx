@@ -73,6 +73,8 @@ vi.mock('@/services/mercury-credentials', () => ({
     configured: false,
     keyLastFour: null,
     updatedAt: null,
+    arAccessAvailable: null,
+    arAccessVerifiedAt: null,
   }),
 }));
 

@@ -11,6 +11,7 @@
     "web": "expo start --web",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node scripts/db-migrate.mjs",
+    "mercury:backfill-vault": "node scripts/backfill-mercury-vault.mjs",
     "db:migrate:raw": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "db:check": "drizzle-kit check",

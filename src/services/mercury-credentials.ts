@@ -4,13 +4,16 @@ export type MercuryCredentialStatus = {
   configured: boolean;
   keyLastFour: string | null;
   updatedAt: string | null;
+  arAccessAvailable: boolean | null;
+  arAccessVerifiedAt: string | null;
 };
 
 type MercuryCredentialAction =
   | { action: 'status' }
   | { action: 'save'; payload: { apiKey: string } }
   | { action: 'delete' }
-  | { action: 'test' };
+  | { action: 'test' }
+  | { action: 'setArAccess'; payload: { enabled: boolean } };
 
 async function getHostedBearerToken(): Promise<string> {
   const supabase = getSupabaseClient();
@@ -74,4 +77,11 @@ export function deleteMercuryApiKey(): Promise<void> {
 
 export function testMercuryApiKey(): Promise<void> {
   return credentialAction<void>({ action: 'test' });
+}
+
+export function setMercuryArAccess(enabled: boolean): Promise<MercuryCredentialStatus> {
+  return credentialAction<MercuryCredentialStatus>({
+    action: 'setArAccess',
+    payload: { enabled },
+  });
 }

@@ -15,6 +15,20 @@
       "when": 1776686400000,
       "tag": "0001_mercury_credentials_referrals",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777741674276,
+      "tag": "0002_mercury_hardening",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1777757397815,
+      "tag": "0003_security_lints",
+      "breakpoints": true
     }
   ]
 }
