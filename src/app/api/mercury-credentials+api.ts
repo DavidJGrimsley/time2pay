@@ -3,14 +3,17 @@ import {
   deleteMercuryCredentialForUser,
   getMercuryCredentialStatusForUser,
   saveMercuryCredentialForUser,
+  setMercuryArAccessForUser,
   testMercuryCredentialForUser,
 } from '@/server/mercury/credentials';
+import { redactMercuryString } from '@/server/mercury/redact';
 
 type MercuryCredentialActionRequest =
   | { action: 'status' }
   | { action: 'save'; payload?: { apiKey?: string } }
   | { action: 'delete' }
-  | { action: 'test' };
+  | { action: 'test' }
+  | { action: 'setArAccess'; payload?: { enabled?: boolean } };
 
 async function parseRequest(request: Request): Promise<MercuryCredentialActionRequest> {
   const body = (await request.json()) as MercuryCredentialActionRequest;
@@ -21,7 +24,7 @@ async function parseRequest(request: Request): Promise<MercuryCredentialActionRe
 }
 
 function errorResponse(error: unknown, status = 400): Response {
-  const message = formatCredentialError(error);
+  const message = redactMercuryString(formatCredentialError(error));
   return Response.json(
     { error: message },
     { status },
@@ -93,6 +96,10 @@ export async function POST(request: Request): Promise<Response> {
       case 'test':
         await testMercuryCredentialForUser(authUserId);
         return Response.json({ ok: true });
+      case 'setArAccess': {
+        const enabled = payload.payload?.enabled === true;
+        return Response.json(await setMercuryArAccessForUser(authUserId, enabled));
+      }
       default:
         return errorResponse(new Error('Unsupported Mercury credential action.'));
     }

@@ -56,7 +56,7 @@ export function InvoicesOverview() {
           </View>
 
           {builderMode === 'mercury' ? (
-            <MercuryKeyGate>
+            <MercuryKeyGate requireArAccess>
               <MercurySessionInvoiceWorkspace
                 adapter={mercuryUiAdapter}
                 sessionAdapter={sessionAdapter}

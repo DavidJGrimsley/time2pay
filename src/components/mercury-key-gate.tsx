@@ -1,7 +1,9 @@
 import type { PropsWithChildren } from 'react';
-import { Image, Pressable, Text, View } from 'react-native';
+import { Image, Linking, Pressable, Text, View } from 'react-native';
 import { Link, type Href } from 'expo-router';
 import { useMercuryKeyStatus } from '@/hooks/use-mercury-key-status';
+
+const MERCURY_PLUS_URL = 'https://mercury.com/business-banking/plus';
 
 const MERCURY_NAVY = '#272735';
 const MERCURY_SOFT = '#eef2f7';
@@ -13,12 +15,30 @@ function MercuryBlockedCard({
   message,
   ctaLabel,
   ctaHref,
+  ctaExternalUrl,
 }: {
   title: string;
   message: string;
   ctaLabel?: string;
   ctaHref?: string;
+  ctaExternalUrl?: string;
 }) {
+  const ctaButton =
+    ctaLabel && (ctaHref || ctaExternalUrl) ? (
+      <Pressable
+        style={{
+          alignSelf: 'flex-start',
+          borderRadius: 8,
+          backgroundColor: MERCURY_NAVY,
+          paddingHorizontal: 16,
+          paddingVertical: 8,
+        }}
+        onPress={ctaExternalUrl ? () => Linking.openURL(ctaExternalUrl) : undefined}
+      >
+        <Text style={{ fontWeight: '600', color: '#ffffff', fontSize: 13 }}>{ctaLabel}</Text>
+      </Pressable>
+    ) : null;
+
   return (
     <View
       style={{
@@ -40,27 +60,24 @@ function MercuryBlockedCard({
         <Text style={{ fontSize: 16, fontWeight: '700', color: MERCURY_NAVY }}>{title}</Text>
       </View>
       <Text style={{ fontSize: 13, lineHeight: 20, color: '#4a4a6a' }}>{message}</Text>
-      {ctaLabel && ctaHref ? (
+      {ctaHref && ctaLabel ? (
         <Link href={ctaHref as Href} asChild>
-          <Pressable
-            style={{
-              alignSelf: 'flex-start',
-              borderRadius: 8,
-              backgroundColor: MERCURY_NAVY,
-              paddingHorizontal: 16,
-              paddingVertical: 8,
-            }}
-          >
-            <Text style={{ fontWeight: '600', color: '#ffffff', fontSize: 13 }}>{ctaLabel}</Text>
-          </Pressable>
+          {ctaButton}
         </Link>
-      ) : null}
+      ) : (
+        ctaButton
+      )}
     </View>
   );
 }
 
-export function MercuryKeyGate({ children }: PropsWithChildren) {
-  const { isLoading, accessMode, configured, requiresSignIn } = useMercuryKeyStatus();
+type MercuryKeyGateProps = PropsWithChildren<{
+  requireArAccess?: boolean;
+}>;
+
+export function MercuryKeyGate({ children, requireArAccess = false }: MercuryKeyGateProps) {
+  const { isLoading, accessMode, configured, arAccessAvailable, requiresSignIn } =
+    useMercuryKeyStatus();
 
   if (isLoading || accessMode === null) {
     return (
@@ -103,6 +120,21 @@ export function MercuryKeyGate({ children }: PropsWithChildren) {
       <MercuryBlockedCard
         title="Mercury not connected"
         message="Save your Mercury production API key in Profile to unlock banking and payment features."
+        ctaLabel="Open Profile"
+        ctaHref="/profile"
+      />
+    );
+  }
+
+  // Default-deny the AR-gated UI: invoicing is opt-in. The user enables it
+  // from their profile only after confirming they have a Mercury Plus or
+  // higher plan. We can't auto-detect the plan tier reliably, so the user
+  // is the source of truth.
+  if (requireArAccess && arAccessAvailable !== true) {
+    return (
+      <MercuryBlockedCard
+        title="Mercury invoicing requires Plus plan"
+        message="Mercury invoicing (the AR API) is only available on Mercury Plus or higher. If you have a Plus plan, open Profile and click 'Enable Mercury Invoicing' to turn it on."
         ctaLabel="Open Profile"
         ctaHref="/profile"
       />

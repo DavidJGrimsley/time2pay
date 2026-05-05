@@ -12,6 +12,7 @@ import {
 } from '@mr.dj2u/mercury';
 import { requireAuthUserId } from '@/server/db/_shared/auth';
 import { getDecryptedMercuryApiKeyForUser } from '@/server/mercury/credentials';
+import { redactMercuryError, redactMercuryString } from '@/server/mercury/redact';
 
 type MercuryAccessMode = 'local' | 'hosted' | 'tour';
 
@@ -341,10 +342,8 @@ export async function POST(request: Request): Promise<Response> {
     config = await resolveMercuryConfig(request, payload);
     client = getMercuryClient(config);
   } catch (error) {
-    return Response.json(
-      { error: error instanceof Error ? error.message : 'Invalid request.' },
-      { status: 400 },
-    );
+    const message = error instanceof Error ? error.message : 'Invalid request.';
+    return Response.json({ error: redactMercuryString(message) }, { status: 400 });
   }
 
   try {
@@ -371,9 +370,15 @@ export async function POST(request: Request): Promise<Response> {
         return Response.json({ error: 'Unsupported Mercury action.' }, { status: 400 });
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Mercury request failed.';
-    console.error('Mercury action failed:', error);
-    return Response.json({ error: message }, { status: 502 });
+    const redacted = redactMercuryError(error);
+    console.error('mercury_action_failed', {
+      action: payload.action,
+      environment: config.environment,
+      code: redacted.code,
+      httpStatus: redacted.status,
+      message: redacted.message,
+    });
+    return Response.json({ error: redacted.message || 'Mercury request failed.' }, { status: 502 });
   }
 }
 

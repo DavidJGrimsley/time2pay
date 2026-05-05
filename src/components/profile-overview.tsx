@@ -25,6 +25,7 @@ import {
   deleteMercuryApiKey,
   getMercuryCredentialStatus,
   saveMercuryApiKey,
+  setMercuryArAccess,
   testMercuryApiKey,
   type MercuryCredentialStatus,
 } from '@/services/mercury-credentials';
@@ -180,6 +181,7 @@ export function ProfileOverview() {
     useState<MercuryCredentialStatus | null>(null);
   const [isSavingMercuryKey, setIsSavingMercuryKey] = useState(false);
   const [isTestingMercuryKey, setIsTestingMercuryKey] = useState(false);
+  const [isTogglingMercuryAr, setIsTogglingMercuryAr] = useState(false);
   const [isDeletingMercuryKey, setIsDeletingMercuryKey] = useState(false);
   const [mercuryReferralStatus, setMercuryReferralStatus] =
     useState<MercuryReferralStatus | null>(null);
@@ -271,7 +273,13 @@ export function ProfileOverview() {
     try {
       setMercuryCredentialStatus(await getMercuryCredentialStatus());
     } catch (error: unknown) {
-      setMercuryCredentialStatus({ configured: false, keyLastFour: null, updatedAt: null });
+      setMercuryCredentialStatus({
+        configured: false,
+        keyLastFour: null,
+        updatedAt: null,
+        arAccessAvailable: null,
+        arAccessVerifiedAt: null,
+      });
       if (typeof console !== 'undefined' && typeof console.warn === 'function') {
         console.warn('Failed to load Mercury credential status:', error);
       }
@@ -566,6 +574,26 @@ export function ProfileOverview() {
     }
   }
 
+  async function handleToggleMercuryArAccess(enabled: boolean): Promise<void> {
+    clearSectionStatus('integrations');
+    setIsTogglingMercuryAr(true);
+
+    try {
+      const status = await setMercuryArAccess(enabled);
+      setMercuryCredentialStatus(status);
+      const message = enabled
+        ? 'Mercury invoicing enabled. The Mercury Invoice Builder is now available.'
+        : 'Mercury invoicing disabled.';
+      showStatus('integrations', { message, tone: 'success' });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to update Mercury invoicing setting.';
+      showActionErrorAlert(message);
+      showStatus('integrations', { message, tone: 'error' });
+    } finally {
+      setIsTogglingMercuryAr(false);
+    }
+  }
+
   async function handleDeleteMercuryKey(): Promise<void> {
     clearSectionStatus('integrations');
     const confirmed = await showSystemConfirm({
@@ -582,7 +610,13 @@ export function ProfileOverview() {
     setIsDeletingMercuryKey(true);
     try {
       await deleteMercuryApiKey();
-      setMercuryCredentialStatus({ configured: false, keyLastFour: null, updatedAt: null });
+      setMercuryCredentialStatus({
+        configured: false,
+        keyLastFour: null,
+        updatedAt: null,
+        arAccessAvailable: null,
+        arAccessVerifiedAt: null,
+      });
       setMercuryApiKey('');
       showStatus('integrations', { message: 'Mercury API key deleted.', tone: 'success' });
     } catch (error: unknown) {
@@ -1035,6 +1069,36 @@ export function ProfileOverview() {
                   >
                     <Text style={{ fontWeight: '600', color: '#272735', fontSize: 13 }}>
                       {isTestingMercuryKey ? 'Testing...' : 'Test Key'}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    style={{
+                      borderRadius: 8,
+                      borderWidth: 1,
+                      borderColor: '#dce2ea',
+                      backgroundColor: mercuryCredentialStatus?.arAccessAvailable === true ? '#ffffff' : '#272735',
+                      paddingHorizontal: 16,
+                      paddingVertical: 8,
+                      opacity: isTogglingMercuryAr || !mercuryCredentialStatus?.configured ? 0.5 : 1,
+                    }}
+                    onPress={() => {
+                      const next = mercuryCredentialStatus?.arAccessAvailable !== true;
+                      handleToggleMercuryArAccess(next).catch(() => undefined);
+                    }}
+                    disabled={isTogglingMercuryAr || !mercuryCredentialStatus?.configured}
+                  >
+                    <Text
+                      style={{
+                        fontWeight: '600',
+                        color: mercuryCredentialStatus?.arAccessAvailable === true ? '#272735' : '#ffffff',
+                        fontSize: 13,
+                      }}
+                    >
+                      {isTogglingMercuryAr
+                        ? 'Updating...'
+                        : mercuryCredentialStatus?.arAccessAvailable === true
+                          ? 'Disable Mercury Invoicing'
+                          : 'Enable Mercury Invoicing (Plus plan)'}
                     </Text>
                   </Pressable>
                   {mercuryCredentialStatus?.configured ? (
