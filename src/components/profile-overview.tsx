@@ -1034,6 +1034,39 @@ export function ProfileOverview() {
                   secureTextEntry
                   className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
                 />
+                <View
+                  style={{
+                    borderRadius: 8,
+                    borderWidth: 1,
+                    borderColor: '#dce2ea',
+                    backgroundColor: '#eef2f7',
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                    gap: 4,
+                  }}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#272735' }}>
+                    Using an IP allowlist on your Mercury key?
+                  </Text>
+                  <Text style={{ fontSize: 12, lineHeight: 18, color: '#4a4a6a' }}>
+                    If you enabled IP allowlisting when you created this Mercury token, add this server&apos;s outbound IP to the list — otherwise Mercury will reject every request with 401:
+                  </Text>
+                  <Text
+                    selectable
+                    style={{
+                      fontSize: 13,
+                      fontFamily: 'Menlo',
+                      fontWeight: '600',
+                      color: '#272735',
+                      marginTop: 2,
+                    }}
+                  >
+                    108.175.12.95
+                  </Text>
+                  <Text style={{ fontSize: 11, lineHeight: 16, color: '#4a4a6a' }}>
+                    Set this in Mercury: Settings → Tokens → your token → IP allowlist. Or remove the allowlist to accept requests from any origin.
+                  </Text>
+                </View>
                 <View className="flex-row flex-wrap gap-2">
                   <Pressable
                     style={{
