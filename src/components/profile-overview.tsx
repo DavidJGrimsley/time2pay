@@ -182,6 +182,7 @@ export function ProfileOverview() {
   const [isSavingMercuryKey, setIsSavingMercuryKey] = useState(false);
   const [isTestingMercuryKey, setIsTestingMercuryKey] = useState(false);
   const [isTogglingMercuryAr, setIsTogglingMercuryAr] = useState(false);
+  const [didCopyServerIp, setDidCopyServerIp] = useState(false);
   const [isDeletingMercuryKey, setIsDeletingMercuryKey] = useState(false);
   const [mercuryReferralStatus, setMercuryReferralStatus] =
     useState<MercuryReferralStatus | null>(null);
@@ -572,6 +573,19 @@ export function ProfileOverview() {
     } finally {
       setIsTestingMercuryKey(false);
     }
+  }
+
+  function handleCopyServerIp(): void {
+    if (typeof navigator === 'undefined' || !navigator.clipboard) {
+      return;
+    }
+    navigator.clipboard
+      .writeText('108.175.12.95')
+      .then(() => {
+        setDidCopyServerIp(true);
+        window.setTimeout(() => setDidCopyServerIp(false), 1500);
+      })
+      .catch(() => undefined);
   }
 
   async function handleToggleMercuryArAccess(enabled: boolean): Promise<void> {
@@ -1034,37 +1048,72 @@ export function ProfileOverview() {
                   secureTextEntry
                   className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
                 />
-                <View
-                  style={{
-                    borderRadius: 8,
-                    borderWidth: 1,
-                    borderColor: '#dce2ea',
-                    backgroundColor: '#eef2f7',
-                    paddingHorizontal: 12,
-                    paddingVertical: 10,
-                    gap: 4,
-                  }}
-                >
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#272735' }}>
-                    Using an IP allowlist on your Mercury key?
+                <View className="gap-2 rounded-lg border border-border bg-card px-3 py-3">
+                  <Text className="text-xs font-bold text-heading">
+                    How to get a Mercury API key (business accounts only):
                   </Text>
-                  <Text style={{ fontSize: 12, lineHeight: 18, color: '#4a4a6a' }}>
-                    If you enabled IP allowlisting when you created this Mercury token, add this server&apos;s outbound IP to the list — otherwise Mercury will reject every request with 401:
+                  <Text className="text-xs text-muted">
+                    In Mercury, go to All Settings → API → Tokens → Create an API token, then:
                   </Text>
-                  <Text
-                    selectable
-                    style={{
-                      fontSize: 13,
-                      fontFamily: 'Menlo',
-                      fontWeight: '600',
-                      color: '#272735',
-                      marginTop: 2,
-                    }}
-                  >
-                    108.175.12.95
+                  <Text className="text-xs text-muted">
+                    1. Set a Nickname (e.g. &ldquo;Time2Pay&rdquo;).
                   </Text>
-                  <Text style={{ fontSize: 11, lineHeight: 16, color: '#4a4a6a' }}>
-                    Set this in Mercury: Settings → Tokens → your token → IP allowlist. Or remove the allowlist to accept requests from any origin.
+                  <Text className="text-xs text-muted">2. Permissions: pick one of these.</Text>
+                  <View className="gap-1 pl-3">
+                    <Text className="text-xs font-semibold text-heading">
+                      A. Custom Scopes (recommended)
+                    </Text>
+                    <Text className="text-xs text-muted">
+                      Least privilege — limits damage if the token is ever exposed. Check exactly these scopes:
+                    </Text>
+                    <View className="gap-0.5 pl-3">
+                      <Text className="text-xs text-muted">• Fetch Depository Accounts</Text>
+                      <Text className="text-xs text-muted">• Fetch Recipients</Text>
+                      <Text className="text-xs text-muted">• Create Recipients *</Text>
+                      <Text className="text-xs text-muted">• Edit Recipients *</Text>
+                      <Text className="text-xs text-muted">• Send Money *</Text>
+                      <Text className="text-xs text-muted">• Fetch Invoices (Mercury Plus only)</Text>
+                      <Text className="text-xs text-muted">• Modify Invoices * (Mercury Plus only)</Text>
+                    </View>
+                  </View>
+                  <View className="gap-1 pl-3">
+                    <Text className="text-xs font-semibold text-heading">
+                      B. Read and Write (easier)
+                    </Text>
+                    <Text className="text-xs text-muted">
+                      One click. Works fine, just grants more access than Time2Pay needs. &ldquo;Read Only&rdquo; will not work.
+                    </Text>
+                  </View>
+                  <Text className="text-xs text-muted">
+                    3. IP whitelist: paste this server&apos;s IP. Mercury requires an allowed IP for any token with write access.
+                  </Text>
+                  <View className="flex-row items-center gap-2">
+                    <Text selectable className="font-mono text-sm font-semibold text-foreground">
+                      108.175.12.95
+                    </Text>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Copy server IP to clipboard"
+                      onPress={handleCopyServerIp}
+                      className="rounded-md border border-border bg-background px-2 py-1"
+                    >
+                      <View className="flex-row items-center gap-1">
+                        <Octicons
+                          name={didCopyServerIp ? 'check' : 'copy'}
+                          size={12}
+                          color="#272735"
+                        />
+                        <Text className="text-xs font-semibold text-foreground">
+                          {didCopyServerIp ? 'Copied' : 'Copy'}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  </View>
+                  <Text className="text-xs text-muted">
+                    4. Click Create token, copy the value Mercury shows, and paste it above.
+                  </Text>
+                  <Text className="text-xs text-muted">
+                    (Mercury Plus required for invoicing. If you&apos;re on a lower tier, the Mercury Invoice Builder will be blocked but everything else works.)
                   </Text>
                 </View>
                 <View className="flex-row flex-wrap gap-2">
