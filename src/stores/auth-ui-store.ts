@@ -79,7 +79,13 @@ export const useAuthUiStore = create<AuthUiState>((set) => ({
   startTour: () =>
     set(() => {
       persistTourMode(true);
-      return { tourModeEnabled: true, tourModeHydrated: true, tourInitError: null };
+      return {
+        tourModeEnabled: true,
+        tourModeHydrated: true,
+        tourInitError: null,
+        authReady: true,
+        isAuthenticated: false,
+      };
     }),
   endTour: () =>
     set(() => {

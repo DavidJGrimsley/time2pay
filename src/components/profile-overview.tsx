@@ -150,6 +150,54 @@ async function pickBackupJsonFile(): Promise<PickedBackupFile> {
   });
 }
 
+const SERVER_IP = '108.175.12.95';
+
+function ServerIpCopyRow() {
+  const [copied, setCopied] = useState(false);
+
+  function handleCopy(): void {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(SERVER_IP).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      }).catch(() => undefined);
+    }
+  }
+
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 }}>
+      <Text
+        selectable
+        style={{ fontSize: 13, fontFamily: 'Menlo', fontWeight: '600', color: '#272735' }}
+      >
+        {SERVER_IP}
+      </Text>
+      <Pressable
+        onPress={handleCopy}
+        style={{
+          borderRadius: 4,
+          borderWidth: 1,
+          borderColor: '#dce2ea',
+          backgroundColor: copied ? '#d1fae5' : '#ffffff',
+          paddingHorizontal: 7,
+          paddingVertical: 2,
+        }}
+      >
+        <Text style={{ fontSize: 11, fontWeight: '600', color: copied ? '#065f46' : '#4a4a6a' }}>
+          {copied ? 'Copied!' : 'Copy'}
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function formatPhoneNumber(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 10);
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+}
+
 export function ProfileOverview() {
   const router = useRouter();
   const { width } = useStableWindowDimensions();
@@ -174,6 +222,7 @@ export function ProfileOverview() {
   const [logoUrl, setLogoUrl] = useState('');
   const [fullName, setFullName] = useState('');
   const [businessPhone, setBusinessPhone] = useState('');
+  const [phoneError, setPhoneError] = useState<string | null>(null);
   const [businessEmail, setBusinessEmail] = useState('');
   const [githubPat, setGithubPat] = useState('');
   const [mercuryApiKey, setMercuryApiKey] = useState('');
@@ -186,7 +235,6 @@ export function ProfileOverview() {
   const [mercuryReferralStatus, setMercuryReferralStatus] =
     useState<MercuryReferralStatus | null>(null);
   const [isOpeningMercuryReferral, setIsOpeningMercuryReferral] = useState(false);
-  const [showIntegrations, setShowIntegrations] = useState(true);
   const [showAdvancedGitHubOptions, setShowAdvancedGitHubOptions] = useState(false);
   const [showPatInfoModal, setShowPatInfoModal] = useState(false);
   const [isSigningInWithGitHub, setIsSigningInWithGitHub] = useState(false);
@@ -255,7 +303,7 @@ export function ProfileOverview() {
     setCompanyName(profile.company_name ?? '');
     setLogoUrl(profile.logo_url ?? '');
     setFullName(profile.full_name ?? '');
-    setBusinessPhone(profile.phone ?? '');
+    setBusinessPhone(formatPhoneNumber(profile.phone ?? ''));
     setBusinessEmail(profile.email ?? '');
     setGithubPat(profile.github_pat ?? '');
   }, []);
@@ -476,6 +524,13 @@ export function ProfileOverview() {
     clearSectionStatus('business');
     const trimmedFullName = fullName.trim();
     const trimmedBusinessPhone = businessPhone.trim();
+    const phoneDigits = trimmedBusinessPhone.replace(/\D/g, '');
+    if (phoneDigits.length > 0 && phoneDigits.length < 10) {
+      const msg = 'Enter a complete 10-digit phone number.';
+      setPhoneError(msg);
+      showValidationAlert(msg);
+      return;
+    }
     const trimmedBusinessEmail = businessEmail.trim();
     const completion = evaluateProfileCompletion({
       full_name: trimmedFullName,
@@ -820,6 +875,12 @@ export function ProfileOverview() {
       {sectionStatus?.section === 'general' ? (
         <InlineNotice tone={sectionStatus.tone} message={sectionStatus.message} />
       ) : null}
+      {!fullName || !businessPhone ? (
+        <InlineNotice
+          tone="error"
+          message="Please complete your profile before using the rest of the app."
+        />
+      ) : null}
       <View className="items-center">
         <View className="w-full gap-3" style={contentWidthStyle}>
 
@@ -847,11 +908,23 @@ export function ProfileOverview() {
         />
         <TextInput
           value={businessPhone}
-          onChangeText={setBusinessPhone}
-          placeholder="Phone number"
+          onChangeText={(text) => {
+            setBusinessPhone(formatPhoneNumber(text));
+            setPhoneError(null);
+          }}
+          onBlur={() => {
+            const digits = businessPhone.replace(/\D/g, '');
+            if (digits.length > 0 && digits.length < 10) {
+              setPhoneError('Enter a complete 10-digit phone number (e.g. 555-867-5309).');
+            }
+          }}
+          placeholder="555-867-5309"
           keyboardType="phone-pad"
           className="rounded-md border border-border bg-background px-3 py-2 text-foreground"
         />
+        {phoneError ? (
+          <Text className="text-xs text-red-500">{phoneError}</Text>
+        ) : null}
         <TextInput
           value={businessEmail}
           onChangeText={setBusinessEmail}
@@ -878,18 +951,9 @@ export function ProfileOverview() {
       </View>
 
       <View className="gap-3 rounded-xl bg-card p-4">
-        <Pressable
-          className="flex-row items-center justify-between"
-          onPress={() => setShowIntegrations((current) => !current)}
-        >
-          <Text className="text-xl font-bold text-heading">Integrations</Text>
-          <Text className="text-sm font-semibold text-secondary">
-            {showIntegrations ? 'Hide' : 'Show'}
-          </Text>
-        </Pressable>
+        <Text className="text-xl font-bold text-heading">Integrations</Text>
 
-        {showIntegrations ? (
-          <View className="gap-2">
+        <View className="gap-2">
             <Text className="text-sm text-muted">
               GitHub access is for repository and commit lookup only. It does not auto-fill your
               personal profile name or email.
@@ -1046,25 +1110,14 @@ export function ProfileOverview() {
                   }}
                 >
                   <Text style={{ fontSize: 12, fontWeight: '700', color: '#272735' }}>
-                    Using an IP allowlist on your Mercury key?
+                    Add this IP to your Mercury token allowlist
                   </Text>
                   <Text style={{ fontSize: 12, lineHeight: 18, color: '#4a4a6a' }}>
-                    If you enabled IP allowlisting when you created this Mercury token, add this server&apos;s outbound IP to the list — otherwise Mercury will reject every request with 401:
+                    Mercury requires this server&apos;s outbound IP on your token&apos;s allowlist or every request will be rejected with 401. Add it now:
                   </Text>
-                  <Text
-                    selectable
-                    style={{
-                      fontSize: 13,
-                      fontFamily: 'Menlo',
-                      fontWeight: '600',
-                      color: '#272735',
-                      marginTop: 2,
-                    }}
-                  >
-                    108.175.12.95
-                  </Text>
+                  <ServerIpCopyRow />
                   <Text style={{ fontSize: 11, lineHeight: 16, color: '#4a4a6a' }}>
-                    Set this in Mercury: Settings → Tokens → your token → IP allowlist. Or remove the allowlist to accept requests from any origin.
+                    Add it in Mercury: Settings → Tokens → your token → IP allowlist.
                   </Text>
                 </View>
                 <View className="flex-row flex-wrap gap-2">
@@ -1224,7 +1277,6 @@ export function ProfileOverview() {
               <InlineNotice tone={sectionStatus.tone} message={sectionStatus.message} />
             ) : null}
           </View>
-        ) : null}
       </View>
 
       <View className="gap-3 rounded-xl bg-card p-4">

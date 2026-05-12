@@ -51,6 +51,8 @@ const updateSessionNotesSchema = z.object({
   id: z.string().min(1),
   notes: z.string().nullable(),
   commitSha: z.string().nullable().optional(),
+  prUrl: z.string().nullable().optional(),
+  prNumber: z.number().int().positive().nullable().optional(),
 }).strict();
 
 const deleteSessionSchema = z.object({

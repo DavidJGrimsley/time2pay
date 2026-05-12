@@ -535,6 +535,8 @@ export type UpdateSessionNotesInput = {
   id: string;
   notes: string | null;
   commitSha?: string | null;
+  prUrl?: string | null;
+  prNumber?: number | null;
 };
 
 export async function updateSessionNotes(
@@ -552,6 +554,8 @@ export async function updateSessionNotes(
       set
         notes = ${input.notes},
         commit_sha = ${input.commitSha ?? null},
+        pr_url = ${input.prUrl ?? null},
+        pr_number = ${input.prNumber ?? null},
         updated_at = ${timestamp}
       where id = ${input.id}
         and auth_user_id = ${authUserId}::uuid

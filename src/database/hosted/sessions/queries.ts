@@ -95,6 +95,15 @@ export async function hydrateSessions(
       commitSha && client?.github_org && project?.github_repo
         ? `https://github.com/${client.github_org}/${project.github_repo}/commit/${commitSha}`
         : null;
+    const rawPrNumber = row.pr_number;
+    const prNumber =
+      typeof rawPrNumber === 'number' && Number.isFinite(rawPrNumber) ? rawPrNumber : null;
+    const storedPrUrl = (row.pr_url as string | null) ?? null;
+    const prUrl =
+      storedPrUrl ??
+      (prNumber && client?.github_org && project?.github_repo
+        ? `https://github.com/${client.github_org}/${project.github_repo}/pull/${prNumber}`
+        : null);
 
     return {
       id: String(row.id),
@@ -116,6 +125,8 @@ export async function hydrateSessions(
       notes: (row.notes as string | null) ?? null,
       commit_sha: commitSha,
       commit_url: commitUrl,
+      pr_url: prUrl,
+      pr_number: prNumber,
       invoice_id: (row.invoice_id as string | null) ?? null,
       created_at: String(row.created_at),
       updated_at: String(row.updated_at),
@@ -209,7 +220,7 @@ export function listSessions(): Promise<Session[]> {
     const { data, error } = await supabase
       .from('sessions')
       .select(
-        'id,client,client_id,project_id,task_id,start_time,end_time,duration,notes,commit_sha,invoice_id,created_at,updated_at,deleted_at',
+        'id,client,client_id,project_id,task_id,start_time,end_time,duration,notes,commit_sha,pr_url,pr_number,invoice_id,created_at,updated_at,deleted_at',
       )
       .eq('auth_user_id', userId)
       .is('deleted_at', null)
@@ -235,7 +246,7 @@ export function listSessionsByClientAndRange(input: {
     let query = supabase
       .from('sessions')
       .select(
-        'id,client,client_id,project_id,task_id,start_time,end_time,duration,notes,commit_sha,invoice_id,created_at,updated_at,deleted_at',
+        'id,client,client_id,project_id,task_id,start_time,end_time,duration,notes,commit_sha,pr_url,pr_number,invoice_id,created_at,updated_at,deleted_at',
       )
       .eq('auth_user_id', userId)
       .eq('client_id', input.clientId)
@@ -267,7 +278,7 @@ export function listSessionsByProject(input: {
     let query = supabase
       .from('sessions')
       .select(
-        'id,client,client_id,project_id,task_id,start_time,end_time,duration,notes,commit_sha,invoice_id,created_at,updated_at,deleted_at',
+        'id,client,client_id,project_id,task_id,start_time,end_time,duration,notes,commit_sha,pr_url,pr_number,invoice_id,created_at,updated_at,deleted_at',
       )
       .eq('auth_user_id', userId)
       .eq('project_id', input.projectId)
@@ -291,11 +302,15 @@ export function updateSessionNotes(input: {
   id: string;
   notes: string | null;
   commit_sha?: string | null;
+  pr_url?: string | null;
+  pr_number?: number | null;
 }): Promise<void> {
   return callHostedWriteRoute('/api/db/sessions/notes', {
     id: input.id,
     notes: input.notes,
     commitSha: input.commit_sha,
+    prUrl: input.pr_url,
+    prNumber: input.pr_number,
   });
 }
 

@@ -447,12 +447,14 @@ export function buildMercurySessionLineItems(
       );
       const noteLabel = truncateText(sanitizeSingleLineText(session.notes), 110);
       const commitLabel = session.commit_sha ? `Commit ${shortCommitSha(session.commit_sha)}` : null;
+      const prLabel = session.pr_number ? `PR #${session.pr_number}` : null;
       const nameParts = [
         formatMercurySessionWindow(session),
         projectLabel,
         taskLabel,
         noteLabel ? `Notes: ${noteLabel}` : null,
         commitLabel,
+        prLabel,
       ].filter((part): part is string => Boolean(part));
 
       return {
@@ -1510,6 +1512,33 @@ export async function exportInvoicePdf(invoice: ExportableInvoice): Promise<Uint
               width: fontRegular.widthOfTextAtSize(commitText, commitTextSize),
               height: commitTextSize + 2.5,
               url: session.commit_url,
+            });
+          }
+          y -= 10;
+        }
+
+        if (session.pr_number) {
+          const prText = normalizePdfText(`PR #${session.pr_number}`);
+          const prTextSize = 7.5;
+          const prX = detailStartX + 2;
+          ensurePageSpace(10, true);
+          const prY = y;
+          page.drawText(prText, {
+            x: prX,
+            y: prY,
+            size: prTextSize,
+            font: fontRegular,
+            color: secondaryColor,
+          });
+
+          if (session.pr_url) {
+            addLinkAnnotation({
+              targetPage: page,
+              x: prX,
+              y: prY - 1.25,
+              width: fontRegular.widthOfTextAtSize(prText, prTextSize),
+              height: prTextSize + 2.5,
+              url: session.pr_url,
             });
           }
           y -= 10;
