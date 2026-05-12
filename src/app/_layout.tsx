@@ -1,6 +1,6 @@
 import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Platform, useColorScheme } from 'react-native';
+import { LogBox, Platform, StyleSheet, useColorScheme, View } from 'react-native';
 import { Uniwind } from 'uniwind';
 import { AppLoadingShell } from '@/components/app-loading-shell';
 import { LandingSeoHead } from '@/components/landing/landing-seo-head';
@@ -31,6 +31,14 @@ if (Platform.OS === 'web' && typeof window !== 'undefined') {
   } catch {
     // no-op
   }
+}
+
+if (Platform.OS !== 'web') {
+  LogBox.ignoreLogs([
+    /Invalid Refresh Token/i,
+    /Refresh Token Not Found/i,
+    /AuthSessionMissingError/i,
+  ]);
 }
 
 export default function RootLayout() {
@@ -386,15 +394,6 @@ export default function RootLayout() {
     }
   }, [isLoadingShellVisible, hostedMode, hostedAccessResolved, tourModeHydrated, authReady, appAccessMode, isTourSeedReady]);
 
-  if (isLoadingShellVisible) {
-    return (
-      <>
-        {isLandingEntry ? <LandingSeoHead /> : <NoIndexSeoHead />}
-        <AppLoadingShell />
-      </>
-    );
-  }
-
   return (
     <>
       {isLandingEntry ? <LandingSeoHead /> : <NoIndexSeoHead />}
@@ -415,6 +414,14 @@ export default function RootLayout() {
         </Stack.Protected>
         <Stack.Screen name="+not-found" options={{ title: 'Not Found' }} />
       </Stack>
+      {isLoadingShellVisible ? (
+        <View
+          pointerEvents="auto"
+          style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999 }]}
+        >
+          <AppLoadingShell />
+        </View>
+      ) : null}
     </>
   );
 }

@@ -29,6 +29,8 @@ export const sessions = pgTable(
     duration: integer('duration'),
     notes: text('notes'),
     commitSha: text('commit_sha'),
+    prUrl: text('pr_url'),
+    prNumber: integer('pr_number'),
     invoiceId: text('invoice_id'),
     ...lifecycleColumns,
   },
@@ -39,6 +41,7 @@ export const sessions = pgTable(
     clientIdIdx: index('idx_sessions_client_id').on(table.clientId),
     projectIdIdx: index('idx_sessions_project_id').on(table.projectId),
     taskIdIdx: index('idx_sessions_task_id').on(table.taskId),
+    prNumberIdx: index('idx_sessions_pr_number').on(table.prNumber),
     activeSessionPerUserIdx: uniqueIndex('ux_sessions_active_per_user').on(table.authUserId).where(
       sql`${table.endTime} is null and ${table.deletedAt} is null`,
     ),

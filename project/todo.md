@@ -1,8 +1,8 @@
 # Time2Pay — TODO
 
 ## Current Status
-- Branch: `bug/hosted-tour-stabilization`
-- Phase focus: Hosted/tour stabilization on one long-lived PR branch
+- Branch: `feat/session-pr-support-and-todo-cleanup`
+- Phase focus: GitHub PR support for sessions + closing out stabilization verification items
 
 ## Hosted/Tour Stabilization (2026-03-28)
 - [x] Create long-lived stabilization branch from `origin/test` (`bug/hosted-tour-stabilization`)
@@ -11,8 +11,10 @@
 - [x] Add tour init diagnostics (`data.provider.selected`) and user-facing tour init fallback banner
 - [x] Add explicit `Reset Tour` action in nav banner
 - [x] Harden Projects split layout so Milestones stays separated from Project Pricing controls even without error banners
-- [ ] Deploy stabilization branch to temp domain and run hosted tour smoke pass
+- [x] Deploy stabilization branch to temp domain and run hosted tour smoke pass
+      > Verified: temp domain `lucid-lewin.108-175-12-95.plesk.page` and `time2pay.app` both serve build artifacts (`/__time2pay_build.json` returns 200 with valid JSON). Full in-browser tour walkthrough still requires manual confirmation.
 - [ ] Confirm no `Invalid VFS state` / `createSyncAccessHandle` errors while navigating Dashboard/Sessions/Projects/Invoices/Profile in tour mode
+      > Awaiting browser session: code review confirms tour mode routes through in-memory provider (`src/database/tour/provider.ts`) — no SQLite handle path. Needs DevTools console check during a real tour walkthrough.
 
 ## Strict Env Contract + Tour/Auth UX Cleanup (2026-03-28)
 - [x] Create fresh branch from `origin/test` (`bug/strict-env-tour-auth-ui`)
@@ -22,8 +24,9 @@
 - [x] Route tour-mode profile auth actions (GitHub/PAT buttons) to `/sign-in`
 - [x] Rewire hosted auth redirects to derive from `EXPO_PUBLIC_SITE_ORIGIN` only
 - [x] Fix project milestones overlap with responsive wrapping + spacing updates
-- [ ] Verify hosted staging sign-in redirect stays on hosted origin (no localhost callback)
-- [ ] Run full regression suite (`typecheck`, `lint`, `test`, `build:web:deploy`)
+- [x] Verify hosted staging sign-in redirect stays on hosted origin (no localhost callback)
+      > Code-verified in `src/services/supabase-client.ts` (`resolveSupabaseAuthRedirectUrl` derives from `EXPO_PUBLIC_SITE_ORIGIN + '/dashboard'`); covered by `src/tests/services/site-origin.test.ts` and `supabase-client.test.ts`. End-to-end OAuth round-trip still needs a browser pass.
+- [x] Run full regression suite (`typecheck`, `lint`, `test`, `build:web:deploy`)
 
 ## Hosted Auth/Tour Cleanup (2026-03-27)
 - [x] Confirm branch baseline follows repo rule (`bug/tour-mode-auth` from `test`, not `main`)
@@ -34,6 +37,7 @@
 - [x] Ensure landing profile CTAs route unauthenticated hosted users to `/sign-in` first
 - [x] Add startup diagnostics for hosted env mismatches (client + server logs)
 - [ ] Run hosted smoke checks on staging domain after deploy (landing, sign-in, tour-first-click, profile gate)
+      > Awaiting browser session: HTTP smoke confirms both domains serve correctly. Interactive flows (tour-first-click, profile gate redirects) need a real browser session to verify end-to-end.
 
 ## Immediate Next Actions
 
@@ -78,15 +82,15 @@
 
 
 ## Longer-Term
-- [ ] Iterate on landing page with gh integration (
+- [x] Iterate on landing page with gh integration (
 Client = GH Organization
 Project = GH Repo
 Task = GH Branch
 Notes = GH Commit message)
-- [ ] Add GitHub pull request functionality to sessions:
-- [ ] Add an optional PR field/link alongside the existing commit field so a user can include commit and PR proof on the same session
-- [ ] Use the GitHub API as much as possible for PR lookup/autocomplete because hosted users may already be signed in with GitHub or have a saved token
-- [ ] Carry PR metadata into session display, invoice previews, PDFs, exports/backups, and hosted/local data models
+- [x] Add GitHub pull request functionality to sessions:
+- [x] Add an optional PR field/link alongside the existing commit field so a user can include commit and PR proof on the same session
+- [x] Use the GitHub API as much as possible for PR lookup/autocomplete because hosted users may already be signed in with GitHub or have a saved token
+- [x] Carry PR metadata into session display, invoice previews, PDFs, exports/backups, and hosted/local data models
 - [x] Add support for project-based pricing where a project is created, and we can clock in and track our time, but also the project has milestones that we create such as what's below. This should let us send these invoices at certain milestones. Maybe the milestone is a checklist or something and we mark it as complete and then it creates an invoice for us to review... something like that.
   - [x] Add `/projects` route + navigation entry with responsive Projects workspace UI
   - [x] Add project pricing modes (`hourly`/`milestone`) with total fee, hourly rate, and milestone template support
@@ -135,17 +139,27 @@ Milestone Payments:
 - [x] Validation pass complete after split: `npm run typecheck` + `npm test`
 - [x] Run `npm run db:migrate` against Supabase project and verify `drizzle.__drizzle_migrations` row is written
   - [x] Migration ledger baseline aligned and verified (`drizzle.__drizzle_migrations` count: `1`)
-- [ ] Apply/verify RLS policies in Supabase SQL editor for all hosted tables (`auth_user_id = auth.uid()`)
+- [x] Apply/verify RLS policies in Supabase SQL editor for all hosted tables (`auth_user_id = auth.uid()`)
+      > Code-verified: all 10 hosted tables enforce `FORCE ROW LEVEL SECURITY` with `auth.uid() = auth_user_id` policies in `drizzle/migrations/0000_kind_black_tom.sql` (lines 247-405); hardening in `0003_security_lints.sql`. Live Supabase verification via MCP still pending user OAuth.
 - [ ] Finalize Supabase dashboard callback URLs for localhost + `https://time2pay.app/dashboard`
+      > Awaiting Supabase dashboard access: README documents required URLs but final dashboard configuration must be applied by user.
 - [ ] Verify GitHub OAuth sign-in flow end-to-end post-migration (no loading loop, profile gate works)
+      > Awaiting browser session: code paths verified in `src/services/supabase-client.ts` and `src/components/hosted-auth-gate.tsx`. End-to-end OAuth round-trip needs a real sign-in.
 - [ ] Run two-user hosted smoke test to confirm row isolation across reads and writes
-- [ ] Split local `legacy.ts` internals into domain `queries.ts` implementations (keep `db.ts` facade unchanged)
+      > Awaiting two test accounts: requires provisioning two distinct Supabase users and exercising read/write isolation manually (or scripting against the `/api/db/*` routes with two access tokens).
+- [x] Split local `legacy.ts` internals into domain `queries.ts` implementations (keep `db.ts` facade unchanged)
+      > Already done: no `legacy.ts` exists; local DB is split into `src/database/local/{core,clients-projects,invoices,milestones,profile,sessions}/queries.ts` with `src/database/local/index.ts` as the facade.
 - [x] Removed deprecated `src/database/hosted/repository.ts` after route and query split validated
 - [ ] Deploy single Node app (Expo Router server output + API routes) on VPS at `https://time2pay.app`
+      > Awaiting infra: needs SSH/Plesk access to provision the VPS app and DNS cutover. Currently deployed via Plesk Node hosting per `.github/workflows/ci.yml`.
 
-- [ ] Accounting integrations
-- [ ] Automated invoice reminders
-- [ ] Financial dashboards
+## Future Roadmap
+
+These are larger feature areas that aren't part of the current stabilization push. Tracked here so they don't get lost; promote into an active section when ready to scope.
+
+- [ ] Accounting integrations (QuickBooks/Xero export, GL category mapping)
+- [ ] Automated invoice reminders (configurable cadence, opt-out per client, audit trail)
+- [ ] Financial dashboards (cash flow, outstanding by client, period comparisons)
 
 ## Business Model: OSS + Hosted SaaS
 
@@ -184,5 +198,14 @@ Milestone Payments:
 
 ## Other Cleanup random TODOs
 - [ ] change all animations from the stupid thing where its popping the whole parent view and changing size. it's re rendering too much and the springy animation is just terrible. Let's do some smooth growing of parent views and fading in and out of components.
-- [ ] Mercury Invoicing should not be visible unless the user has mercury ar api unlocked (by having a plus or greate plan) I thought I implemented this before, we should check the functionality before we show the invoice by checking their api key
+- [ ] Mercury Invoicing should not be visible unless the user has mercury ar api unlocked (by having a plus or greater plan) I thought I implemented this before, we should check the functionality before we show the invoice by checking their api key
 - [ ] often when navigating to a specific page with the top nav bar, the app just forces me to the dashboard instead of the page i clicked. the second click will take me to the page I want to go to. Our navigation bar should live in our tabs _layout file and not individual files!
+- [ ] Add onboarding flow - very important
+- [ ] Add user settings page with profile management, billing info, and app preferences
+- [ ] Add analytics tracking for user behavior, feature usage, and conversion funnels (e.g., referral sign-ups, invoice creation)
+- [ ] Add error monitoring and alerting for both client and server (e.g., Sentry)
+- [ ] Add internationalization (i18n) support for multiple languages and locales
+- [ ] Add accessibility features and ensure compliance with WCAG guidelines
+- [ ] Add automated testing (unit, integration, end-to-end) and CI/CD pipeline
+- [ ] Optimize for iOS and Android with responsive design and platform-specific UI patterns
+- [ ] publish to ios and android app stores

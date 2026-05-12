@@ -1,6 +1,6 @@
 import { Stack, usePathname, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { useColorScheme } from 'react-native';
+import { StyleSheet, useColorScheme, View } from 'react-native';
 import { AppLoadingShell } from '@/components/app-loading-shell';
 import { useResolvedDataMode } from '@/hooks/use-resolved-data-mode';
 import { getProfileCompletion } from '@/services/profile-completion';
@@ -66,26 +66,34 @@ export default function TabsLayout() {
     router.replace('/profile');
   }, [isProfileRoute, profileComplete, profileGateReady, router, shouldBypassProfileGate]);
 
-  if (!profileGateReady && !shouldBypassProfileGate && !isProfileRoute) {
-    return <AppLoadingShell />;
-  }
+  const isTabsGateLoading = !profileGateReady && !shouldBypassProfileGate && !isProfileRoute;
 
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        headerStyle: { backgroundColor: isDark ? '#1a1f16' : '#f8f7f3' },
-        headerTintColor: isDark ? '#f8f7f3' : '#1a1f16',
-        contentStyle: { backgroundColor: isDark ? '#1a1f16' : '#f8f7f3' },
-      }}
-    >
-      <Stack.Screen name="dashboard" options={{ title: 'Dashboard' }} />
-      <Stack.Screen name="sessions" options={{ title: 'Sessions' }} />
-      <Stack.Screen name="projects" options={{ title: 'Projects' }} />
-      <Stack.Screen name="invoices" options={{ title: 'Invoices' }} />
-      <Stack.Screen name="bank" options={{ title: 'Bank' }} />
-      <Stack.Screen name="payments" options={{ title: 'Payments' }} />
-      <Stack.Screen name="profile" options={{ title: 'Profile' }} />
-    </Stack>
+    <>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          headerStyle: { backgroundColor: isDark ? '#1a1f16' : '#f8f7f3' },
+          headerTintColor: isDark ? '#f8f7f3' : '#1a1f16',
+          contentStyle: { backgroundColor: isDark ? '#1a1f16' : '#f8f7f3' },
+        }}
+      >
+        <Stack.Screen name="dashboard" options={{ title: 'Dashboard' }} />
+        <Stack.Screen name="sessions" options={{ title: 'Sessions' }} />
+        <Stack.Screen name="projects" options={{ title: 'Projects' }} />
+        <Stack.Screen name="invoices" options={{ title: 'Invoices' }} />
+        <Stack.Screen name="bank" options={{ title: 'Bank' }} />
+        <Stack.Screen name="payments" options={{ title: 'Payments' }} />
+        <Stack.Screen name="profile" options={{ title: 'Profile' }} />
+      </Stack>
+      {isTabsGateLoading ? (
+        <View
+          pointerEvents="auto"
+          style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999 }]}
+        >
+          <AppLoadingShell />
+        </View>
+      ) : null}
+    </>
   );
 }

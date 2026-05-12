@@ -16,6 +16,7 @@ import {
 import { createTime2PayClient } from '@/services/client-sync';
 import { CalendarDateField } from '@/components/calendar-date-field';
 import { GitHubCommitBadge } from '@/components/github-commit-badge';
+import { GitHubPrBadge } from '@/components/github-pr-badge';
 import { InlineNotice, type NoticeTone } from '@/components/inline-notice';
 import { useStableWindowDimensions } from '@/hooks/use-stable-window-dimensions';
 import { prettifyBranchName } from '@/services/github';
@@ -791,11 +792,18 @@ export function SessionList() {
 
                     <Text className={metaTextClass}>{new Date(session.start_time).toLocaleString()}</Text>
                     <Text className={bodyTextClass}>Duration: {formatDuration(session.duration)}</Text>
-                    <GitHubCommitBadge
-                      commitSha={session.commit_sha}
-                      commitUrl={session.commit_url ?? null}
-                      textClassName={isInvoiced ? 'text-xs text-invoiced-muted' : 'text-xs text-secondary'}
-                    />
+                    <View className="flex-row flex-wrap items-center gap-3">
+                      <GitHubCommitBadge
+                        commitSha={session.commit_sha}
+                        commitUrl={session.commit_url ?? null}
+                        textClassName={isInvoiced ? 'text-xs text-invoiced-muted' : 'text-xs text-secondary'}
+                      />
+                      <GitHubPrBadge
+                        prNumber={session.pr_number}
+                        prUrl={session.pr_url}
+                        textClassName={isInvoiced ? 'text-xs text-invoiced-muted' : 'text-xs text-secondary'}
+                      />
+                    </View>
                     {session.notes ? <Text className={bodyTextClass}>{session.notes}</Text> : null}
                     {typeof session.break_count === 'number' && session.break_count > 0 ? (
                       <Text className={metaTextClass}>Breaks: {session.break_count}</Text>

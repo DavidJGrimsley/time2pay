@@ -937,6 +937,8 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
           id: completedSessionId,
           notes: result.notes,
           commit_sha: result.commitSha,
+          pr_url: result.prUrl,
+          pr_number: result.prNumber,
         });
       } catch {
         // Best effort — session is already stopped, notes update is non-critical

@@ -53,6 +53,8 @@ function buildSession(overrides: Partial<Session> = {}): Session {
     duration: 50 * 60,
     notes: 'Polished the checkout flow',
     commit_sha: 'abcdef1234567890',
+    pr_url: null,
+    pr_number: null,
     invoice_id: null,
     created_at: '2026-03-18T10:00:00.000Z',
     updated_at: '2026-03-18T10:50:00.000Z',
