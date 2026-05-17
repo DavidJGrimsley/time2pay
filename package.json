@@ -21,7 +21,7 @@
     "serve:prod": "node server.js",
     "serve:prod:fresh": "npm run build:web:deploy && node server.js",
     "serve:prod:env": "node server.js",
-    "lint": "eslint .",
+    "lint": "eslint . --ignore-pattern mds",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "doctor": "npx expo-doctor"
