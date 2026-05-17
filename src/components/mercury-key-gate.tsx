@@ -1,9 +1,8 @@
 import type { PropsWithChildren } from 'react';
 import { Image, Linking, Pressable, Text, View } from 'react-native';
 import { Link, type Href } from 'expo-router';
+import { CosmosLoadingAnimation } from '@/components/UI/Loading';
 import { useMercuryKeyStatus } from '@/hooks/use-mercury-key-status';
-
-const MERCURY_PLUS_URL = 'https://mercury.com/business-banking/plus';
 
 const MERCURY_NAVY = '#272735';
 const MERCURY_SOFT = '#eef2f7';
@@ -83,13 +82,16 @@ export function MercuryKeyGate({ children, requireArAccess = false }: MercuryKey
     return (
       <View
         style={{
+          alignItems: 'center',
           borderRadius: 12,
           borderWidth: 1,
           borderColor: MERCURY_LINE,
           backgroundColor: MERCURY_SOFT,
+          gap: 8,
           padding: 20,
         }}
       >
+        <CosmosLoadingAnimation size={56} />
         <Text style={{ fontSize: 13, color: '#4a4a6a' }}>Checking Mercury connection...</Text>
       </View>
     );

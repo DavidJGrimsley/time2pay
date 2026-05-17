@@ -15,6 +15,28 @@ const PWA_BOOTSTRAP_SCRIPT = `
 })();
 `;
 
+const CRITICAL_BACKGROUND_CSS = `
+html,
+body,
+#root {
+  min-height: 100%;
+  background: #f8f7f3;
+}
+
+body {
+  margin: 0;
+}
+
+@media (prefers-color-scheme: dark) {
+  html,
+  body,
+  #root {
+    background: #1a1f16;
+    color-scheme: dark;
+  }
+}
+`;
+
 export default function RootHtml({ children }: PropsWithChildren) {
   return (
     <html lang="en">
@@ -27,6 +49,7 @@ export default function RootHtml({ children }: PropsWithChildren) {
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="Time2Pay" />
+        <style dangerouslySetInnerHTML={{ __html: CRITICAL_BACKGROUND_CSS }} />
         <script src="/__time2pay_runtime_config__" />
         <script dangerouslySetInnerHTML={{ __html: PWA_BOOTSTRAP_SCRIPT }} />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />

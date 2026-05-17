@@ -14,6 +14,7 @@ vi.mock('react-native', async () => {
     Pressable: makeComponent('Pressable'),
     Text: makeComponent('Text'),
     View: makeComponent('View'),
+    StyleSheet: { create: (styles: Record<string, unknown>) => styles },
   };
 });
 
@@ -22,6 +23,13 @@ vi.mock('expo-router', async () => {
   return {
     Link: ({ children }: { children?: React.ReactNode }) =>
       ReactModule.createElement(ReactModule.Fragment, null, children),
+  };
+});
+
+vi.mock('lottie-react-native', async () => {
+  const ReactModule = await import('react');
+  return {
+    default: (props: Record<string, unknown>) => ReactModule.createElement('LottieView', props),
   };
 });
 

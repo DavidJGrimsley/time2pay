@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildPullRequestUrl,
   formatPrBadgeLabel,
+  listPullRequests,
   parseGitHubPullRequestUrl,
   parseGitHubUrl,
 } from '@/services/github';
@@ -90,5 +91,60 @@ describe('formatPrBadgeLabel', () => {
   it('returns an empty string for missing numbers', () => {
     expect(formatPrBadgeLabel({ number: null })).toBe('');
     expect(formatPrBadgeLabel({ number: 0 })).toBe('');
+  });
+});
+
+describe('listPullRequests', () => {
+  const originalFetch = globalThis.fetch;
+
+  afterEach(() => {
+    (globalThis as any).fetch = originalFetch;
+  });
+
+  it('includes state=open and head when provided', async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => {
+      return new Response('[]', { status: 200 });
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    await listPullRequests('owner', 'repo', {
+      state: 'open',
+      head: 'owner:branch',
+      perPage: 30,
+      token: 'token',
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const url = String(fetchMock.mock.calls[0]?.[0] ?? '');
+    const parsed = new URL(url);
+    expect(parsed.pathname).toBe('/repos/owner/repo/pulls');
+    expect(parsed.searchParams.get('state')).toBe('open');
+    expect(parsed.searchParams.get('per_page')).toBe('30');
+    expect(parsed.searchParams.get('head')).toBe('owner:branch');
+  });
+
+  it('includes state=closed when requested', async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => {
+      return new Response('[]', { status: 200 });
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    await listPullRequests('owner', 'repo', { state: 'closed' });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const url = String(fetchMock.mock.calls[0]?.[0] ?? '');
+    const parsed = new URL(url);
+    expect(parsed.searchParams.get('state')).toBe('closed');
+  });
+
+  it('returns an empty array without calling fetch when owner/repo missing', async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => {
+      return new Response('[]', { status: 200 });
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    await expect(listPullRequests('', 'repo', { state: 'open' })).resolves.toEqual([]);
+    await expect(listPullRequests('owner', '', { state: 'open' })).resolves.toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

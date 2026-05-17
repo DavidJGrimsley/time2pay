@@ -24,3 +24,8 @@ time2pay_icons/
 packages/*/dist/
 packages/*/coverage/
 *.tsbuildinfo
+
+# Local editor/agent config
+.claude/
+.mcp.json
+.vscode/mcp.json
