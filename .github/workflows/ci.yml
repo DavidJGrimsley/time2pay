@@ -42,20 +42,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run lint
-        run: npm run lint
-
-      - name: Run typecheck
-        run: npm run typecheck
-
-      - name: Run tests
-        run: npm run test
-
-      - name: Run Expo doctor
-        run: npm run doctor
-
-      - name: Run deploy build
-        run: npm run build:web:deploy
+      - name: Run MDS Doctor (gated)
+        uses: DavidJGrimsley/doctor-action@v1
+        with:
+          project-path: .
+          mode: ci
+          run-scripts: "true"
+          min-score: "90"
+          node-version: "22"
+          suite-repo: DavidJGrimsley/mrdj-dev-suite
+          suite-ref: phase10-doctor-action
 
   deploy_staging:
     name: Deploy Staging
