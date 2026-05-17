@@ -3,6 +3,10 @@ import type { PropsWithChildren } from 'react';
 
 const PWA_BOOTSTRAP_SCRIPT = `
 (function bootstrapTime2PayPwa() {
+  if (!(typeof window !== 'undefined' && typeof document !== 'undefined')) {
+    return;
+  }
+
   var hostname = window.location.hostname || '';
   if (/\\.plesk\\.page$/i.test(hostname)) {
     return;

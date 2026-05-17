@@ -1,4 +1,4 @@
-import { PublicLegalDocument } from '@/components/legal/public-legal-document';
+import { PublicLegalDocument } from '@/components/legal/public-legal-page';
 
 const TERMS_SECTIONS = [
   {
