@@ -19,7 +19,7 @@ export function DashboardOverview() {
   const { hostedMode, resolved: dataModeResolved } = useResolvedDataMode();
   const tourModeEnabled = useAuthUiStore((state) => state.tourModeEnabled);
   const shouldBypassProfileGate = dataModeResolved && hostedMode && tourModeEnabled;
-  const [gateStatus, setGateStatus] = useState<DashboardGateStatus>('loading');
+  const [gateStatus, setGateStatus] = useState<DashboardGateStatus>('unlocked');
   const [missingFields, setMissingFields] = useState<RequiredProfileField[]>([]);
   const [gateStatusMessage, setGateStatusMessage] = useState<string | null>(null);
   const [isGitHubStartModalVisible, setIsGitHubStartModalVisible] = useState(false);
@@ -56,7 +56,7 @@ export function DashboardOverview() {
   }, [shouldBypassProfileGate]);
 
   useEffect(() => {
-    refreshGate({ showLoading: true }).catch(() => undefined);
+    refreshGate({ showLoading: false }).catch(() => undefined);
   }, [refreshGate]);
 
   useFocusEffect(
@@ -88,12 +88,6 @@ export function DashboardOverview() {
     <View className="gap-3">
       <Text className="text-3xl font-extrabold text-heading">Dashboard</Text>
       <Text className="text-muted">Clock-in and out or create work sessions manually.</Text>
-
-      {!shouldBypassProfileGate && gateStatus === 'loading' ? (
-        <View className="gap-2 rounded-xl border border-border bg-background p-4">
-          <Text className="text-sm font-semibold text-heading">Checking profile requirements...</Text>
-        </View>
-      ) : null}
 
       {locked ? (
         <View className="gap-2 rounded-xl border border-border bg-background p-4">

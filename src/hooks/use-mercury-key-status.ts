@@ -8,6 +8,7 @@ export type MercuryKeyStatus = {
   isLoading: boolean;
   accessMode: AppAccessMode | null;
   configured: boolean | null;
+  arAccessAvailable: boolean | null;
   requiresSignIn: boolean;
 };
 
@@ -47,7 +48,13 @@ export function useMercuryKeyStatus(): MercuryKeyStatus {
         if (!active) {
           return;
         }
-        setCredentialStatus({ configured: false, keyLastFour: null, updatedAt: null });
+        setCredentialStatus({
+          configured: false,
+          keyLastFour: null,
+          updatedAt: null,
+          arAccessAvailable: null,
+          arAccessVerifiedAt: null,
+        });
       })
       .finally(() => {
         if (active) {
@@ -69,10 +76,20 @@ export function useMercuryKeyStatus(): MercuryKeyStatus {
           ? false
           : credentialStatus?.configured ?? null;
 
+  const arAccessAvailable: boolean | null =
+    accessMode === 'tour'
+      ? true
+      : accessMode === 'hosted' && configured === true
+        ? credentialStatus?.arAccessAvailable ?? null
+        : configured === false
+          ? false
+          : null;
+
   return {
     isLoading: isFetching,
     accessMode,
     configured,
+    arAccessAvailable,
     requiresSignIn: accessMode === 'hosted' && !isAuthenticated,
   };
 }

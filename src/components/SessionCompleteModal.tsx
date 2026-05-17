@@ -13,18 +13,25 @@ import { getUserProfile } from '@/database/db';
 import { useStableWindowDimensions } from '@/hooks/use-stable-window-dimensions';
 import {
   fetchCommitInfo,
+  fetchPullRequest,
   inferBranchFromCommit,
+  listPullRequests,
   listRecentCommits,
+  parseGitHubPullRequestUrl,
   type GitHubCommitSummary,
+  type GitHubPullRequestSummary,
 } from '@/services/github';
 import { resolveGitHubApiToken } from '@/services/github-auth';
 import { InlineNotice } from '@/components/inline-notice';
 
 const EMPTY_PICKER_VALUE = '';
+type PullRequestPickerMode = 'open' | 'merged';
 
 export type SessionCompleteResult = {
   notes: string | null;
   commitSha: string | null;
+  prUrl: string | null;
+  prNumber: number | null;
 };
 
 type SessionCompleteModalProps = {
@@ -101,6 +108,16 @@ export function SessionCompleteModal({
   const [recentCommits, setRecentCommits] = useState<GitHubCommitSummary[]>([]);
   const [selectedRecentCommitSha, setSelectedRecentCommitSha] = useState('');
   const [isLoadingRecentCommits, setIsLoadingRecentCommits] = useState(false);
+  const [prUrlInput, setPrUrlInput] = useState('');
+  const [resolvedPrUrl, setResolvedPrUrl] = useState<string | null>(null);
+  const [resolvedPrNumber, setResolvedPrNumber] = useState<number | null>(null);
+  const [prError, setPrError] = useState<string | null>(null);
+  const [prStatus, setPrStatus] = useState<string | null>(null);
+  const [prPickerMode, setPrPickerMode] = useState<PullRequestPickerMode>('open');
+  const [pullRequests, setPullRequests] = useState<GitHubPullRequestSummary[]>([]);
+  const [selectedPullRequestNumber, setSelectedPullRequestNumber] = useState('');
+  const [isLoadingPullRequests, setIsLoadingPullRequests] = useState(false);
+  const [isFetchingPr, setIsFetchingPr] = useState(false);
 
   useEffect(() => {
     if (!visible) {
@@ -119,6 +136,16 @@ export function SessionCompleteModal({
     setRecentCommits([]);
     setSelectedRecentCommitSha('');
     setIsLoadingRecentCommits(false);
+    setPrUrlInput('');
+    setResolvedPrUrl(null);
+    setResolvedPrNumber(null);
+    setPrError(null);
+    setPrStatus(null);
+    setPrPickerMode('open');
+    setPullRequests([]);
+    setSelectedPullRequestNumber('');
+    setIsLoadingPullRequests(false);
+    setIsFetchingPr(false);
   }, [visible, initialNotes]);
 
   useEffect(() => {
@@ -281,10 +308,117 @@ export function SessionCompleteModal({
     }
   }
 
+  async function handleLoadPullRequests(): Promise<void> {
+    const owner = githubOrg?.trim() ?? '';
+    const repo = githubRepo?.trim() ?? '';
+    if (!owner || !repo) {
+      setPrError('Client/project must have GitHub org and repo before loading PRs.');
+      return;
+    }
+
+    setIsLoadingPullRequests(true);
+    setPrError(null);
+    setPrStatus(null);
+    try {
+      const branch = githubBranch?.trim();
+      const head = branch ? `${owner}:${branch}` : null;
+      const desiredState = prPickerMode === 'open' ? 'open' : 'closed';
+
+      let didBroadenSearch = false;
+      const basePrs = await listPullRequests(owner, repo, {
+        state: desiredState,
+        token: githubToken ?? undefined,
+        head,
+        perPage: 30,
+      });
+
+      let prs =
+        prPickerMode === 'merged' ? basePrs.filter((entry) => entry.merged) : basePrs;
+
+      if (prPickerMode === 'merged' && prs.length === 0 && head) {
+        didBroadenSearch = true;
+        const retry = await listPullRequests(owner, repo, {
+          state: 'closed',
+          token: githubToken ?? undefined,
+          head: null,
+          perPage: 30,
+        });
+        prs = retry.filter((entry) => entry.merged);
+      }
+
+      setPullRequests(prs);
+      const label = prPickerMode === 'merged' ? 'merged' : 'open';
+      setPrStatus(
+        prs.length === 0
+          ? `No ${label} pull requests found for this target.${didBroadenSearch ? ' (Searched repo without branch filter.)' : ''}`
+          : `Loaded ${prs.length} ${label} pull request${prs.length === 1 ? '' : 's'}.${didBroadenSearch ? ' (Broader repo search.)' : ''}`,
+      );
+    } catch {
+      setPrError('Could not load pull requests.');
+      setPullRequests([]);
+    } finally {
+      setIsLoadingPullRequests(false);
+    }
+  }
+
+  async function handleApplyPrUrl(): Promise<void> {
+    const parsed = parseGitHubPullRequestUrl(prUrlInput);
+    if (!parsed) {
+      setPrError('Paste a valid GitHub pull request URL (https://github.com/owner/repo/pull/123).');
+      setResolvedPrUrl(null);
+      setResolvedPrNumber(null);
+      setPrStatus(null);
+      return;
+    }
+
+    if (githubOrg?.trim() && normalizeCompare(parsed.owner) !== normalizeCompare(githubOrg)) {
+      setPrError(`Owner mismatch: expected "${githubOrg.trim()}", PR has "${parsed.owner}".`);
+      return;
+    }
+    if (githubRepo?.trim() && normalizeCompare(parsed.repo) !== normalizeCompare(githubRepo)) {
+      setPrError(`Repo mismatch: expected "${githubRepo.trim()}", PR has "${parsed.repo}".`);
+      return;
+    }
+
+    setIsFetchingPr(true);
+    setPrError(null);
+    try {
+      const summary = await fetchPullRequest(
+        parsed.owner,
+        parsed.repo,
+        parsed.number,
+        githubToken ?? undefined,
+      );
+      if (summary) {
+        setResolvedPrUrl(summary.htmlUrl);
+        setResolvedPrNumber(summary.number);
+        const stateLabel = summary.merged ? 'merged' : summary.state;
+        setPrStatus(`Linked PR #${summary.number} (${stateLabel}).`);
+      } else {
+        setResolvedPrUrl(`https://github.com/${parsed.owner}/${parsed.repo}/pull/${parsed.number}`);
+        setResolvedPrNumber(parsed.number);
+        setPrStatus(`Linked PR #${parsed.number} (state not verified).`);
+      }
+    } finally {
+      setIsFetchingPr(false);
+    }
+  }
+
+  function handleClearPr(): void {
+    setPrUrlInput('');
+    setResolvedPrUrl(null);
+    setResolvedPrNumber(null);
+    setPrError(null);
+    setPrStatus(null);
+    setSelectedPullRequestNumber('');
+  }
+
   function handleSave(): void {
     onSave({
       notes: notes.trim() || null,
       commitSha: commitSha.trim() || null,
+      prUrl: resolvedPrUrl,
+      prNumber: resolvedPrNumber,
     });
   }
 
@@ -459,6 +593,142 @@ export function SessionCompleteModal({
                   <Text className="font-semibold text-secondary">
                     {isFetching ? 'Fetching...' : 'Fetch & Append'}
                   </Text>
+                </Pressable>
+              </View>
+            </View>
+
+            <View className="mb-4 gap-3 rounded-md border border-border bg-background p-3">
+              <Text className="text-xs uppercase tracking-wide text-muted">Pull Request (optional)</Text>
+              <Text className="text-xs text-muted">
+                Attach an open or merged PR so this session links to its review history.
+              </Text>
+              {githubToken?.trim() && githubOrg?.trim() && githubRepo?.trim() ? (
+                <View className="gap-2">
+                  <View className="gap-2">
+                    <Text className="text-xs uppercase tracking-wide text-muted">PR State</Text>
+                    <View className="rounded-md border border-border bg-card">
+                      <Picker
+                        selectedValue={prPickerMode}
+                        onValueChange={(value) => {
+                          const next = String(value ?? 'open');
+                          const nextMode: PullRequestPickerMode = next === 'merged' ? 'merged' : 'open';
+                          setPrPickerMode(nextMode);
+                          setPullRequests([]);
+                          setSelectedPullRequestNumber('');
+                          setPrError(null);
+                          setPrStatus(null);
+                        }}
+                        dropdownIconColor={pickerTextColor}
+                        style={{ color: pickerTextColor, backgroundColor: pickerSurfaceColor }}
+                      >
+                        <Picker.Item
+                          label="Open pull requests"
+                          value="open"
+                          color={pickerTextColor}
+                          style={{ color: pickerTextColor, backgroundColor: pickerSurfaceColor }}
+                        />
+                        <Picker.Item
+                          label="Merged pull requests"
+                          value="merged"
+                          color={pickerTextColor}
+                          style={{ color: pickerTextColor, backgroundColor: pickerSurfaceColor }}
+                        />
+                      </Picker>
+                    </View>
+                  </View>
+                  <Pressable
+                    className={`items-center rounded-md border border-primary px-3 py-2 ${isLoadingPullRequests ? 'opacity-70' : ''}`}
+                    onPress={() => {
+                      handleLoadPullRequests().catch(() => undefined);
+                    }}
+                    disabled={isLoadingPullRequests}
+                  >
+                    <Text className="font-semibold text-primary">
+                      {isLoadingPullRequests ? 'Loading PRs...' : 'Load Pull Requests'}
+                    </Text>
+                  </Pressable>
+                  {pullRequests.length > 0 ? (
+                    <View className="rounded-md border border-border bg-card">
+                      <Picker
+                        selectedValue={selectedPullRequestNumber || EMPTY_PICKER_VALUE}
+                        onValueChange={(value) => {
+                          const nextValue = String(value ?? EMPTY_PICKER_VALUE);
+                          setSelectedPullRequestNumber(nextValue);
+                          if (!nextValue) {
+                            return;
+                          }
+                          const selected = pullRequests.find(
+                            (entry) => String(entry.number) === nextValue,
+                          );
+                          if (!selected) {
+                            return;
+                          }
+                          setPrUrlInput(selected.htmlUrl);
+                          setResolvedPrUrl(selected.htmlUrl);
+                          setResolvedPrNumber(selected.number);
+                          setPrError(null);
+                          const stateLabel = selected.merged ? 'merged' : selected.state;
+                          setPrStatus(`Linked PR #${selected.number} (${stateLabel}).`);
+                        }}
+                        dropdownIconColor={pickerTextColor}
+                        style={{ color: pickerTextColor, backgroundColor: pickerSurfaceColor }}
+                      >
+                        <Picker.Item
+                          label="Select a pull request"
+                          value={EMPTY_PICKER_VALUE}
+                          color={pickerPlaceholderColor}
+                          style={{ color: pickerPlaceholderColor, backgroundColor: pickerSurfaceColor }}
+                        />
+                        {pullRequests.map((entry) => (
+                          <Picker.Item
+                            key={entry.number}
+                            label={`#${entry.number} - ${entry.title || entry.headBranch}`}
+                            value={String(entry.number)}
+                            color={pickerTextColor}
+                            style={{ color: pickerTextColor, backgroundColor: pickerSurfaceColor }}
+                          />
+                        ))}
+                      </Picker>
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
+              <TextInput
+                value={prUrlInput}
+                onChangeText={(value) => {
+                  setPrUrlInput(value);
+                  setPrError(null);
+                  setPrStatus(null);
+                }}
+                placeholder="https://github.com/owner/repo/pull/123"
+                autoCapitalize="none"
+                autoCorrect={false}
+                className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
+              />
+              {prError ? (
+                <InlineNotice tone="error" message={prError} textClassName="text-xs text-danger" />
+              ) : null}
+              {prStatus ? (
+                <InlineNotice tone="success" message={prStatus} textClassName="text-xs text-success" />
+              ) : null}
+              <View className={isLargeScreen ? 'flex-row gap-2' : 'gap-2'}>
+                <Pressable
+                  className={`${isLargeScreen ? 'flex-1' : ''} items-center rounded-md bg-secondary px-3 py-2`}
+                  onPress={() => {
+                    handleApplyPrUrl().catch(() => undefined);
+                  }}
+                  disabled={isFetchingPr || !prUrlInput.trim()}
+                >
+                  <Text className="font-semibold text-white">
+                    {isFetchingPr ? 'Linking...' : 'Link PR'}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  className={`${isLargeScreen ? 'flex-1' : ''} items-center rounded-md border border-border px-3 py-2`}
+                  onPress={handleClearPr}
+                  disabled={!prUrlInput.trim() && resolvedPrNumber === null}
+                >
+                  <Text className="font-semibold text-heading">Clear</Text>
                 </Pressable>
               </View>
             </View>

@@ -24,6 +24,8 @@ export type Session = {
   notes: string | null;
   commit_sha: string | null;
   commit_url?: string | null;
+  pr_url: string | null;
+  pr_number: number | null;
   invoice_id: string | null;
   created_at: string;
   updated_at: string;

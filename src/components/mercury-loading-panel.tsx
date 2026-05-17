@@ -1,5 +1,6 @@
-import { ActivityIndicator, Text, View } from 'react-native';
-import { MercuryLogo, mercuryUiTheme } from '@mr.dj2u/mercury-ui';
+import { Text, View } from 'react-native';
+import { MercuryLogo } from '@mr.dj2u/mercury-ui';
+import { CosmosLoadingAnimation } from '@/components/UI/Loading';
 
 type MercuryLoadingPanelProps = {
   subtitle: string;
@@ -35,7 +36,7 @@ export function MercuryLoadingPanel({ subtitle, message }: MercuryLoadingPanelPr
           backgroundColor: '#121c14',
         }}
       >
-        <ActivityIndicator size="small" color={mercuryUiTheme.colors.accent} />
+        <CosmosLoadingAnimation size={72} />
         <Text style={{ color: '#d4e0d0', fontSize: 14, textAlign: 'center' }}>{message}</Text>
       </View>
     </View>

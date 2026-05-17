@@ -125,10 +125,10 @@ function createInitialState(): TourState {
       { id: 'tour_checklist_002', milestone_id: TOUR_MILESTONE_ID, label: 'Collect final stakeholder review notes', sort_order: 1, is_completed: 0, completed_at: null, created_at: createdAt, updated_at: createdAt, deleted_at: null },
     ],
     sessions: [
-      { id: 'tour_session_001', client: 'Acme Design Co.', client_id: TOUR_CLIENT_ID, project_id: TOUR_PROJECT_ID, task_id: TOUR_TASK_ONE_ID, start_time: s1Start, end_time: s1End, duration: durationSeconds(s1Start, s1End), notes: 'Refined hero spacing, CTA layout, and mobile heading balance.', commit_sha: null, invoice_id: TOUR_INVOICE_ID, created_at: createdAt, updated_at: createdAt, deleted_at: null },
-      { id: 'tour_session_002', client: 'Acme Design Co.', client_id: TOUR_CLIENT_ID, project_id: TOUR_PROJECT_ID, task_id: TOUR_TASK_TWO_ID, start_time: s2Start, end_time: s2End, duration: durationSeconds(s2Start, s2End), notes: 'Walked through invoice creation and polished the status messaging.', commit_sha: null, invoice_id: TOUR_INVOICE_ID, created_at: createdAt, updated_at: createdAt, deleted_at: null },
-      { id: 'tour_session_003', client: 'Acme Design Co.', client_id: TOUR_CLIENT_ID, project_id: TOUR_PROJECT_ID, task_id: TOUR_TASK_ONE_ID, start_time: s3Start, end_time: s3End, duration: durationSeconds(s3Start, s3End), notes: 'Demo-ready responsive nav cleanup.', commit_sha: null, invoice_id: null, created_at: createdAt, updated_at: createdAt, deleted_at: null },
-      { id: 'tour_session_004', client: 'Acme Design Co.', client_id: TOUR_CLIENT_ID, project_id: TOUR_PROJECT_ID, task_id: TOUR_TASK_TWO_ID, start_time: s4Start, end_time: s4End, duration: durationSeconds(s4Start, s4End), notes: 'Prepared demo copy for the profile and onboarding flow.', commit_sha: null, invoice_id: null, created_at: createdAt, updated_at: createdAt, deleted_at: null },
+      { id: 'tour_session_001', client: 'Acme Design Co.', client_id: TOUR_CLIENT_ID, project_id: TOUR_PROJECT_ID, task_id: TOUR_TASK_ONE_ID, start_time: s1Start, end_time: s1End, duration: durationSeconds(s1Start, s1End), notes: 'Refined hero spacing, CTA layout, and mobile heading balance.', commit_sha: null, pr_url: null, pr_number: null, invoice_id: TOUR_INVOICE_ID, created_at: createdAt, updated_at: createdAt, deleted_at: null },
+      { id: 'tour_session_002', client: 'Acme Design Co.', client_id: TOUR_CLIENT_ID, project_id: TOUR_PROJECT_ID, task_id: TOUR_TASK_TWO_ID, start_time: s2Start, end_time: s2End, duration: durationSeconds(s2Start, s2End), notes: 'Walked through invoice creation and polished the status messaging.', commit_sha: null, pr_url: null, pr_number: null, invoice_id: TOUR_INVOICE_ID, created_at: createdAt, updated_at: createdAt, deleted_at: null },
+      { id: 'tour_session_003', client: 'Acme Design Co.', client_id: TOUR_CLIENT_ID, project_id: TOUR_PROJECT_ID, task_id: TOUR_TASK_ONE_ID, start_time: s3Start, end_time: s3End, duration: durationSeconds(s3Start, s3End), notes: 'Demo-ready responsive nav cleanup.', commit_sha: null, pr_url: null, pr_number: null, invoice_id: null, created_at: createdAt, updated_at: createdAt, deleted_at: null },
+      { id: 'tour_session_004', client: 'Acme Design Co.', client_id: TOUR_CLIENT_ID, project_id: TOUR_PROJECT_ID, task_id: TOUR_TASK_TWO_ID, start_time: s4Start, end_time: s4End, duration: durationSeconds(s4Start, s4End), notes: 'Prepared demo copy for the profile and onboarding flow.', commit_sha: null, pr_url: null, pr_number: null, invoice_id: null, created_at: createdAt, updated_at: createdAt, deleted_at: null },
     ],
     sessionBreaks: [],
     invoices: [
@@ -238,6 +238,12 @@ function decorateSession(session: Session): Session {
     break_count: breaks.length,
     is_paused: breaks.some((item) => item.end_time === null) ? 1 : 0,
     commit_url: session.commit_sha && client?.github_org && project?.github_repo ? `https://github.com/${client.github_org}/${project.github_repo}/commit/${session.commit_sha}` : null,
+    pr_url:
+      session.pr_url ??
+      (session.pr_number && client?.github_org && project?.github_repo
+        ? `https://github.com/${client.github_org}/${project.github_repo}/pull/${session.pr_number}`
+        : null),
+    pr_number: session.pr_number ?? null,
   };
 }
 
@@ -492,6 +498,8 @@ export const tourProvider: DbProvider = {
       duration: null,
       notes: input.notes ?? null,
       commit_sha: null,
+      pr_url: null,
+      pr_number: null,
       invoice_id: null,
       created_at: timestamp,
       updated_at: timestamp,
@@ -539,6 +547,8 @@ export const tourProvider: DbProvider = {
       duration: durationSeconds(input.start_time, input.end_time),
       notes: input.notes ?? null,
       commit_sha: null,
+      pr_url: null,
+      pr_number: null,
       invoice_id: null,
       created_at: timestamp,
       updated_at: timestamp,
@@ -621,7 +631,14 @@ export const tourProvider: DbProvider = {
     const current = getState();
     const index = current.sessions.findIndex((item) => item.id === input.id && item.deleted_at === null);
     if (index >= 0) {
-      current.sessions[index] = { ...current.sessions[index], notes: input.notes, commit_sha: input.commit_sha ?? null, updated_at: nowIso() };
+      current.sessions[index] = {
+        ...current.sessions[index],
+        notes: input.notes,
+        commit_sha: input.commit_sha ?? null,
+        pr_url: input.pr_url ?? null,
+        pr_number: input.pr_number ?? null,
+        updated_at: nowIso(),
+      };
     }
   },
   async listSessionBreaksBySessionId(sessionId) {

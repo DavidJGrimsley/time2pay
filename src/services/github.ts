@@ -71,7 +71,39 @@ export type ParsedGitHubUrl =
       owner: string;
       repo: string;
       sha: string;
+    }
+  | {
+      kind: 'pull';
+      owner: string;
+      repo: string;
+      number: number;
     };
+
+export type GitHubPullRequestState = 'open' | 'closed';
+
+export type GitHubPullRequestSummary = {
+  number: number;
+  title: string;
+  state: GitHubPullRequestState;
+  merged: boolean;
+  mergedAt: string | null;
+  htmlUrl: string;
+  headBranch: string;
+  baseBranch: string;
+  authorLogin: string | null;
+};
+
+type GitHubPullRequestResponse = {
+  number?: number | null;
+  title?: string | null;
+  state?: string | null;
+  merged?: boolean | null;
+  merged_at?: string | null;
+  html_url?: string | null;
+  head?: { ref?: string | null } | null;
+  base?: { ref?: string | null } | null;
+  user?: { login?: string | null } | null;
+};
 
 export type BranchInferenceResult = {
   branch: string | null;
@@ -227,12 +259,191 @@ export function parseGitHubUrl(input: string): ParsedGitHubUrl | null {
     };
   }
 
+  if (segments[2]?.toLowerCase() === 'pull') {
+    const number = Number.parseInt(segments[3] ?? '', 10);
+    if (!Number.isFinite(number) || number <= 0) {
+      return null;
+    }
+    return {
+      kind: 'pull',
+      owner,
+      repo,
+      number,
+    };
+  }
+
   return {
     kind: 'repo',
     owner,
     repo,
     branch: null,
   };
+}
+
+export function parseGitHubPullRequestUrl(input: string): {
+  owner: string;
+  repo: string;
+  number: number;
+} | null {
+  const parsed = parseGitHubUrl(input);
+  if (!parsed || parsed.kind !== 'pull') {
+    return null;
+  }
+  return { owner: parsed.owner, repo: parsed.repo, number: parsed.number };
+}
+
+export function buildPullRequestUrl(
+  owner: string | null | undefined,
+  repo: string | null | undefined,
+  number: number | null | undefined,
+): string | null {
+  if (!owner || !repo || !number || number <= 0) {
+    return null;
+  }
+  return `https://github.com/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pull/${number}`;
+}
+
+export function formatPrBadgeLabel(input: {
+  number: number | null | undefined;
+  state?: GitHubPullRequestState | null;
+  merged?: boolean | null;
+}): string {
+  const number = input.number;
+  if (!number || number <= 0) {
+    return '';
+  }
+  const suffix = input.merged
+    ? ' · merged'
+    : input.state === 'closed'
+      ? ' · closed'
+      : input.state === 'open'
+        ? ' · open'
+        : '';
+  return `PR #${number}${suffix}`;
+}
+
+function normalizePullRequestResponse(
+  data: GitHubPullRequestResponse,
+): GitHubPullRequestSummary | null {
+  const number = typeof data.number === 'number' ? data.number : null;
+  const htmlUrl = data.html_url?.trim() ?? '';
+  if (!number || !htmlUrl) {
+    return null;
+  }
+
+  const stateString = (data.state ?? '').toLowerCase();
+  const state: GitHubPullRequestState = stateString === 'closed' ? 'closed' : 'open';
+
+  return {
+    number,
+    title: (data.title ?? '').trim(),
+    state,
+    merged: Boolean(data.merged),
+    mergedAt: data.merged_at?.trim() || null,
+    htmlUrl,
+    headBranch: data.head?.ref?.trim() ?? '',
+    baseBranch: data.base?.ref?.trim() ?? '',
+    authorLogin: data.user?.login?.trim() ?? null,
+  };
+}
+
+export async function fetchPullRequest(
+  owner: string,
+  repo: string,
+  number: number,
+  token?: string,
+): Promise<GitHubPullRequestSummary | null> {
+  if (!owner || !repo || !number || number <= 0) {
+    return null;
+  }
+
+  try {
+    const url = `${GITHUB_API_BASE}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls/${number}`;
+    const response = await githubFetch(url, token);
+    if (!response.ok) {
+      return null;
+    }
+    return normalizePullRequestResponse((await response.json()) as GitHubPullRequestResponse);
+  } catch {
+    return null;
+  }
+}
+
+export async function listOpenPullRequests(
+  owner: string,
+  repo: string,
+  input: { token?: string; head?: string | null; perPage?: number } = {},
+): Promise<GitHubPullRequestSummary[]> {
+  return listPullRequests(owner, repo, { ...input, state: 'open' });
+}
+
+export async function listPullRequests(
+  owner: string,
+  repo: string,
+  input: {
+    state: GitHubPullRequestState;
+    token?: string;
+    head?: string | null;
+    perPage?: number;
+  } = { state: 'open' },
+): Promise<GitHubPullRequestSummary[]> {
+  if (!owner || !repo) {
+    return [];
+  }
+
+  const perPage = Math.max(1, Math.min(input.perPage ?? 20, 100));
+  const searchParams = new URLSearchParams();
+  searchParams.set('state', input.state);
+  searchParams.set('per_page', String(perPage));
+  searchParams.set('sort', 'updated');
+  searchParams.set('direction', 'desc');
+  if (input.head?.trim()) {
+    searchParams.set('head', input.head.trim());
+  }
+
+  try {
+    const response = await githubFetch(
+      `${GITHUB_API_BASE}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls?${searchParams.toString()}`,
+      input.token,
+    );
+    if (!response.ok) {
+      return [];
+    }
+
+    const data = (await response.json()) as GitHubPullRequestResponse[];
+    return data
+      .map((entry) => normalizePullRequestResponse(entry))
+      .filter((entry): entry is GitHubPullRequestSummary => entry !== null);
+  } catch {
+    return [];
+  }
+}
+
+export async function listPullRequestsForCommit(
+  owner: string,
+  repo: string,
+  sha: string,
+  token?: string,
+): Promise<GitHubPullRequestSummary[]> {
+  if (!owner || !repo || !sha) {
+    return [];
+  }
+
+  try {
+    const response = await githubFetch(
+      `${GITHUB_API_BASE}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/commits/${encodeURIComponent(sha)}/pulls`,
+      token,
+    );
+    if (!response.ok) {
+      return [];
+    }
+    const data = (await response.json()) as GitHubPullRequestResponse[];
+    return data
+      .map((entry) => normalizePullRequestResponse(entry))
+      .filter((entry): entry is GitHubPullRequestSummary => entry !== null);
+  } catch {
+    return [];
+  }
 }
 
 /**

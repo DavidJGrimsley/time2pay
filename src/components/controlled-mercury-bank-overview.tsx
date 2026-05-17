@@ -9,6 +9,7 @@ import {
   type MercuryUiAdapter,
 } from '@mr.dj2u/mercury-ui';
 import { MercuryLoadingPanel } from '@/components/mercury-loading-panel';
+import { getCachedMercuryAccountsSnapshot } from '@/services/mercury';
 
 type ControlledMercuryBankOverviewProps = {
   adapter: Pick<MercuryUiAdapter, 'listAccounts'>;
@@ -44,13 +45,24 @@ export function ControlledMercuryBankOverview({
   adapter,
   subtitle = 'Mercury account context for invoice routing.',
 }: ControlledMercuryBankOverviewProps) {
-  const [accounts, setAccounts] = useState<MercuryAccount[]>([]);
-  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [status, setStatus] = useState({
-    message: 'Checking Mercury accounts...',
-    tone: 'neutral' as MercuryStatusTone,
-  });
+  const cachedAccounts = getCachedMercuryAccountsSnapshot();
+  const cachedDefaultAccount = cachedAccounts
+    ? findBestCheckingAccount(cachedAccounts) ?? cachedAccounts[0] ?? null
+    : null;
+  const [accounts, setAccounts] = useState<MercuryAccount[]>(() => cachedAccounts ?? []);
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(() =>
+    cachedDefaultAccount?.id ? `${cachedDefaultAccount.id}` : null,
+  );
+  const [isLoading, setIsLoading] = useState(() => cachedAccounts === null);
+  const [status, setStatus] = useState(() => ({
+    message:
+      cachedAccounts === null
+        ? 'Checking Mercury accounts...'
+        : cachedAccounts.length > 0
+          ? 'Mercury accounts synced.'
+          : 'No Mercury accounts found.',
+    tone: (cachedAccounts === null ? 'neutral' : cachedAccounts.length > 0 ? 'success' : 'error') as MercuryStatusTone,
+  }));
 
   useEffect(() => {
     let active = true;
@@ -69,7 +81,9 @@ export function ControlledMercuryBankOverview({
         return;
       }
 
-      setIsLoading(true);
+      if (getCachedMercuryAccountsSnapshot() === null) {
+        setIsLoading(true);
+      }
       try {
         const rows = await adapter.listAccounts();
         if (!active) {

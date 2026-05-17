@@ -4,7 +4,7 @@ import { isTourMode } from '@/services/runtime-mode';
 
 const DB_NAME = 'time2pay.db';
 const IN_MEMORY_DB_NAME = ':memory:';
-const SCHEMA_VERSION = 11;
+const SCHEMA_VERSION = 12;
 export const USER_PROFILE_ID = 'me';
 
 const MIGRATIONS: { version: number; upSql: string }[] = [
@@ -237,6 +237,14 @@ const MIGRATIONS: { version: number; upSql: string }[] = [
     version: 11,
     upSql: `
       ALTER TABLE user_profile ADD COLUMN tour_seed_version INTEGER NOT NULL DEFAULT 0;
+    `,
+  },
+  {
+    version: 12,
+    upSql: `
+      ALTER TABLE sessions ADD COLUMN pr_url TEXT;
+      ALTER TABLE sessions ADD COLUMN pr_number INTEGER;
+      CREATE INDEX IF NOT EXISTS idx_sessions_pr_number ON sessions(pr_number);
     `,
   },
 ];

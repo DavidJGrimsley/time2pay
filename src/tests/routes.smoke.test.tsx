@@ -27,12 +27,17 @@ vi.mock('react-native-reanimated', async () => {
       View: ({ children }: { children?: React.ReactNode }) =>
         ReactModule.createElement('AnimatedView', null, children),
     },
-    FadeInDown: {
+    FadeIn: {
       delay: () => ({
         duration: () => undefined,
       }),
+      duration: () => undefined,
+    },
+    FadeOut: {
+      duration: () => undefined,
     },
     LinearTransition: {
+      duration: () => ({}),
       springify: () => ({
         damping: () => ({
           stiffness: () => ({}),

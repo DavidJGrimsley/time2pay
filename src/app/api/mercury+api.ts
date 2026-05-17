@@ -12,6 +12,7 @@ import {
 } from '@mr.dj2u/mercury';
 import { requireAuthUserId } from '@/server/db/_shared/auth';
 import { getDecryptedMercuryApiKeyForUser } from '@/server/mercury/credentials';
+import { redactMercuryError, redactMercuryString } from '@/server/mercury/redact';
 
 type MercuryAccessMode = 'local' | 'hosted' | 'tour';
 
@@ -341,10 +342,8 @@ export async function POST(request: Request): Promise<Response> {
     config = await resolveMercuryConfig(request, payload);
     client = getMercuryClient(config);
   } catch (error) {
-    return Response.json(
-      { error: error instanceof Error ? error.message : 'Invalid request.' },
-      { status: 400 },
-    );
+    const message = error instanceof Error ? error.message : 'Invalid request.';
+    return Response.json({ error: redactMercuryString(message) }, { status: 400 });
   }
 
   try {
@@ -371,9 +370,48 @@ export async function POST(request: Request): Promise<Response> {
         return Response.json({ error: 'Unsupported Mercury action.' }, { status: 400 });
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Mercury request failed.';
-    console.error('Mercury action failed:', error);
-    return Response.json({ error: message }, { status: 502 });
+    const redacted = redactMercuryError(error);
+    console.error('mercury_action_failed', {
+      action: payload.action,
+      environment: config.environment,
+      code: redacted.code,
+      httpStatus: redacted.status,
+      message: redacted.message,
+    });
+    const userMessage = formatMercuryActionError(redacted);
+    return Response.json({ error: userMessage }, { status: 502 });
   }
+}
+
+const MERCURY_SUPPORT_CONTACT = 'If this keeps happening, please contact mrdj@davidjgrimsley.com.';
+
+function formatMercuryActionError(redacted: {
+  message: string;
+  status: number | null;
+}): string {
+  const message = redacted.message ?? '';
+
+  if (
+    redacted.status === 401 ||
+    /\b401\b|invalid.*token|unauthori[sz]ed/i.test(message)
+  ) {
+    return `Your saved Mercury API key was rejected by Mercury. Please re-save your production Mercury API key in Profile (Mercury dashboard → Settings → API tokens). ${MERCURY_SUPPORT_CONTACT}`;
+  }
+
+  if (redacted.status === 403 || /\b403\b|forbidden/i.test(message)) {
+    return `Mercury rejected this request — your Mercury plan may not include this feature. ${MERCURY_SUPPORT_CONTACT}`;
+  }
+
+  if (redacted.status === 429 || /\b429\b|rate limit/i.test(message)) {
+    return `Mercury is rate-limiting your account. Please wait a minute and try again. ${MERCURY_SUPPORT_CONTACT}`;
+  }
+
+  if (
+    /network|fetch failed|ENOTFOUND|ECONNREFUSED|timeout/i.test(message)
+  ) {
+    return `Couldn't reach Mercury just now. Please try again. ${MERCURY_SUPPORT_CONTACT}`;
+  }
+
+  return `${message || 'Mercury request failed.'} ${MERCURY_SUPPORT_CONTACT}`;
 }
 

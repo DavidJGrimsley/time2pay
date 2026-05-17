@@ -410,6 +410,15 @@ export async function listSessions(): Promise<Session[]> {
          THEN 'https://github.com/' || c.github_org || '/' || p.github_repo || '/commit/' || s.commit_sha
          ELSE NULL
        END AS commit_url,
+       s.pr_number,
+       CASE
+         WHEN s.pr_url IS NOT NULL THEN s.pr_url
+         WHEN s.pr_number IS NOT NULL
+           AND c.github_org IS NOT NULL
+           AND p.github_repo IS NOT NULL
+         THEN 'https://github.com/' || c.github_org || '/' || p.github_repo || '/pull/' || s.pr_number
+         ELSE NULL
+       END AS pr_url,
        s.invoice_id,
        s.created_at,
        s.updated_at,
@@ -470,6 +479,15 @@ export async function listSessionsByClientAndRange(input: {
          THEN 'https://github.com/' || c.github_org || '/' || p.github_repo || '/commit/' || s.commit_sha
          ELSE NULL
        END AS commit_url,
+       s.pr_number,
+       CASE
+         WHEN s.pr_url IS NOT NULL THEN s.pr_url
+         WHEN s.pr_number IS NOT NULL
+           AND c.github_org IS NOT NULL
+           AND p.github_repo IS NOT NULL
+         THEN 'https://github.com/' || c.github_org || '/' || p.github_repo || '/pull/' || s.pr_number
+         ELSE NULL
+       END AS pr_url,
        s.invoice_id,
        s.created_at,
        s.updated_at,
@@ -534,6 +552,15 @@ export async function listSessionsByProject(input: {
          THEN 'https://github.com/' || c.github_org || '/' || p.github_repo || '/commit/' || s.commit_sha
          ELSE NULL
        END AS commit_url,
+       s.pr_number,
+       CASE
+         WHEN s.pr_url IS NOT NULL THEN s.pr_url
+         WHEN s.pr_number IS NOT NULL
+           AND c.github_org IS NOT NULL
+           AND p.github_repo IS NOT NULL
+         THEN 'https://github.com/' || c.github_org || '/' || p.github_repo || '/pull/' || s.pr_number
+         ELSE NULL
+       END AS pr_url,
        s.invoice_id,
        s.created_at,
        s.updated_at,
@@ -554,16 +581,20 @@ export async function updateSessionNotes(input: {
   id: string;
   notes: string | null;
   commit_sha?: string | null;
+  pr_url?: string | null;
+  pr_number?: number | null;
 }): Promise<void> {
   const db = await getDb();
   const timestamp = nowIso();
 
   await db.runAsync(
     `UPDATE sessions
-       SET notes = ?, commit_sha = ?, updated_at = ?
+       SET notes = ?, commit_sha = ?, pr_url = ?, pr_number = ?, updated_at = ?
      WHERE id = ? AND deleted_at IS NULL`,
     input.notes,
     input.commit_sha ?? null,
+    input.pr_url ?? null,
+    input.pr_number ?? null,
     timestamp,
     input.id,
   );

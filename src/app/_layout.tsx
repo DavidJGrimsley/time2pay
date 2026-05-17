@@ -1,6 +1,6 @@
 import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Platform, useColorScheme } from 'react-native';
+import { LogBox, Platform, StyleSheet, useColorScheme, View } from 'react-native';
 import { Uniwind } from 'uniwind';
 import { AppLoadingShell } from '@/components/app-loading-shell';
 import { LandingSeoHead } from '@/components/landing/landing-seo-head';
@@ -13,6 +13,7 @@ import {
   resolveAppAccessMode,
 } from '@/services/runtime-mode';
 import { syncGitHubProviderTokenToHostedProfile } from '@/services/github-auth';
+import { invalidateMercuryResourceCache } from '@/services/mercury';
 import { syncPendingMercuryReferralClick } from '@/services/mercury-referrals';
 import { getSupabaseSession, onSupabaseAuthStateChange } from '@/services/supabase-client';
 import { ensureTourDemoData } from '@/services/tour-demo';
@@ -24,6 +25,7 @@ export const unstable_settings = {
 };
 
 const AUTH_BOOTSTRAP_TIMEOUT_MS = 5000;
+type HostedAccessState = 'checking' | 'allowed' | 'blocked';
 
 if (Platform.OS === 'web' && typeof window !== 'undefined') {
   try {
@@ -31,6 +33,14 @@ if (Platform.OS === 'web' && typeof window !== 'undefined') {
   } catch {
     // no-op
   }
+}
+
+if (Platform.OS !== 'web') {
+  LogBox.ignoreLogs([
+    /Invalid Refresh Token/i,
+    /Refresh Token Not Found/i,
+    /AuthSessionMissingError/i,
+  ]);
 }
 
 export default function RootLayout() {
@@ -230,6 +240,7 @@ export default function RootLayout() {
         event,
         hasSessionUser: Boolean(session?.user),
       });
+      invalidateMercuryResourceCache();
       syncGitHubProviderToken(session, 'auth-state');
       syncHostedAuth({
         ready: true,
@@ -309,8 +320,15 @@ export default function RootLayout() {
   // Keep tabs reachable while hosted auth/tour state is still bootstrapping so
   // first-click tour navigation can land on the loading shell instead of
   // bouncing back to the public landing route.
-  const hostedAccessResolved = tourModeHydrated && authReady;
-  const canAccessTabs = !hostedMode || !hostedAccessResolved || isAuthenticated || tourModeEnabled;
+  const hostedAccessState: HostedAccessState = !hostedMode
+    ? 'allowed'
+    : !tourModeHydrated || !authReady
+      ? 'checking'
+      : isAuthenticated || tourModeEnabled
+        ? 'allowed'
+        : 'blocked';
+  const hostedAccessResolved = hostedAccessState !== 'checking';
+  const canAccessTabs = hostedAccessState !== 'blocked';
   const normalizedPathname = pathname !== '/' ? pathname.replace(/\/+$/, '') : pathname;
   const isPublicRoute =
     normalizedPathname === '/' ||
@@ -331,6 +349,7 @@ export default function RootLayout() {
 
     logRuntimeDiagnostic('auth.redirect.check', {
       canAccessTabs,
+      hostedAccessState,
       hostedAccessResolved,
       isInsideTabsGroup,
       isAuthenticated,
@@ -359,6 +378,7 @@ export default function RootLayout() {
   }, [
     authReady,
     canAccessTabs,
+    hostedAccessState,
     hostedAccessResolved,
     hostedMode,
     isAuthenticated,
@@ -371,12 +391,13 @@ export default function RootLayout() {
 
   const isLoadingShellVisible =
     hostedMode &&
-    (!tourModeHydrated || !authReady || (appAccessMode === 'tour' && !isTourSeedReady));
+    (hostedAccessState === 'checking' || (appAccessMode === 'tour' && !isTourSeedReady));
 
   useEffect(() => {
     if (isLoadingShellVisible) {
       logRuntimeDiagnostic('root.loadingShell.visible', {
         hostedMode,
+        hostedAccessState,
         hostedAccessResolved,
         tourModeHydrated,
         authReady,
@@ -384,16 +405,16 @@ export default function RootLayout() {
         isTourSeedReady,
       });
     }
-  }, [isLoadingShellVisible, hostedMode, hostedAccessResolved, tourModeHydrated, authReady, appAccessMode, isTourSeedReady]);
-
-  if (isLoadingShellVisible) {
-    return (
-      <>
-        {isLandingEntry ? <LandingSeoHead /> : <NoIndexSeoHead />}
-        <AppLoadingShell />
-      </>
-    );
-  }
+  }, [
+    isLoadingShellVisible,
+    hostedMode,
+    hostedAccessState,
+    hostedAccessResolved,
+    tourModeHydrated,
+    authReady,
+    appAccessMode,
+    isTourSeedReady,
+  ]);
 
   return (
     <>
@@ -415,6 +436,13 @@ export default function RootLayout() {
         </Stack.Protected>
         <Stack.Screen name="+not-found" options={{ title: 'Not Found' }} />
       </Stack>
+      {isLoadingShellVisible ? (
+        <View
+          style={[StyleSheet.absoluteFill, { pointerEvents: 'auto', zIndex: 9999, elevation: 9999 }]}
+        >
+          <AppLoadingShell />
+        </View>
+      ) : null}
     </>
   );
 }

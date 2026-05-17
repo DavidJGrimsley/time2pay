@@ -7,6 +7,7 @@ import {
   type ProjectLineItemGroup,
 } from '@/services/invoice';
 import { GitHubCommitBadge } from '@/components/github-commit-badge';
+import { GitHubPrBadge } from '@/components/github-pr-badge';
 
 export type WeekOption = {
   key: string;
@@ -320,12 +321,18 @@ export function SessionInvoiceSourcePanel({
                             </Text>
                           </View>
                         ))}
-                        <GitHubCommitBadge
-                          commitSha={session.commit_sha}
-                          commitUrl={session.commit_url ?? null}
-                          containerClassName="pt-0.5"
-                          textClassName="text-xs text-secondary"
-                        />
+                        <View className="flex-row flex-wrap items-center gap-2 pt-0.5">
+                          <GitHubCommitBadge
+                            commitSha={session.commit_sha}
+                            commitUrl={session.commit_url ?? null}
+                            textClassName="text-xs text-secondary"
+                          />
+                          <GitHubPrBadge
+                            prNumber={session.pr_number}
+                            prUrl={session.pr_url}
+                            textClassName="text-xs text-secondary"
+                          />
+                        </View>
                         {session.notes ? (
                           <Text className="pt-0.5 text-xs text-foreground/70">{session.notes}</Text>
                         ) : null}

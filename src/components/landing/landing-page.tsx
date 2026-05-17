@@ -17,6 +17,7 @@ import Animated, {
   useAnimatedRef,
   useScrollOffset,
   useSharedValue,
+  withDelay,
   withTiming,
 } from 'react-native-reanimated';
 import {
@@ -371,6 +372,7 @@ export function LandingPage() {
   const scrollRef = useAnimatedRef<ScrollView>();
   const scrollY = useScrollOffset(scrollRef);
   const heroCopyProgress = useSharedValue(0);
+  const logoProgress = useSharedValue(0);
   const [sectionLayouts, setSectionLayouts] = useState<Record<string, SectionLayout>>({});
   const { width, height } = useStableWindowDimensions();
 
@@ -389,9 +391,13 @@ export function LandingPage() {
   const baseSectionMinHeight = isDesktopViewport
     ? Math.max(viewportSectionFloor - (isVeryShortViewport ? 28 : isShortViewport ? 12 : 0), isVeryShortViewport ? 480 : 540)
     : undefined;
-  const logoPanelMinHeight = viewportWidth >= 1200 ? (isShortViewport ? 420 : 540) : viewportWidth >= 768 ? (isShortViewport ? 340 : 440) : 280;
-  const logoShellSize = viewportWidth >= 1200 ? (isShortViewport ? 360 : 420) : viewportWidth >= 768 ? (isShortViewport ? 280 : 320) : 220;
-  const logoImageSize = Math.round(logoShellSize * 0.8);
+  const isLargeViewport = viewportWidth >= 1200;
+  const logoImageSize = (() => {
+    if (isLargeViewport) return isShortViewport ? 630 : 810;
+    if (isDesktopViewport) return isShortViewport ? 510 : 660;
+    return 420;
+  })();
+
   const workflowStepStyle = useMemo<{ width: PercentageWidth }>(() => {
     if (viewportWidth >= 1140 || (viewportWidth >= 900 && isShortViewport)) {
       return { width: '31.8%' };
@@ -412,12 +418,21 @@ export function LandingPage() {
 
   useEffect(() => {
     heroCopyProgress.value = 0;
+    logoProgress.value = 0;
 
     heroCopyProgress.value = withTiming(1, {
       duration: 760,
       easing: Easing.bezier(0.22, 1, 0.36, 1),
     });
-  }, [heroCopyProgress]);
+
+    logoProgress.value = withDelay(
+      760,
+      withTiming(1, {
+        duration: 700,
+        easing: Easing.bezier(0.22, 1, 0.36, 1),
+      }),
+    );
+  }, [heroCopyProgress, logoProgress]);
 
   const registerSectionLayout = useCallback((id: string, event: LayoutChangeEvent) => {
     const { y, height: measuredHeight } = event.nativeEvent.layout;
@@ -517,6 +532,7 @@ export function LandingPage() {
   }, [dataMode, dataModeResolved, hostedMode, isAuthenticated, router, startTour]);
 
   const heroCopyStyle = useHeroPieceStyle(heroCopyProgress, 40);
+  const logoStyle = useHeroPieceStyle(logoProgress, 0);
   const heroGlowPrimaryStyle = useParallaxStyle(scrollY, sectionLayouts[heroSection.id], viewportHeight, 32);
   const heroGlowSecondaryStyle = useParallaxStyle(scrollY, sectionLayouts[heroSection.id], viewportHeight, 54);
   const workflowMotion = useSectionRevealStyle(scrollY, sectionLayouts[workflowSection.id], viewportHeight, 0.94);
@@ -546,36 +562,25 @@ export function LandingPage() {
         <View className={`relative flex-col ${isShortViewport ? 'gap-8' : 'gap-10'} md:flex-row md:items-stretch md:justify-between`}>
           <Animated.View
             className="absolute -left-10 top-0 h-56 w-56 rounded-full bg-primary"
-            style={[{ opacity: 0.22 }, heroGlowPrimaryStyle]}
+            style={[{ opacity: 0.22, zIndex: 0 }, heroGlowPrimaryStyle]}
           />
           <Animated.View
             className="absolute right-0 top-20 h-40 w-40 rounded-full bg-secondary"
-            style={[{ opacity: 0.14 }, heroGlowSecondaryStyle]}
+            style={[{ opacity: 0.14, zIndex: 0 }, heroGlowSecondaryStyle]}
           />
 
-          <Animated.View className="md:w-[38%] md:self-stretch" style={heroCopyStyle}>
-            <View
-              className="flex-1 items-center justify-center rounded-[36px] border border-border bg-card px-6 py-8 md:px-8 md:py-10"
-              style={{ minHeight: logoPanelMinHeight, boxShadow: '0 24px 60px rgba(15, 23, 42, 0.12)' }}
-            >
-              <View
-                className="items-center justify-center rounded-[42px] bg-background"
-                style={{
-                  width: logoShellSize,
-                  height: logoShellSize,
-                  boxShadow: '0 18px 42px rgba(15, 23, 42, 0.1)',
-                }}
-              >
-                <Image
-                  source={{ uri: '/images/time2payLogo.png' }}
-                  style={{ width: logoImageSize, height: logoImageSize }}
-                  accessibilityLabel="Time2Pay logo"
-                />
-              </View>
-            </View>
+          <Animated.View
+            className="md:w-[38%] md:self-stretch"
+            style={[logoStyle, { zIndex: 1, overflow: 'visible' }]}
+          >
+            <Image
+              source={{ uri: '/images/time2payLogo.png' }}
+              style={{ width: logoImageSize, height: logoImageSize }}
+              accessibilityLabel="Time2Pay logo"
+            />
           </Animated.View>
 
-          <View className="flex-1 justify-center gap-8 md:max-w-[680px]">
+          <View className="flex-1 justify-center gap-8 md:max-w-[680px]" style={{ zIndex: 2 }}>
             <Animated.View className="gap-5" style={heroCopyStyle}>
               <SemanticText as="p" className="text-xs font-bold uppercase tracking-[2px] text-muted">
                 {heroSection.eyebrow}
