@@ -15,7 +15,7 @@ import {
   fetchCommitInfo,
   fetchPullRequest,
   inferBranchFromCommit,
-  listOpenPullRequests,
+  listPullRequests,
   listRecentCommits,
   parseGitHubPullRequestUrl,
   type GitHubCommitSummary,
@@ -25,6 +25,7 @@ import { resolveGitHubApiToken } from '@/services/github-auth';
 import { InlineNotice } from '@/components/inline-notice';
 
 const EMPTY_PICKER_VALUE = '';
+type PullRequestPickerMode = 'open' | 'merged';
 
 export type SessionCompleteResult = {
   notes: string | null;
@@ -112,9 +113,10 @@ export function SessionCompleteModal({
   const [resolvedPrNumber, setResolvedPrNumber] = useState<number | null>(null);
   const [prError, setPrError] = useState<string | null>(null);
   const [prStatus, setPrStatus] = useState<string | null>(null);
-  const [openPullRequests, setOpenPullRequests] = useState<GitHubPullRequestSummary[]>([]);
-  const [selectedOpenPrNumber, setSelectedOpenPrNumber] = useState('');
-  const [isLoadingOpenPrs, setIsLoadingOpenPrs] = useState(false);
+  const [prPickerMode, setPrPickerMode] = useState<PullRequestPickerMode>('open');
+  const [pullRequests, setPullRequests] = useState<GitHubPullRequestSummary[]>([]);
+  const [selectedPullRequestNumber, setSelectedPullRequestNumber] = useState('');
+  const [isLoadingPullRequests, setIsLoadingPullRequests] = useState(false);
   const [isFetchingPr, setIsFetchingPr] = useState(false);
 
   useEffect(() => {
@@ -139,9 +141,10 @@ export function SessionCompleteModal({
     setResolvedPrNumber(null);
     setPrError(null);
     setPrStatus(null);
-    setOpenPullRequests([]);
-    setSelectedOpenPrNumber('');
-    setIsLoadingOpenPrs(false);
+    setPrPickerMode('open');
+    setPullRequests([]);
+    setSelectedPullRequestNumber('');
+    setIsLoadingPullRequests(false);
     setIsFetchingPr(false);
   }, [visible, initialNotes]);
 
@@ -305,7 +308,7 @@ export function SessionCompleteModal({
     }
   }
 
-  async function handleLoadOpenPullRequests(): Promise<void> {
+  async function handleLoadPullRequests(): Promise<void> {
     const owner = githubOrg?.trim() ?? '';
     const repo = githubRepo?.trim() ?? '';
     if (!owner || !repo) {
@@ -313,27 +316,48 @@ export function SessionCompleteModal({
       return;
     }
 
-    setIsLoadingOpenPrs(true);
+    setIsLoadingPullRequests(true);
     setPrError(null);
     setPrStatus(null);
     try {
       const branch = githubBranch?.trim();
-      const prs = await listOpenPullRequests(owner, repo, {
+      const head = branch ? `${owner}:${branch}` : null;
+      const desiredState = prPickerMode === 'open' ? 'open' : 'closed';
+
+      let didBroadenSearch = false;
+      const basePrs = await listPullRequests(owner, repo, {
+        state: desiredState,
         token: githubToken ?? undefined,
-        head: branch ? `${owner}:${branch}` : null,
+        head,
         perPage: 30,
       });
-      setOpenPullRequests(prs);
+
+      let prs =
+        prPickerMode === 'merged' ? basePrs.filter((entry) => entry.merged) : basePrs;
+
+      if (prPickerMode === 'merged' && prs.length === 0 && head) {
+        didBroadenSearch = true;
+        const retry = await listPullRequests(owner, repo, {
+          state: 'closed',
+          token: githubToken ?? undefined,
+          head: null,
+          perPage: 30,
+        });
+        prs = retry.filter((entry) => entry.merged);
+      }
+
+      setPullRequests(prs);
+      const label = prPickerMode === 'merged' ? 'merged' : 'open';
       setPrStatus(
         prs.length === 0
-          ? 'No open pull requests found for this target.'
-          : `Loaded ${prs.length} open pull request${prs.length === 1 ? '' : 's'}.`,
+          ? `No ${label} pull requests found for this target.${didBroadenSearch ? ' (Searched repo without branch filter.)' : ''}`
+          : `Loaded ${prs.length} ${label} pull request${prs.length === 1 ? '' : 's'}.${didBroadenSearch ? ' (Broader repo search.)' : ''}`,
       );
     } catch {
-      setPrError('Could not load open pull requests.');
-      setOpenPullRequests([]);
+      setPrError('Could not load pull requests.');
+      setPullRequests([]);
     } finally {
-      setIsLoadingOpenPrs(false);
+      setIsLoadingPullRequests(false);
     }
   }
 
@@ -386,7 +410,7 @@ export function SessionCompleteModal({
     setResolvedPrNumber(null);
     setPrError(null);
     setPrStatus(null);
-    setSelectedOpenPrNumber('');
+    setSelectedPullRequestNumber('');
   }
 
   function handleSave(): void {
@@ -580,28 +604,60 @@ export function SessionCompleteModal({
               </Text>
               {githubToken?.trim() && githubOrg?.trim() && githubRepo?.trim() ? (
                 <View className="gap-2">
-                  <Pressable
-                    className={`items-center rounded-md border border-primary px-3 py-2 ${isLoadingOpenPrs ? 'opacity-70' : ''}`}
-                    onPress={() => {
-                      handleLoadOpenPullRequests().catch(() => undefined);
-                    }}
-                    disabled={isLoadingOpenPrs}
-                  >
-                    <Text className="font-semibold text-primary">
-                      {isLoadingOpenPrs ? 'Loading PRs...' : 'Load Open Pull Requests'}
-                    </Text>
-                  </Pressable>
-                  {openPullRequests.length > 0 ? (
+                  <View className="gap-2">
+                    <Text className="text-xs uppercase tracking-wide text-muted">PR State</Text>
                     <View className="rounded-md border border-border bg-card">
                       <Picker
-                        selectedValue={selectedOpenPrNumber || EMPTY_PICKER_VALUE}
+                        selectedValue={prPickerMode}
+                        onValueChange={(value) => {
+                          const next = String(value ?? 'open');
+                          const nextMode: PullRequestPickerMode = next === 'merged' ? 'merged' : 'open';
+                          setPrPickerMode(nextMode);
+                          setPullRequests([]);
+                          setSelectedPullRequestNumber('');
+                          setPrError(null);
+                          setPrStatus(null);
+                        }}
+                        dropdownIconColor={pickerTextColor}
+                        style={{ color: pickerTextColor, backgroundColor: pickerSurfaceColor }}
+                      >
+                        <Picker.Item
+                          label="Open pull requests"
+                          value="open"
+                          color={pickerTextColor}
+                          style={{ color: pickerTextColor, backgroundColor: pickerSurfaceColor }}
+                        />
+                        <Picker.Item
+                          label="Merged pull requests"
+                          value="merged"
+                          color={pickerTextColor}
+                          style={{ color: pickerTextColor, backgroundColor: pickerSurfaceColor }}
+                        />
+                      </Picker>
+                    </View>
+                  </View>
+                  <Pressable
+                    className={`items-center rounded-md border border-primary px-3 py-2 ${isLoadingPullRequests ? 'opacity-70' : ''}`}
+                    onPress={() => {
+                      handleLoadPullRequests().catch(() => undefined);
+                    }}
+                    disabled={isLoadingPullRequests}
+                  >
+                    <Text className="font-semibold text-primary">
+                      {isLoadingPullRequests ? 'Loading PRs...' : 'Load Pull Requests'}
+                    </Text>
+                  </Pressable>
+                  {pullRequests.length > 0 ? (
+                    <View className="rounded-md border border-border bg-card">
+                      <Picker
+                        selectedValue={selectedPullRequestNumber || EMPTY_PICKER_VALUE}
                         onValueChange={(value) => {
                           const nextValue = String(value ?? EMPTY_PICKER_VALUE);
-                          setSelectedOpenPrNumber(nextValue);
+                          setSelectedPullRequestNumber(nextValue);
                           if (!nextValue) {
                             return;
                           }
-                          const selected = openPullRequests.find(
+                          const selected = pullRequests.find(
                             (entry) => String(entry.number) === nextValue,
                           );
                           if (!selected) {
@@ -611,18 +667,19 @@ export function SessionCompleteModal({
                           setResolvedPrUrl(selected.htmlUrl);
                           setResolvedPrNumber(selected.number);
                           setPrError(null);
-                          setPrStatus(`Linked PR #${selected.number} (open).`);
+                          const stateLabel = selected.merged ? 'merged' : selected.state;
+                          setPrStatus(`Linked PR #${selected.number} (${stateLabel}).`);
                         }}
                         dropdownIconColor={pickerTextColor}
                         style={{ color: pickerTextColor, backgroundColor: pickerSurfaceColor }}
                       >
                         <Picker.Item
-                          label="Select an open pull request"
+                          label="Select a pull request"
                           value={EMPTY_PICKER_VALUE}
                           color={pickerPlaceholderColor}
                           style={{ color: pickerPlaceholderColor, backgroundColor: pickerSurfaceColor }}
                         />
-                        {openPullRequests.map((entry) => (
+                        {pullRequests.map((entry) => (
                           <Picker.Item
                             key={entry.number}
                             label={`#${entry.number} - ${entry.title || entry.headBranch}`}

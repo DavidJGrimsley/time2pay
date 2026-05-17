@@ -374,13 +374,26 @@ export async function listOpenPullRequests(
   repo: string,
   input: { token?: string; head?: string | null; perPage?: number } = {},
 ): Promise<GitHubPullRequestSummary[]> {
+  return listPullRequests(owner, repo, { ...input, state: 'open' });
+}
+
+export async function listPullRequests(
+  owner: string,
+  repo: string,
+  input: {
+    state: GitHubPullRequestState;
+    token?: string;
+    head?: string | null;
+    perPage?: number;
+  } = { state: 'open' },
+): Promise<GitHubPullRequestSummary[]> {
   if (!owner || !repo) {
     return [];
   }
 
   const perPage = Math.max(1, Math.min(input.perPage ?? 20, 100));
   const searchParams = new URLSearchParams();
-  searchParams.set('state', 'open');
+  searchParams.set('state', input.state);
   searchParams.set('per_page', String(perPage));
   searchParams.set('sort', 'updated');
   searchParams.set('direction', 'desc');
