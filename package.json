@@ -27,6 +27,7 @@
     "doctor": "npx expo-doctor"
   },
   "dependencies": {
+    "@lottiefiles/dotlottie-react": "^0.13.5",
     "@mr.dj2u/mercury": "0.1.0",
     "@mr.dj2u/mercury-ui": "0.2.1",
     "@react-native-picker/picker": "2.11.4",
@@ -42,6 +43,7 @@
     "expo-sqlite": "~55.0.15",
     "expo-status-bar": "~55.0.6",
     "express": "^5.2.1",
+    "lottie-react-native": "~7.3.4",
     "morgan": "^1.10.1",
     "pdf-lib": "^1.17.1",
     "postgres": "^3.4.8",

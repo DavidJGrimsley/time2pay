@@ -1,7 +1,7 @@
 import { Octicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
-import Animated, { FadeInDown, FadeOutUp, LinearTransition } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 import {
   createProject,
   createTask,
@@ -986,7 +986,7 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
     : isTablet
       ? { width: '75%' as const }
       : { width: '90%' as const };
-  const smoothLayout = LinearTransition.springify().damping(20).stiffness(170);
+  const smoothLayout = LinearTransition.duration(160);
   const timerValueClassName = isLargeScreen
     ? 'text-center text-7xl font-black text-heading'
     : 'text-3xl font-black text-heading';
@@ -1088,8 +1088,8 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
       {isCreatingClient && !isClockedIn && !isInteractionLocked ? (
         <Animated.View
           className="gap-2 rounded-md border border-border bg-background p-3"
-          entering={FadeInDown.duration(180)}
-          exiting={FadeOutUp.duration(160)}
+          entering={FadeIn.duration(160)}
+          exiting={FadeOut.duration(140)}
           layout={smoothLayout}
         >
           <TextInput
@@ -1164,8 +1164,8 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
       {isCreatingProject && !isClockedIn && !isInteractionLocked ? (
         <Animated.View
           className="gap-2 rounded-md border border-border bg-background p-3"
-          entering={FadeInDown.duration(180)}
-          exiting={FadeOutUp.duration(160)}
+          entering={FadeIn.duration(160)}
+          exiting={FadeOut.duration(140)}
           layout={smoothLayout}
         >
           <TextInput
@@ -1227,8 +1227,8 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
       {isCreatingTask && !isClockedIn && !isInteractionLocked ? (
         <Animated.View
           className="gap-2 rounded-md border border-border bg-background p-3"
-          entering={FadeInDown.duration(180)}
-          exiting={FadeOutUp.duration(160)}
+          entering={FadeIn.duration(160)}
+          exiting={FadeOut.duration(140)}
           layout={smoothLayout}
         >
           <TextInput
@@ -1365,8 +1365,8 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
       {isCreatingManualSession && !isClockedIn && !isInteractionLocked ? (
         <Animated.View
           className="gap-2 rounded-md border border-border bg-background p-3"
-          entering={FadeInDown.duration(180)}
-          exiting={FadeOutUp.duration(160)}
+          entering={FadeIn.duration(160)}
+          exiting={FadeOut.duration(140)}
           layout={smoothLayout}
         >
           <PickerField
@@ -1511,7 +1511,7 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
       ) : null}
 
       {message ? (
-        <Animated.View entering={FadeInDown.duration(180)} exiting={FadeOutUp.duration(160)} layout={smoothLayout}>
+        <Animated.View entering={FadeIn.duration(160)} exiting={FadeOut.duration(140)} layout={smoothLayout}>
           <InlineNotice tone={message.tone} message={message.text} />
         </Animated.View>
       ) : null}

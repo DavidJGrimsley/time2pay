@@ -13,6 +13,10 @@ import {
   type MercuryUiAdapter,
 } from '@mr.dj2u/mercury-ui';
 import { MercuryLoadingPanel } from '@/components/mercury-loading-panel';
+import {
+  getCachedMercuryAccountsSnapshot,
+  getCachedMercuryRecipientsSnapshot,
+} from '@/services/mercury';
 
 type WorkflowStatus = {
   message: string;
@@ -28,14 +32,19 @@ export function ControlledMercurySendMoneyWorkflow({
   adapter,
   onError,
 }: ControlledMercurySendMoneyWorkflowProps) {
-  const [accounts, setAccounts] = useState<MercuryAccount[]>([]);
-  const [recipients, setRecipients] = useState<MercuryRecipient[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const cachedAccounts = getCachedMercuryAccountsSnapshot();
+  const cachedRecipients = getCachedMercuryRecipientsSnapshot();
+  const hasCachedResources = cachedAccounts !== null && cachedRecipients !== null;
+  const [accounts, setAccounts] = useState<MercuryAccount[]>(() => cachedAccounts ?? []);
+  const [recipients, setRecipients] = useState<MercuryRecipient[]>(() => cachedRecipients ?? []);
+  const [isLoading, setIsLoading] = useState(() => !hasCachedResources);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [status, setStatus] = useState<WorkflowStatus>({
-    message: 'Checking Mercury accounts and recipients...',
-    tone: 'neutral',
-  });
+  const [status, setStatus] = useState<WorkflowStatus>(() => ({
+    message: hasCachedResources
+      ? 'Mercury accounts and recipients are ready.'
+      : 'Checking Mercury accounts and recipients...',
+    tone: hasCachedResources ? 'success' : 'neutral',
+  }));
 
   const refreshResources = useCallback(async (): Promise<void> => {
     if (!adapter.listAccounts || !adapter.listRecipients) {
@@ -46,7 +55,9 @@ export function ControlledMercurySendMoneyWorkflow({
       return;
     }
 
-    setIsLoading(true);
+    if (getCachedMercuryAccountsSnapshot() === null || getCachedMercuryRecipientsSnapshot() === null) {
+      setIsLoading(true);
+    }
     try {
       const [accountRows, recipientRows] = await Promise.all([
         adapter.listAccounts(),

@@ -7,7 +7,7 @@ import type {
   MercurySendMoneyInput,
   MercuryTransaction,
 } from '@mr.dj2u/mercury';
-import { getAppAccessMode } from '@/services/runtime-mode';
+import { getAppAccessMode, type AppAccessMode } from '@/services/runtime-mode';
 import { getSupabaseClient } from '@/services/supabase-client';
 
 export type MercuryConfig = {
@@ -48,6 +48,128 @@ type MercuryActionResponseMap = {
   updateRecipient: { recipient: MercuryRecipient };
   sendMoney: { transaction: MercuryTransaction };
 };
+
+type MercuryResourceCache<T> = {
+  scope: AppAccessMode | null;
+  data: T | null;
+  updatedAt: number;
+  inFlight: Promise<T> | null;
+};
+
+export type MercuryResourceCacheName = 'accounts' | 'recipients';
+
+const MERCURY_RESOURCE_CACHE_TTL_MS = 60_000;
+const mercuryAccountsCache: MercuryResourceCache<MercuryAccount[]> = createMercuryResourceCache();
+const mercuryRecipientsCache: MercuryResourceCache<MercuryRecipient[]> = createMercuryResourceCache();
+
+function createMercuryResourceCache<T>(): MercuryResourceCache<T> {
+  return {
+    scope: null,
+    data: null,
+    updatedAt: 0,
+    inFlight: null,
+  };
+}
+
+function resetMercuryResourceCache<T>(cache: MercuryResourceCache<T>): void {
+  cache.scope = null;
+  cache.data = null;
+  cache.updatedAt = 0;
+  cache.inFlight = null;
+}
+
+function prepareMercuryResourceCache<T>(
+  cache: MercuryResourceCache<T>,
+  scope: AppAccessMode,
+): void {
+  if (cache.scope === scope) {
+    return;
+  }
+
+  cache.scope = scope;
+  cache.data = null;
+  cache.updatedAt = 0;
+  cache.inFlight = null;
+}
+
+function startMercuryResourceFetch<T>(
+  cache: MercuryResourceCache<T>,
+  scope: AppAccessMode,
+  fetcher: () => Promise<T>,
+): Promise<T> {
+  cache.scope = scope;
+
+  let request: Promise<T>;
+  request = fetcher()
+    .then((data) => {
+      if (cache.scope === scope && cache.inFlight === request) {
+        cache.data = data;
+        cache.updatedAt = Date.now();
+      }
+
+      return data;
+    })
+    .finally(() => {
+      if (cache.inFlight === request) {
+        cache.inFlight = null;
+      }
+    });
+
+  cache.inFlight = request;
+  return request;
+}
+
+async function readMercuryResource<T>(
+  cache: MercuryResourceCache<T>,
+  fetcher: () => Promise<T>,
+): Promise<T> {
+  const scope = getAppAccessMode();
+  prepareMercuryResourceCache(cache, scope);
+
+  const hasData = cache.data !== null;
+  const isFresh = hasData && Date.now() - cache.updatedAt < MERCURY_RESOURCE_CACHE_TTL_MS;
+
+  if (isFresh) {
+    return cache.data as T;
+  }
+
+  if (hasData) {
+    if (!cache.inFlight) {
+      startMercuryResourceFetch(cache, scope, fetcher).catch(() => undefined);
+    }
+
+    return cache.data as T;
+  }
+
+  if (cache.inFlight) {
+    return cache.inFlight;
+  }
+
+  return startMercuryResourceFetch(cache, scope, fetcher);
+}
+
+function getMercuryResourceSnapshot<T>(cache: MercuryResourceCache<T>): T | null {
+  const scope = getAppAccessMode();
+  return cache.scope === scope ? cache.data : null;
+}
+
+export function getCachedMercuryAccountsSnapshot(): MercuryAccount[] | null {
+  return getMercuryResourceSnapshot(mercuryAccountsCache);
+}
+
+export function getCachedMercuryRecipientsSnapshot(): MercuryRecipient[] | null {
+  return getMercuryResourceSnapshot(mercuryRecipientsCache);
+}
+
+export function invalidateMercuryResourceCache(resource?: MercuryResourceCacheName): void {
+  if (!resource || resource === 'accounts') {
+    resetMercuryResourceCache(mercuryAccountsCache);
+  }
+
+  if (!resource || resource === 'recipients') {
+    resetMercuryResourceCache(mercuryRecipientsCache);
+  }
+}
 
 async function getHostedBearerToken(): Promise<string | null> {
   const supabase = getSupabaseClient();
@@ -119,8 +241,10 @@ export async function ensureMercuryCustomer(input: {
 }
 
 export async function listMercuryAccounts(): Promise<MercuryAccount[]> {
-  const result = await mercuryAction('listAccounts');
-  return result.accounts;
+  return readMercuryResource(mercuryAccountsCache, async () => {
+    const result = await mercuryAction('listAccounts');
+    return result.accounts;
+  });
 }
 
 export async function createMercuryInvoice(
@@ -131,14 +255,17 @@ export async function createMercuryInvoice(
 }
 
 export async function listMercuryRecipients(): Promise<MercuryRecipient[]> {
-  const result = await mercuryAction('listRecipients');
-  return result.recipients;
+  return readMercuryResource(mercuryRecipientsCache, async () => {
+    const result = await mercuryAction('listRecipients');
+    return result.recipients;
+  });
 }
 
 export async function createMercuryRecipient(
   input: MercuryRecord,
 ): Promise<MercuryRecipient> {
   const result = await mercuryAction('createRecipient', input);
+  invalidateMercuryResourceCache('recipients');
   return result.recipient;
 }
 
@@ -147,6 +274,7 @@ export async function updateMercuryRecipient(
   input: MercuryRecord,
 ): Promise<MercuryRecipient> {
   const result = await mercuryAction('updateRecipient', { recipientId, input });
+  invalidateMercuryResourceCache('recipients');
   return result.recipient;
 }
 
@@ -155,6 +283,7 @@ export async function sendMercuryMoney(
   input: MercurySendMoneyInput,
 ): Promise<MercuryTransaction> {
   const result = await mercuryAction('sendMoney', { accountId, input });
+  invalidateMercuryResourceCache('accounts');
   return result.transaction;
 }
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, Text, TextInput, View } from 'react-native';
-import Animated, { FadeInDown, FadeOutUp, LinearTransition } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 import {
   createMilestoneChecklistItem,
   createProject,
@@ -120,7 +120,7 @@ export function ProjectsOverview() {
       ? ({ width: '75%' as const } as const)
       : ({ width: '90%' as const } as const);
   const smoothLayout = useMemo(
-    () => LinearTransition.springify().damping(20).stiffness(170),
+    () => LinearTransition.duration(160),
     [],
   );
   const controlHeight = isLarge ? 52 : 46;
@@ -919,8 +919,8 @@ export function ProjectsOverview() {
             {isCreatingClient ? (
               <Animated.View
                 className="gap-2 rounded-md border border-border bg-background p-3"
-                entering={FadeInDown.duration(180)}
-                exiting={FadeOutUp.duration(140)}
+                entering={FadeIn.duration(160)}
+                exiting={FadeOut.duration(120)}
                 layout={smoothLayout}
               >
                 <TextInput
@@ -964,8 +964,8 @@ export function ProjectsOverview() {
             {isCreatingProject ? (
               <Animated.View
                 className="gap-2 rounded-md border border-border bg-background p-3"
-                entering={FadeInDown.duration(180)}
-                exiting={FadeOutUp.duration(140)}
+                entering={FadeIn.duration(160)}
+                exiting={FadeOut.duration(120)}
                 layout={smoothLayout}
               >
                 <Text className="text-sm font-semibold text-heading">Create project</Text>
@@ -1029,7 +1029,7 @@ export function ProjectsOverview() {
                 </View>
 
                 {showPricingInfo ? (
-                  <Animated.View entering={FadeInDown.duration(180)} exiting={FadeOutUp.duration(140)} layout={smoothLayout}>
+                  <Animated.View entering={FadeIn.duration(160)} exiting={FadeOut.duration(120)} layout={smoothLayout}>
                     <Text className="text-sm text-muted">
                       Hourly projects can still have milestones for flat rates (such as specific features or an
                       end-of-project publishing fee). Milestone-based projects can still have hourly sessions
@@ -1145,8 +1145,8 @@ export function ProjectsOverview() {
                         <Animated.View
                           key={milestone.id}
                           className="gap-2 rounded-md border border-border bg-background p-3"
-                          entering={FadeInDown.duration(180)}
-                          exiting={FadeOutUp.duration(140)}
+                          entering={FadeIn.duration(160)}
+                          exiting={FadeOut.duration(120)}
                           layout={smoothLayout}
                         >
                     {isEditing ? (
