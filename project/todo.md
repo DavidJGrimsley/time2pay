@@ -200,12 +200,15 @@ These are larger feature areas that aren't part of the current stabilization pus
 - [ ] change all animations from the stupid thing where its popping the whole parent view and changing size. it's re rendering too much and the springy animation is just terrible. Let's do some smooth growing of parent views and fading in and out of components.
 - [ ] Mercury Invoicing should not be visible unless the user has mercury ar api unlocked (by having a plus or greater plan) I thought I implemented this before, we should check the functionality before we show the invoice by checking their api key
 - [ ] often when navigating to a specific page with the top nav bar, the app just forces me to the dashboard instead of the page i clicked. the second click will take me to the page I want to go to. Our navigation bar should live in our tabs _layout file and not individual files!
+- [ ] Add ability to add expenses to the invoice. Maybe it's an hourly expense charge on top of the hourly rate and option for itemized expenses. 
+- [ ] Find a way to add agent token usage to the invoice... This is BIG. Should be optional (Dev either charges a higher hourly rate and eats the cost or charges for everything.)
 - [ ] Add onboarding flow - very important
 - [ ] Add user settings page with profile management, billing info, and app preferences
+- [ ] Add button for when using start from GitHub: 'Repo not listed?' Which will likely be due to the organization not giving access yet. I forget how they need to get access but this button should open a modal that lets the user paste in a gh link and then there will be a button for this app will send a request on their behalf to give access.
+- [ ] Optimize for iOS and Android with responsive design and platform-specific UI patterns
+- [ ] publish to ios and android app stores
 - [ ] Add analytics tracking for user behavior, feature usage, and conversion funnels (e.g., referral sign-ups, invoice creation)
 - [ ] Add error monitoring and alerting for both client and server (e.g., Sentry)
 - [ ] Add internationalization (i18n) support for multiple languages and locales
 - [ ] Add accessibility features and ensure compliance with WCAG guidelines
 - [ ] Add automated testing (unit, integration, end-to-end) and CI/CD pipeline
-- [ ] Optimize for iOS and Android with responsive design and platform-specific UI patterns
-- [ ] publish to ios and android app stores
