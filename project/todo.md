@@ -212,6 +212,6 @@ These are larger feature areas that aren't part of the current stabilization pus
 
 ## Priority TODO
 - [x] Clean up stale branches
-- [ ] Upgrade to Expo SDK 56
+- [x] Upgrade to Expo SDK 56
 - [ ] (Test MDS local agent)Fix animations throughout the app. They trigger too often, are far too jarring, tacky, and downright ugly. We need to make them smooth and subtle, and not trigger on every single re-render of a component and not trigger the parent component to re render. For instance when I clock in, the parent view shrinks and then grows to the new position but it should just grow to it's new position. They're also delayed. The words shrink and spring and it looks terrible. Let's go with nice fade ins from above. The landing page has much better animations but scan that for improvements as well but let's use that style of animation throughout the rest of the app. 
 - [ ] Upgrade to Expo SDK 57.
