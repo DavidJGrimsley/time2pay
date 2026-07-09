@@ -207,6 +207,8 @@ These are larger feature areas that aren't part of the current stabilization pus
 - [ ] Add internationalization (i18n) support for multiple languages and locales
 - [ ] Add accessibility features and ensure compliance with WCAG guidelines
 - [ ] Add automated testing (unit, integration, end-to-end) and CI/CD pipeline
+- [ ] Fix mercury hosted mode bug (might only effect localhost) see temp md
+- [ ] Fix nav bar white background (replace with other nav bar?) see temp md. consider using vert tab bar from my portfolio which would need to be updated and published to npm first.
 - [ ] Optimize for iOS and Android with responsive design and platform-specific UI patterns
 - [ ] publish to ios and android app stores
 
