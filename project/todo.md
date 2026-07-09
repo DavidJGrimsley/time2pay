@@ -200,7 +200,7 @@ These are larger feature areas that aren't part of the current stabilization pus
 - [ ] change all animations from the stupid thing where its popping the whole parent view and changing size. it's re rendering too much and the springy animation is just terrible. Let's do some smooth growing of parent views and fading in and out of components.
 - [ ] Mercury Invoicing should not be visible unless the user has mercury ar api unlocked (by having a plus or greater plan) I thought I implemented this before, we should check the functionality before we show the invoice by checking their api key
 - [ ] often when navigating to a specific page with the top nav bar, the app just forces me to the dashboard instead of the page i clicked. the second click will take me to the page I want to go to. Our navigation bar should live in our tabs _layout file and not individual files!
-- [ ] Add onboarding flow - very important
+- [ ] Add onboarding flow
 - [ ] Add user settings page with profile management, billing info, and app preferences
 - [ ] Add analytics tracking for user behavior, feature usage, and conversion funnels (e.g., referral sign-ups, invoice creation)
 - [ ] Add error monitoring and alerting for both client and server (e.g., Sentry)
@@ -209,3 +209,9 @@ These are larger feature areas that aren't part of the current stabilization pus
 - [ ] Add automated testing (unit, integration, end-to-end) and CI/CD pipeline
 - [ ] Optimize for iOS and Android with responsive design and platform-specific UI patterns
 - [ ] publish to ios and android app stores
+
+## Priority TODO
+- [ ] Clean up stale branches
+- [ ] Upgrade to Expo SDK 56
+- [ ] (Test MDS local agent)Fix animations throughout the app. They trigger too often, are far too jarring, tacky, and downright ugly. We need to make them smooth and subtle, and not trigger on every single re-render of a component and not trigger the parent component to re render. For instance when I clock in, the parent view shrinks and then grows to the new position but it should just grow to it's new position. They're also delayed. The words shrink and spring and it looks terrible. Let's go with nice fade ins from above. The landing page has much better animations but scan that for improvements as well but let's use that style of animation throughout the rest of the app. 
+- [ ] Upgrade to Expo SDK 57.
