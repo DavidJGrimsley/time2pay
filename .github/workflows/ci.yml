@@ -42,16 +42,27 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run MDS Doctor (gated)
-        uses: DavidJGrimsley/doctor-action@v1
-        with:
-          project-path: .
-          mode: ci
-          run-scripts: "true"
-          min-score: "90"
-          node-version: "22"
-          suite-repo: DavidJGrimsley/mrdj-dev-suite
-          suite-ref: phase10-doctor-action
+      - name: Run MDS Doctor (static guard)
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx -y -p "@mr.dj2u/cli@0.1.24" mds doctor . --ci --json --no-scripts > mds-doctor-report.json
+          node -e 'const fs=require("fs"); const report=JSON.parse(fs.readFileSync("mds-doctor-report.json","utf8")); const score=report.summary?.score ?? 0; const errors=report.summary?.errors ?? 0; const warnings=report.summary?.warnings ?? 0; console.log(`MDS Doctor score: ${score} (errors: ${errors}, warnings: ${warnings})`); if (errors > 0 || score < 90) { process.exit(1); }'
+
+      - name: Run lint
+        run: npm run lint
+
+      - name: Run typecheck
+        run: npm run typecheck
+
+      - name: Run tests
+        run: npm test
+
+      - name: Run Expo Doctor
+        run: npm run doctor
+
+      - name: Run production build
+        run: npm run build:web:deploy
 
   deploy_staging:
     name: Deploy Staging
