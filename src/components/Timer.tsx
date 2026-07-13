@@ -1,7 +1,7 @@
 import { Octicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
-import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import {
   createProject,
   createTask,
@@ -986,7 +986,6 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
     : isTablet
       ? { width: '75%' as const }
       : { width: '90%' as const };
-  const smoothLayout = LinearTransition.duration(160);
   const timerValueClassName = isLargeScreen
     ? 'text-center text-7xl font-black text-heading'
     : 'text-3xl font-black text-heading';
@@ -1010,8 +1009,8 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
     : 'text-center font-semibold text-heading';
 
   return (
-    <Animated.View className="items-center" layout={smoothLayout}>
-      <Animated.View className={timerContainerClassName} style={containerWidthStyle} layout={smoothLayout}>
+    <Animated.View className="items-center">
+      <Animated.View className={timerContainerClassName} style={containerWidthStyle}>
       <View
         className={
           isLargeScreen
@@ -1054,10 +1053,9 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
       </View>
       <Animated.View
         className="gap-3"
-        layout={smoothLayout}
         style={isLargeScreen ? { flexDirection: 'row', alignItems: 'stretch', gap: 16 } : undefined}
       >
-        <Animated.View className="gap-3" layout={smoothLayout} style={isLargeScreen ? { flex: 1 } : undefined}>
+        <Animated.View className="gap-3" style={isLargeScreen ? { flex: 1 } : undefined}>
           <PickerField
             label="Customer"
             value={selectedClientId}
@@ -1090,7 +1088,6 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
           className="gap-2 rounded-md border border-border bg-background p-3"
           entering={FadeIn.duration(160)}
           exiting={FadeOut.duration(140)}
-          layout={smoothLayout}
         >
           <TextInput
             value={newClientName}
@@ -1166,7 +1163,6 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
           className="gap-2 rounded-md border border-border bg-background p-3"
           entering={FadeIn.duration(160)}
           exiting={FadeOut.duration(140)}
-          layout={smoothLayout}
         >
           <TextInput
             value={newProjectName}
@@ -1229,7 +1225,6 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
           className="gap-2 rounded-md border border-border bg-background p-3"
           entering={FadeIn.duration(160)}
           exiting={FadeOut.duration(140)}
-          layout={smoothLayout}
         >
           <TextInput
             value={newTaskName}
@@ -1296,7 +1291,6 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
 
         <Animated.View
           className={`gap-2 ${isLargeScreen ? 'rounded-xl border border-border bg-background p-4' : ''}`}
-          layout={smoothLayout}
           style={isLargeScreen ? { flex: 1, justifyContent: 'space-between' } : undefined}
         >
           <Text className={timerValueClassName}>{formatSeconds(elapsedSeconds)}</Text>
@@ -1367,7 +1361,6 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
           className="gap-2 rounded-md border border-border bg-background p-3"
           entering={FadeIn.duration(160)}
           exiting={FadeOut.duration(140)}
-          layout={smoothLayout}
         >
           <PickerField
             label="Customer"
@@ -1511,7 +1504,7 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
       ) : null}
 
       {message ? (
-        <Animated.View entering={FadeIn.duration(160)} exiting={FadeOut.duration(140)} layout={smoothLayout}>
+        <Animated.View entering={FadeIn.duration(160)} exiting={FadeOut.duration(140)}>
           <InlineNotice tone={message.tone} message={message.text} />
         </Animated.View>
       ) : null}

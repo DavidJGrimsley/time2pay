@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, Text, TextInput, View } from 'react-native';
-import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import {
   createMilestoneChecklistItem,
   createProject,
@@ -119,10 +119,6 @@ export function ProjectsOverview() {
     : isTablet
       ? ({ width: '75%' as const } as const)
       : ({ width: '90%' as const } as const);
-  const smoothLayout = useMemo(
-    () => LinearTransition.duration(160),
-    [],
-  );
   const controlHeight = isLarge ? 52 : 46;
   const sectionCardClassName = isLarge ? 'gap-3 rounded-xl bg-card p-6' : 'gap-2 rounded-xl bg-card p-4';
   const sectionTitleClassName = isLarge ? 'text-3xl font-bold text-heading' : 'text-2xl font-bold text-heading';
@@ -866,7 +862,7 @@ export function ProjectsOverview() {
 
       <View className="items-center">
         <View className="w-full gap-3" style={contentWidthStyle}>
-          <Animated.View className={sectionCardClassName} layout={smoothLayout}>
+          <Animated.View className={sectionCardClassName}>
             <View className={projectWorkspaceLayoutClassName}>
               <View className={projectInfoPanelClassName}>
                 <Text className={sectionTitleClassName}>Project Info</Text>
@@ -921,7 +917,6 @@ export function ProjectsOverview() {
                 className="gap-2 rounded-md border border-border bg-background p-3"
                 entering={FadeIn.duration(160)}
                 exiting={FadeOut.duration(120)}
-                layout={smoothLayout}
               >
                 <TextInput
                   value={newClientName}
@@ -966,7 +961,6 @@ export function ProjectsOverview() {
                 className="gap-2 rounded-md border border-border bg-background p-3"
                 entering={FadeIn.duration(160)}
                 exiting={FadeOut.duration(120)}
-                layout={smoothLayout}
               >
                 <Text className="text-sm font-semibold text-heading">Create project</Text>
                 <TextInput
@@ -1029,7 +1023,7 @@ export function ProjectsOverview() {
                 </View>
 
                 {showPricingInfo ? (
-                  <Animated.View entering={FadeIn.duration(160)} exiting={FadeOut.duration(120)} layout={smoothLayout}>
+                  <Animated.View entering={FadeIn.duration(160)} exiting={FadeOut.duration(120)}>
                     <Text className="text-sm text-muted">
                       Hourly projects can still have milestones for flat rates (such as specific features or an
                       end-of-project publishing fee). Milestone-based projects can still have hourly sessions
@@ -1147,7 +1141,6 @@ export function ProjectsOverview() {
                           className="gap-2 rounded-md border border-border bg-background p-3"
                           entering={FadeIn.duration(160)}
                           exiting={FadeOut.duration(120)}
-                          layout={smoothLayout}
                         >
                     {isEditing ? (
                       <View className="gap-2 rounded-md border border-border bg-card p-3">
@@ -1334,7 +1327,7 @@ export function ProjectsOverview() {
           </Animated.View>
 
           {selectedProject ? (
-            <Animated.View className={sectionCardClassName} layout={smoothLayout}>
+            <Animated.View className={sectionCardClassName}>
               <Text className={subsectionTitleClassName}>Invoice options</Text>
               <Pressable
                 className="flex-row items-center gap-2"
@@ -1442,7 +1435,7 @@ export function ProjectsOverview() {
         onRequestClose={() => setIsAddingMilestone(false)}
       >
         <View className="flex-1 items-center justify-center bg-black/55 px-4">
-          <Animated.View className="w-full max-w-2xl gap-3 rounded-xl bg-card p-4" layout={smoothLayout}>
+          <Animated.View className="w-full max-w-2xl gap-3 rounded-xl bg-card p-4">
             <View className="flex-row items-center justify-between">
               <Text className={subsectionTitleClassName}>Add milestone</Text>
               <Pressable className="rounded-md border border-border px-2 py-1" onPress={() => setIsAddingMilestone(false)}>
