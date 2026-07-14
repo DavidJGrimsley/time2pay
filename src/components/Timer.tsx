@@ -377,6 +377,8 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
   const [isLoading, setIsLoading] = useState(true);
   const [isClockingIn, setIsClockingIn] = useState(false);
   const [isClockingOut, setIsClockingOut] = useState(false);
+  const [isPausing, setIsPausing] = useState(false);
+  const [isResuming, setIsResuming] = useState(false);
   const [message, setMessage] = useState<StatusNotice | null>(null);
 
   const [showCompleteModal, setShowCompleteModal] = useState(false);
@@ -859,12 +861,15 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
     }
 
     clearMessage();
+    setIsPausing(true);
     try {
       await pauseRuntimeSession(activeSession.id);
       await refreshActiveSession();
       showSuccessMessage('Session paused.');
     } catch (error: unknown) {
       showActionErrorMessage(error instanceof Error ? error.message : 'Failed to pause session.');
+    } finally {
+      setIsPausing(false);
     }
   }, [activeSession]);
 
@@ -874,12 +879,15 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
     }
 
     clearMessage();
+    setIsResuming(true);
     try {
       await resumeRuntimeSession(activeSession.id);
       await refreshActiveSession();
       showSuccessMessage('Session resumed.');
     } catch (error: unknown) {
       showActionErrorMessage(error instanceof Error ? error.message : 'Failed to resume session.');
+    } finally {
+      setIsResuming(false);
     }
   }, [activeSession]);
 
@@ -1306,17 +1314,27 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
       {isClockedIn ? (
         <View className="flex-row gap-2">
           {isPaused ? (
-            <Pressable className={`flex-1 rounded-2xl bg-secondary ${actionButtonPaddingClassName}`} onPress={handleResume}>
+            <Pressable
+              className={`flex-1 rounded-2xl ${isResuming ? 'bg-secondary/60' : 'bg-secondary'} ${actionButtonPaddingClassName}`}
+              onPress={handleResume}
+              disabled={isResuming}
+            >
               <View className="flex-row items-center justify-center gap-2">
+                {isResuming && <Text className={`${actionButtonLabelClassName} text-white animate-pulse`}>⏳</Text>}
                 <ClockIcon size={actionIconSize} />
-                <Text className={`${actionButtonLabelClassName} text-white`}>Resume</Text>
+                <Text className={`${actionButtonLabelClassName} text-white`}>{isResuming ? 'Resuming...' : 'Resume'}</Text>
               </View>
             </Pressable>
           ) : (
-            <Pressable className={`flex-1 rounded-2xl bg-primary ${actionButtonPaddingClassName}`} onPress={handlePause}>
+            <Pressable
+              className={`flex-1 rounded-2xl ${isPausing ? 'bg-primary/60' : 'bg-primary'} ${actionButtonPaddingClassName}`}
+              onPress={handlePause}
+              disabled={isPausing}
+            >
               <View className="flex-row items-center justify-center gap-2">
+                {isPausing && <Text className={`${actionButtonLabelClassName} text-heading animate-pulse`}>⏳</Text>}
                 <ClockIcon size={actionIconSize} />
-                <Text className={`${actionButtonLabelClassName} text-heading`}>Pause</Text>
+                <Text className={`${actionButtonLabelClassName} text-heading`}>{isPausing ? 'Pausing...' : 'Pause'}</Text>
               </View>
             </Pressable>
           )}
