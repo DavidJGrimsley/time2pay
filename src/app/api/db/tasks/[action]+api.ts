@@ -13,12 +13,12 @@ const createTaskSchema = taskInsertSchema
 
 export async function POST(
   request: Request,
-  { params }: { params: { action: string } },
+  { action }: { action: string },
 ): Promise<Response> {
-  switch (params.action) {
+  switch (action) {
     case 'create':
       return handleDbWrite(request, createTaskSchema, createTask);
     default:
-      return Response.json({ error: `Unsupported tasks action: ${params.action}` }, { status: 404 });
+      return Response.json({ error: `Unsupported tasks action: ${action}` }, { status: 404 });
   }
 }

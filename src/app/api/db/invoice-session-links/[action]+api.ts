@@ -16,14 +16,14 @@ const upsertLinksSchema = invoiceSessionLinkInsertSchema
 
 export async function POST(
   request: Request,
-  { params }: { params: { action: string } },
+  { action }: { action: string },
 ): Promise<Response> {
-  switch (params.action) {
+  switch (action) {
     case 'upsert':
       return handleDbWrite(request, upsertLinksSchema, upsertInvoiceSessionLinks);
     default:
       return Response.json(
-        { error: `Unsupported invoice-session-links action: ${params.action}` },
+        { error: `Unsupported invoice-session-links action: ${action}` },
         { status: 404 },
       );
   }

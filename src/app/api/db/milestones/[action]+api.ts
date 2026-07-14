@@ -60,9 +60,9 @@ const setCompletionSchema = z.object({
 
 export async function POST(
   request: Request,
-  { params }: { params: { action: string } },
+  { action }: { action: string },
 ): Promise<Response> {
-  switch (params.action) {
+  switch (action) {
     case 'create':
       return handleDbWrite(request, createMilestoneSchema, createMilestone);
     case 'update':
@@ -73,7 +73,7 @@ export async function POST(
       return handleDbWrite(request, setCompletionSchema, setMilestoneCompletion);
     default:
       return Response.json(
-        { error: `Unsupported milestones action: ${params.action}` },
+        { error: `Unsupported milestones action: ${action}` },
         { status: 404 },
       );
   }

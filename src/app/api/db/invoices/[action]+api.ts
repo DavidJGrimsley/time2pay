@@ -53,9 +53,9 @@ const deleteInvoiceSchema = z.object({
 
 export async function POST(
   request: Request,
-  { params }: { params: { action: string } },
+  { action }: { action: string },
 ): Promise<Response> {
-  switch (params.action) {
+  switch (action) {
     case 'create':
       return handleDbWrite(request, createInvoiceSchema, createInvoice);
     case 'assign-sessions':
@@ -63,6 +63,6 @@ export async function POST(
     case 'delete':
       return handleDbWrite(request, deleteInvoiceSchema, deleteInvoice);
     default:
-      return Response.json({ error: `Unsupported invoices action: ${params.action}` }, { status: 404 });
+      return Response.json({ error: `Unsupported invoices action: ${action}` }, { status: 404 });
   }
 }
