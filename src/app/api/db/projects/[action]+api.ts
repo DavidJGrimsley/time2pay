@@ -34,14 +34,14 @@ const updateProjectPricingSchema = projectInsertSchema
 
 export async function POST(
   request: Request,
-  { params }: { params: { action: string } },
+  { action }: { action: string },
 ): Promise<Response> {
-  switch (params.action) {
+  switch (action) {
     case 'create':
       return handleDbWrite(request, createProjectSchema, createProject);
     case 'update-pricing':
       return handleDbWrite(request, updateProjectPricingSchema, updateProjectPricing);
     default:
-      return Response.json({ error: `Unsupported projects action: ${params.action}` }, { status: 404 });
+      return Response.json({ error: `Unsupported projects action: ${action}` }, { status: 404 });
   }
 }
