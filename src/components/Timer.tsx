@@ -1,5 +1,5 @@
 import { Octicons } from '@expo/vector-icons';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import {
@@ -375,6 +375,8 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
   const [isPaused, setIsPaused] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [isClockingIn, setIsClockingIn] = useState(false);
+  const [isClockingOut, setIsClockingOut] = useState(false);
   const [message, setMessage] = useState<StatusNotice | null>(null);
 
   const [showCompleteModal, setShowCompleteModal] = useState(false);
@@ -792,7 +794,7 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
     }
   }
 
-  async function handleClockIn(): Promise<void> {
+  const handleClockIn = useCallback(async (): Promise<void> => {
     clearMessage();
     if (isInteractionLocked) {
       showBlockedMessage(lockReason);
@@ -804,6 +806,7 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
       return;
     }
 
+    setIsClockingIn(true);
     try {
       await startRuntimeSession({
         id: createId('session'),
@@ -818,15 +821,18 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
       showSuccessMessage('Clocked in successfully.');
     } catch (error: unknown) {
       showActionErrorMessage(error instanceof Error ? error.message : 'Failed to clock in.');
+    } finally {
+      setIsClockingIn(false);
     }
-  }
+  }, [isInteractionLocked, lockReason, selectedClient, selectedProject, selectedTask, notes]);
 
-  async function handleClockOut(): Promise<void> {
+  const handleClockOut = useCallback(async (): Promise<void> => {
     if (!activeSession) {
       return;
     }
 
     clearMessage();
+    setIsClockingOut(true);
 
     try {
       await stopRuntimeSession(activeSession.id);
@@ -842,10 +848,12 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
       setShowCompleteModal(true);
     } catch (error: unknown) {
       showActionErrorMessage(error instanceof Error ? error.message : 'Failed to clock out.');
+    } finally {
+      setIsClockingOut(false);
     }
-  }
+  }, [activeSession, notes, selectedClientId, selectedProjectId, selectedTaskId]);
 
-  async function handlePause(): Promise<void> {
+  const handlePause = useCallback(async (): Promise<void> => {
     if (!activeSession) {
       return;
     }
@@ -858,9 +866,9 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
     } catch (error: unknown) {
       showActionErrorMessage(error instanceof Error ? error.message : 'Failed to pause session.');
     }
-  }
+  }, [activeSession]);
 
-  async function handleResume(): Promise<void> {
+  const handleResume = useCallback(async (): Promise<void> => {
     if (!activeSession) {
       return;
     }
@@ -873,7 +881,7 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
     } catch (error: unknown) {
       showActionErrorMessage(error instanceof Error ? error.message : 'Failed to resume session.');
     }
-  }
+  }, [activeSession]);
 
   async function handleCreateManualSession(): Promise<void> {
     clearMessage();
@@ -1312,22 +1320,28 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
               </View>
             </Pressable>
           )}
-          <Pressable className={`flex-1 rounded-2xl bg-danger ${actionButtonPaddingClassName}`} onPress={handleClockOut}>
+          <Pressable
+            className={`flex-1 rounded-2xl ${isClockingOut ? 'bg-danger/60' : 'bg-danger'} ${actionButtonPaddingClassName}`}
+            onPress={handleClockOut}
+            disabled={isClockingOut}
+          >
             <View className="flex-row items-center justify-center gap-2">
+              {isClockingOut && <Text className={`${actionButtonLabelClassName} text-white animate-pulse`}>⏳</Text>}
               <ClockIcon size={actionIconSize} />
-              <Text className={`${actionButtonLabelClassName} text-white`}>Clock Out</Text>
+              <Text className={`${actionButtonLabelClassName} text-white`}>{isClockingOut ? 'Clocking Out...' : 'Clock Out'}</Text>
             </View>
           </Pressable>
         </View>
       ) : (
         <Pressable
-          className={`rounded-2xl ${actionButtonPaddingClassName} ${isInteractionLocked || isLoading ? 'bg-secondary/60' : 'bg-secondary'}`}
+          className={`rounded-2xl ${actionButtonPaddingClassName} ${isInteractionLocked || isClockingIn ? 'bg-secondary/60' : 'bg-secondary'}`}
           onPress={handleClockIn}
-          disabled={isLoading || isInteractionLocked}
+          disabled={isClockingIn || isInteractionLocked}
         >
           <View className="flex-row items-center justify-center gap-2">
+            {isClockingIn && <Text className={`${actionButtonLabelClassName} text-white animate-pulse`}>⏳</Text>}
             <ClockIcon size={actionIconSize} />
-            <Text className={`${actionButtonLabelClassName} text-white`}>Clock In</Text>
+            <Text className={`${actionButtonLabelClassName} text-white`}>{isClockingIn ? 'Clocking In...' : 'Clock In'}</Text>
           </View>
         </Pressable>
       )}
