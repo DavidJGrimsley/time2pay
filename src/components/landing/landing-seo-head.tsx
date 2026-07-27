@@ -36,7 +36,7 @@ export function buildSoftwareApplicationJsonLd(input: {
     ],
     offers: {
       '@type': 'Offer',
-      price: '1.00',
+      price: '2.00',
       priceCurrency: 'USD',
       availability: 'https://schema.org/InStock',
       url: input.landingUrl,

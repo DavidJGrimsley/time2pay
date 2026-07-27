@@ -1,4 +1,5 @@
 /* global __dirname */
+const { Buffer } = require('node:buffer');
 const fs = require('node:fs');
 const path = require('node:path');
 const compression = require('compression');
@@ -186,6 +187,36 @@ async function handleDirectDbApiRoute(req, res, next) {
   }
 }
 
+async function handleDirectRawApiRoute(req, res, next, route) {
+  try {
+    const routeModulePath = path.join(serverBuildDir, route.file);
+    const routeModule = require(routeModulePath);
+    const methodHandler = routeModule?.[req.method];
+
+    if (typeof methodHandler !== 'function') {
+      res.status(405).json({ error: `Unsupported method: ${req.method}` });
+      return;
+    }
+
+    const request = new Request(buildRequestUrl(req), {
+      method: req.method,
+      headers: buildRequestHeaders(req),
+      body: Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0),
+    });
+    const response = await methodHandler(request, {});
+
+    res.status(response.status);
+    response.headers.forEach((value, key) => {
+      res.setHeader(key, value);
+    });
+
+    res.send(await response.text());
+  } catch (error) {
+    console.error('Direct raw API route failed:', error);
+    next(error);
+  }
+}
+
 assertBuildArtifact(clientBuildDir, 'Client build directory');
 assertBuildArtifact(serverBuildDir, 'Server build directory');
 assertBuildArtifact(routesManifestPath, 'Generated Expo routes manifest');
@@ -193,12 +224,14 @@ assertBuildArtifact(buildCommitMarkerPath, 'Build commit marker');
 assertHostedRuntimeEnvHealth();
 
 const routesManifest = JSON.parse(fs.readFileSync(routesManifestPath, 'utf8'));
-const dbApiRoutes = (routesManifest.apiRoutes || [])
+const apiRoutes = routesManifest.apiRoutes || [];
+const dbApiRoutes = apiRoutes
   .filter((route) => typeof route?.page === 'string' && route.page.startsWith('api/db/'))
   .map((route) => ({
     ...route,
     regex: new RegExp(route.namedRegex),
   }));
+const stripeWebhookRoute = apiRoutes.find((route) => route?.page === 'api/webhooks/stripe');
 
 app.disable('x-powered-by');
 app.use(compression());
@@ -227,6 +260,14 @@ app.get('/__time2pay_build.txt', (_req, res) => {
 
 app.use('/api/db', express.json({ limit: '1mb' }));
 app.all('/api/db/{*route}', handleDirectDbApiRoute);
+
+if (stripeWebhookRoute) {
+  app.post(
+    '/api/webhooks/stripe',
+    express.raw({ type: 'application/json', limit: '1mb' }),
+    (req, res, next) => handleDirectRawApiRoute(req, res, next, stripeWebhookRoute),
+  );
+}
 
 app.use(
   express.static(clientBuildDir, {

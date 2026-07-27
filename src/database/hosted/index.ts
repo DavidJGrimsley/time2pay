@@ -4,6 +4,7 @@ export * from '@/database/hosted/clients-projects/index';
 export * from '@/database/hosted/milestones/index';
 export * from '@/database/hosted/sessions/index';
 export * from '@/database/hosted/invoices/index';
+export * from '@/database/hosted/billing/index';
 
 export type {
   PricingMode,

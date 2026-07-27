@@ -323,7 +323,7 @@ export function MercuryScene({
                             className="text-center text-sm font-semibold"
                             style={{ lineHeight: 20, color: isDark ? MERCURY_NAVY : '#ffffff' }}
                           >
-                            Sign up for a Mercury Business Account through Time2Pay
+                            Mercury reward — Coming soon
                           </Text>
                         </Pressable>
                       </Animated.View>

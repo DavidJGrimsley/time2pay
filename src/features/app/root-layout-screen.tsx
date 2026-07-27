@@ -331,6 +331,7 @@ export default function RootLayout() {
   const isPublicRoute =
     normalizedPathname === '/' ||
     normalizedPathname === '/sign-in' ||
+    normalizedPathname === '/pricing' ||
     normalizedPathname === '/privacy' ||
     normalizedPathname === '/terms';
   const isInsideTabsGroup = !isPublicRoute;
@@ -429,8 +430,12 @@ export default function RootLayout() {
         <Stack.Screen name="privacy" options={{ title: 'Privacy Policy' }} />
         <Stack.Screen name="terms" options={{ title: 'Terms of Service' }} />
         <Stack.Screen name="sign-in" options={{ title: 'Sign In' }} />
+        <Stack.Screen name="pricing" options={{ title: 'Hosted Pricing' }} />
         <Stack.Protected guard={canAccessTabs}>
           <Stack.Screen name="(tabs)" options={{ title: 'Time2Pay' }} />
+          <Stack.Screen name="access-required" options={{ title: 'Hosted Access' }} />
+          <Stack.Screen name="referral-status" options={{ title: 'Mercury Referral' }} />
+          <Stack.Screen name="settings/billing" options={{ title: 'Billing' }} />
         </Stack.Protected>
         <Stack.Screen name="+not-found" options={{ title: 'Not Found' }} />
       </Stack>

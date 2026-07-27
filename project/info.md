@@ -49,11 +49,14 @@ Core principles:
 
 ### Monetization strategy
 - Self-hosted Time2Pay core remains free/open source.
-- Hosted Time2Pay default plan is planned as $1/month forever.
-- Existing Mercury business customers, and users whose Mercury referral does not qualify, can pay a one-time $10 lifetime hosted membership.
-- Successful Mercury signups through Time2Pay receive free lifetime hosted access after the referral is verified and qualified.
-- If a user signs up for Mercury through Time2Pay but does not complete the required onboarding deposits within the 90-day window, they can choose the $10 lifetime membership or the $1/month hosted plan.
-- Billing, entitlement checks, referral qualification, and final Mercury onboarding/deposit requirements are still implementation work tracked in `project/todo.md`.
+- Qualified Mercury referrals receive free lifetime hosted access after trusted verification.
+- Hosted pricing is $20/year (the default recommendation) or $2/month.
+- Existing Mercury customers and failed/expired Time2Pay referrals may receive a server-validated $20 lifetime offer.
+- Self-hosted Time2Pay remains free.
+- Hosted access is provider-neutral: Stripe, future Apple/Google purchases, Mercury qualification, and administrative grants resolve through `access_grants`.
+- Drizzle migration `0005_handy_darwin` adds the billing tables and expanded Mercury referral state model. The live Drizzle ledger is at six applied migrations.
+- Protected hosted writes support the private `TIME2PAY_ENFORCE_HOSTED_ACCESS=true` rollout switch. Keep it disabled until Stripe test products, a trusted Mercury verification workflow, and initial grants are ready.
+- Stripe Checkout/Portal/webhook code exists for web test mode; external Stripe products, secrets, webhook configuration, and provider acceptance testing remain required before activation.
 
 ## Integrations
 - Mercury API (server-side only): invoice generation, payment links, bank info, transaction monitoring

@@ -25,7 +25,6 @@ import {
   footerLinks,
   githubBullets,
   heroSection,
-  MERCURY_REFERRAL_URL,
   pricingBullets,
   workflowSection,
   type LandingBullet,
@@ -44,7 +43,6 @@ import {
 } from './landing-motion';
 import { useResolvedDataMode } from '@/hooks/use-resolved-data-mode';
 import { logRuntimeDiagnostic } from '@/services/runtime-diagnostics';
-import { trackMercuryReferralClick } from '@/services/mercury-referrals';
 import { useStableWindowDimensions } from '@/hooks/use-stable-window-dimensions';
 import { LandingSection } from './landing-section';
 import { SemanticText } from './semantic-elements';
@@ -318,14 +316,14 @@ function PricingHighlight({ compact }: { compact: boolean }) {
         </SemanticText>
         <View className="flex-row flex-wrap items-end gap-2">
           <SemanticText as="p" className="text-[56px] font-bold leading-none text-heading md:text-[72px]">
-            $1
+            $2
           </SemanticText>
           <SemanticText as="p" className="pb-2 text-lg font-semibold text-muted">
             /month
           </SemanticText>
         </View>
         <SemanticText as="p" className="text-base leading-7 text-foreground">
-          Month-to-month access for contractors who want sign-in, cloud storage, and Mercury integration managed for them. Pay $1/month and cancel whenever. Or pay a one-time $10 for lifetime access—free if you sign up for Mercury through Time2Pay and your referral qualifies.
+          Month-to-month access for contractors who want sign-in, cloud storage, and Mercury integration managed for them. Pay $2/month and cancel whenever, or choose the $20 annual plan. The Mercury referral reward is coming soon while attribution reporting is connected.
         </SemanticText>
       </View>
     </View>
@@ -460,10 +458,6 @@ export function LandingPage() {
 
   const handleRoute = useCallback(
     (href: string) => {
-      if (href === MERCURY_REFERRAL_URL) {
-        trackMercuryReferralClick().catch(() => undefined);
-      }
-
       if (href.startsWith('http')) {
         Linking.openURL(href).catch(() => undefined);
         return;
