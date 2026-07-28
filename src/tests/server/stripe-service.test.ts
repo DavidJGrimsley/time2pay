@@ -179,6 +179,32 @@ describe('Stripe billing service', () => {
     expect(mocks.getStripeBillingConfig).not.toHaveBeenCalled();
   });
 
+  it('returns redirect payment methods to the active localhost Expo port', async () => {
+    const config = stripeConfig() as {
+      siteOrigin: string;
+      client: { checkout: { sessions: { create: ReturnType<typeof vi.fn> } } };
+    };
+    config.siteOrigin = 'http://localhost:3000';
+    config.client.checkout.sessions.create.mockResolvedValue({
+      client_secret: 'cs_test_secret_local',
+    });
+    mocks.getStripeBillingConfig.mockReturnValue(config);
+    const { createStripeCheckoutSession } = await import('@/server/billing/stripe-service');
+
+    await createStripeCheckoutSession(
+      'user-1',
+      'annual',
+      'http://localhost:8081/api/billing/checkout',
+    );
+
+    expect(config.client.checkout.sessions.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        return_url:
+          'http://localhost:8081/settings/billing?checkout=return&session_id={CHECKOUT_SESSION_ID}',
+      }),
+    );
+  });
+
   it('returns the current subscription for the in-app billing manager', async () => {
     const config = stripeConfig() as {
       client: { subscriptions: { list: ReturnType<typeof vi.fn> } };

@@ -202,9 +202,33 @@ async function ensureStripeCustomer(
   return customer.id;
 }
 
-function embeddedCheckoutReturnUrl(config: StripeBillingConfig): string {
+function isLoopbackHostname(hostname: string): boolean {
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
+}
+
+function embeddedCheckoutReturnUrl(
+  config: StripeBillingConfig,
+  requestUrl?: string,
+): string {
+  let siteOrigin = config.siteOrigin;
+
+  if (requestUrl) {
+    const configuredUrl = new URL(config.siteOrigin);
+    const activeUrl = new URL(requestUrl);
+
+    // Local Expo can run on any open port. Use that active port only when both
+    // origins are loopback addresses; production always stays on the configured origin.
+    if (
+      isLoopbackHostname(configuredUrl.hostname) &&
+      isLoopbackHostname(activeUrl.hostname) &&
+      (activeUrl.protocol === 'http:' || activeUrl.protocol === 'https:')
+    ) {
+      siteOrigin = activeUrl.origin;
+    }
+  }
+
   // Stripe replaces the literal placeholder only when its braces remain unescaped.
-  return `${config.siteOrigin}/settings/billing?checkout=return&session_id={CHECKOUT_SESSION_ID}`;
+  return `${siteOrigin}/settings/billing?checkout=return&session_id={CHECKOUT_SESSION_ID}`;
 }
 
 function assertOfferAllowed(access: HostedAccessResult, offer: HostedOffer): void {
@@ -226,6 +250,7 @@ function assertOfferAllowed(access: HostedAccessResult, offer: HostedOffer): voi
 export async function createStripeCheckoutSession(
   authUserId: string,
   offer: HostedOffer,
+  requestUrl?: string,
 ): Promise<{ clientSecret: string }> {
   const access = await resolveHostedAccess(authUserId);
   assertOfferAllowed(access, offer);
@@ -239,7 +264,7 @@ export async function createStripeCheckoutSession(
     mode: isLifetimePurchase ? 'payment' : 'subscription',
     ui_mode: 'embedded_page',
     redirect_on_completion: 'if_required',
-    return_url: embeddedCheckoutReturnUrl(config),
+    return_url: embeddedCheckoutReturnUrl(config, requestUrl),
     customer: customerId,
     client_reference_id: authUserId,
     line_items: [{ price: config.priceIds[offer], quantity: 1 }],

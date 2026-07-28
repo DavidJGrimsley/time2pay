@@ -13,7 +13,7 @@ export async function POST(request: Request): Promise<Response> {
   try {
     const authUserId = await requireBillingAuthUserId(request);
     const { offer } = await parseBillingJson(request, checkoutSchema);
-    return Response.json(await createStripeCheckoutSession(authUserId, offer));
+    return Response.json(await createStripeCheckoutSession(authUserId, offer, request.url));
   } catch (error) {
     return billingErrorResponse(error);
   }

@@ -14,6 +14,8 @@ process.env.NODE_ENV = process.env.NODE_ENV || 'production';
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
+const isHostedDataMode =
+  (process.env.EXPO_PUBLIC_TIME2PAY_DATA_MODE || 'local').trim().toLowerCase() === 'hosted';
 const clientBuildDir = path.join(__dirname, 'dist', 'client');
 const serverBuildDir = path.join(__dirname, 'dist', 'server');
 const routesManifestPath = path.join(serverBuildDir, '_expo', 'routes.json');
@@ -21,6 +23,7 @@ const buildCommitMarkerPath = path.join(clientBuildDir, '__time2pay_build.txt');
 const publicRuntimeEnvKeys = [
   'EXPO_PUBLIC_GITHUB_CLIENT_ID',
   'EXPO_PUBLIC_SITE_ORIGIN',
+  'EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY',
   'EXPO_PUBLIC_SUPABASE_ANON_KEY',
   'EXPO_PUBLIC_SUPABASE_URL',
   'EXPO_PUBLIC_TIME2PAY_DATA_MODE',
@@ -237,12 +240,15 @@ app.disable('x-powered-by');
 app.use(compression());
 app.use(morgan('tiny'));
 
-// Required for expo-sqlite web persistence.
-app.use((req, res, next) => {
-  res.setHeader('Cross-Origin-Embedder-Policy', 'credentialless');
-  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
-  next();
-});
+if (!isHostedDataMode) {
+  // Required for expo-sqlite web persistence. Hosted mode omits cross-origin
+  // isolation because Stripe embedded Checkout does not support isolated pages.
+  app.use((req, res, next) => {
+    res.setHeader('Cross-Origin-Embedder-Policy', 'credentialless');
+    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+    next();
+  });
+}
 
 app.get('/__time2pay_runtime_config__', (_req, res) => {
   res.type('application/javascript');
