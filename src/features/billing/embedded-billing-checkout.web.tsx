@@ -6,7 +6,6 @@ import { InlineNotice } from '@/components/inline-notice';
 
 type EmbeddedBillingCheckoutProps = {
   clientSecret: string;
-  onClose?: () => void;
   onComplete: () => void;
 };
 
@@ -36,14 +35,16 @@ export function EmbeddedBillingCheckout({
 
   return (
     <View className="overflow-hidden rounded-[28px] border border-border bg-background p-3 md:p-5">
-      <View className="overflow-hidden rounded-[24px] border border-border bg-card">
-        <EmbeddedCheckoutProvider
-          key={clientSecret}
-          stripe={stripePromise}
-          options={options}
-        >
-          <EmbeddedCheckout />
-        </EmbeddedCheckoutProvider>
+      <View className="overflow-hidden rounded-[24px] border border-border bg-card p-2 md:p-3">
+        <View className="overflow-hidden rounded-[20px] bg-white">
+          <EmbeddedCheckoutProvider
+            key={clientSecret}
+            stripe={stripePromise}
+            options={options}
+          >
+            <EmbeddedCheckout />
+          </EmbeddedCheckoutProvider>
+        </View>
       </View>
     </View>
   );

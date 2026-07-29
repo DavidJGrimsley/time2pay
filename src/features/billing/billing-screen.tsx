@@ -1,7 +1,7 @@
 import { Link, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, useColorScheme, View } from 'react-native';
-import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { InlineNotice } from '@/components/inline-notice';
 import type {
   BillingSubscriptionAction,
@@ -28,6 +28,8 @@ type BillingScreenVariant = 'pricing' | 'settings' | 'access-required' | 'referr
 type BillingScreenProps = {
   variant: BillingScreenVariant;
 };
+
+const PURCHASE_FLOW_FADE_DURATION_MS = 180;
 
 function formatDate(value: string | null): string {
   if (!value) {
@@ -184,6 +186,9 @@ export function BillingScreen({ variant }: BillingScreenProps) {
   const [busyOffer, setBusyOffer] = useState<HostedOffer | null>(null);
   const [checkoutOffer, setCheckoutOffer] = useState<HostedOffer | null>(null);
   const [checkoutClientSecret, setCheckoutClientSecret] = useState<string | null>(null);
+  const [isPlansPanelVisible, setIsPlansPanelVisible] = useState(true);
+  const [isCheckoutPanelVisible, setIsCheckoutPanelVisible] = useState(false);
+  const [isPurchaseFlowTransitioning, setIsPurchaseFlowTransitioning] = useState(false);
   const [subscription, setSubscription] = useState<BillingSubscriptionSummary | null>(null);
   const [busySubscriptionAction, setBusySubscriptionAction] =
     useState<BillingSubscriptionAction | null>(null);
@@ -191,6 +196,7 @@ export function BillingScreen({ variant }: BillingScreenProps) {
   const syncedCheckoutSession = useRef<string | null>(null);
   const activeAccessRequest = useRef<AbortController | null>(null);
   const accessRequestSequence = useRef(0);
+  const purchaseFlowTransitionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const checkoutState = singleSearchParam(searchParams.checkout);
   const checkoutSessionId = singleSearchParam(searchParams.session_id);
   const checkoutSyncKey = hasResolvedCheckoutSessionId(checkoutSessionId)
@@ -198,6 +204,15 @@ export function BillingScreen({ variant }: BillingScreenProps) {
     : 'checkout-return-without-session-id';
   const isReferralScreen = variant === 'referral-status';
   const isBillingSettings = variant === 'settings';
+
+  const clearPurchaseFlowTransition = useCallback((): void => {
+    if (purchaseFlowTransitionTimer.current) {
+      clearTimeout(purchaseFlowTransitionTimer.current);
+      purchaseFlowTransitionTimer.current = null;
+    }
+  }, []);
+
+  useEffect(() => clearPurchaseFlowTransition, [clearPurchaseFlowTransition]);
 
   useEffect(() => {
     if (!hostedMode || !isAuthenticated || tourModeEnabled) {
@@ -338,6 +353,14 @@ export function BillingScreen({ variant }: BillingScreenProps) {
       const session = await createHostedCheckout(offer, checkoutTheme);
       setCheckoutOffer(offer);
       setCheckoutClientSecret(session.clientSecret);
+      setIsPurchaseFlowTransitioning(true);
+      setIsPlansPanelVisible(false);
+      clearPurchaseFlowTransition();
+      purchaseFlowTransitionTimer.current = setTimeout(() => {
+        purchaseFlowTransitionTimer.current = null;
+        setIsCheckoutPanelVisible(true);
+        setIsPurchaseFlowTransitioning(false);
+      }, PURCHASE_FLOW_FADE_DURATION_MS);
     } catch (checkoutError) {
       setCheckoutOffer(null);
       setError(formatError(checkoutError));
@@ -347,15 +370,25 @@ export function BillingScreen({ variant }: BillingScreenProps) {
   }
 
   const closeCheckout = useCallback((): void => {
-    setCheckoutClientSecret(null);
-    setCheckoutOffer(null);
-    setBusyOffer(null);
-  }, []);
+    if (!checkoutClientSecret || isPurchaseFlowTransitioning) {
+      return;
+    }
+
+    setIsPurchaseFlowTransitioning(true);
+    setIsCheckoutPanelVisible(false);
+    clearPurchaseFlowTransition();
+    purchaseFlowTransitionTimer.current = setTimeout(() => {
+      purchaseFlowTransitionTimer.current = null;
+      setCheckoutClientSecret(null);
+      setCheckoutOffer(null);
+      setBusyOffer(null);
+      setIsPlansPanelVisible(true);
+      setIsPurchaseFlowTransitioning(false);
+    }, PURCHASE_FLOW_FADE_DURATION_MS);
+  }, [checkoutClientSecret, clearPurchaseFlowTransition, isPurchaseFlowTransitioning]);
 
   const completeEmbeddedCheckout = useCallback(async (): Promise<void> => {
-    setCheckoutClientSecret(null);
-    setCheckoutOffer(null);
-    setBusyOffer(null);
+    closeCheckout();
     setIsRefreshing(true);
     setError(null);
     try {
@@ -370,7 +403,7 @@ export function BillingScreen({ variant }: BillingScreenProps) {
     } finally {
       setIsRefreshing(false);
     }
-  }, [isBillingSettings]);
+  }, [closeCheckout, isBillingSettings]);
 
   async function manageSubscription(action: BillingSubscriptionAction): Promise<void> {
     setBusySubscriptionAction(action);
@@ -390,11 +423,13 @@ export function BillingScreen({ variant }: BillingScreenProps) {
     isAuthenticated &&
     !tourModeEnabled &&
     isWeb &&
-    checkoutClientSecret === null;
+    checkoutClientSecret === null &&
+    !isPurchaseFlowTransitioning;
   const canShowSubscriptionManager =
     isBillingSettings && access?.source === 'subscription' && subscription !== null;
   const shouldShowOffers = !access?.hasAccess || variant === 'pricing';
-  const shouldShowPurchaseFlow = shouldShowOffers || checkoutClientSecret !== null;
+  const shouldShowPurchaseFlow =
+    shouldShowOffers || checkoutClientSecret !== null || isCheckoutPanelVisible || isPurchaseFlowTransitioning;
   const activeCheckoutOffer = checkoutOffer ? offerDetails(checkoutOffer) : null;
 
   return (
@@ -502,16 +537,13 @@ export function BillingScreen({ variant }: BillingScreenProps) {
       {error ? <InlineNotice tone="error" message={error} /> : null}
 
       {shouldShowPurchaseFlow ? (
-        <Animated.View
-          className="overflow-hidden rounded-2xl border border-border bg-card"
-          layout={LinearTransition.duration(180)}
-        >
-          {checkoutClientSecret ? (
+        <>
+          {isCheckoutPanelVisible && checkoutClientSecret ? (
             <Animated.View
               key="checkout"
-              className="gap-5 p-4 md:p-6"
-              entering={FadeIn.duration(180)}
-              exiting={FadeOut.duration(140)}
+              className="gap-5 overflow-hidden rounded-2xl border border-border bg-card p-4 md:p-6"
+              entering={FadeIn.duration(PURCHASE_FLOW_FADE_DURATION_MS)}
+              exiting={FadeOut.duration(PURCHASE_FLOW_FADE_DURATION_MS)}
             >
               <View className="flex-row flex-wrap items-start justify-between gap-3">
                 <View className="max-w-3xl gap-1">
@@ -528,6 +560,7 @@ export function BillingScreen({ variant }: BillingScreenProps) {
                 <Pressable
                   className="rounded-md border border-border px-4 py-2"
                   onPress={closeCheckout}
+                  disabled={isPurchaseFlowTransitioning}
                   accessibilityRole="button"
                   accessibilityLabel="Back to plans"
                 >
@@ -536,18 +569,18 @@ export function BillingScreen({ variant }: BillingScreenProps) {
               </View>
               <EmbeddedBillingCheckout
                 clientSecret={checkoutClientSecret}
-                onClose={closeCheckout}
                 onComplete={() => {
                   completeEmbeddedCheckout().catch(() => undefined);
                 }}
               />
             </Animated.View>
-          ) : (
+          ) : null}
+          {isPlansPanelVisible ? (
             <Animated.View
               key="plans"
-              className="gap-4 p-4"
-              entering={FadeIn.duration(180)}
-              exiting={FadeOut.duration(140)}
+              className="gap-4 overflow-hidden rounded-2xl border border-border bg-card p-4"
+              entering={FadeIn.duration(PURCHASE_FLOW_FADE_DURATION_MS)}
+              exiting={FadeOut.duration(PURCHASE_FLOW_FADE_DURATION_MS)}
             >
               <View className="gap-1">
                 <Text className="text-lg font-bold text-heading">Plans</Text>
@@ -582,8 +615,8 @@ export function BillingScreen({ variant }: BillingScreenProps) {
                 />
               ) : null}
             </Animated.View>
-          )}
-        </Animated.View>
+          ) : null}
+        </>
       ) : null}
 
       {isReferralScreen && isAuthenticated && !tourModeEnabled ? (

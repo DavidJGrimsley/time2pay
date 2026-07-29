@@ -158,7 +158,7 @@ describe('BillingScreen checkout sync', () => {
     });
   });
 
-  it('starts checkout with the current dark-mode theme and swaps to the embedded step', async () => {
+  it('starts checkout with the current dark-mode theme after the plans panel fades away', async () => {
     const { BillingScreen } = await import('@/features/billing/billing-screen');
     mocks.getHostedBillingStatus.mockResolvedValue({
       ...activeAccess,
@@ -184,6 +184,19 @@ describe('BillingScreen checkout sync', () => {
     });
 
     expect(mocks.createHostedCheckout).toHaveBeenCalledWith('annual', 'dark');
+    expect(
+      instance.root.findAll(
+        (node: renderer.ReactTestInstance) =>
+          String(node.type) === 'Text' && node.props.children === 'Secure checkout',
+      ),
+    ).toHaveLength(0);
+
+    await renderer.act(async () => {
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, 200);
+      });
+    });
+
     expect(
       instance.root.find(
         (node: renderer.ReactTestInstance) =>
