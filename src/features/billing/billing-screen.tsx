@@ -1,8 +1,9 @@
 import { Link, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, useColorScheme, View } from 'react-native';
+import { Pressable, ScrollView, Text, useColorScheme, View } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { InlineNotice } from '@/components/inline-notice';
+import { CosmosLoadingAnimation } from '@/components/UI/Loading';
 import type {
   BillingSubscriptionAction,
   BillingSubscriptionSummary,
@@ -46,36 +47,6 @@ function formatDate(value: string | null): string {
     day: 'numeric',
     year: 'numeric',
   }).format(date);
-}
-
-function formatAccessSource(access: HostedAccessResult): string {
-  switch (access.source) {
-    case 'mercury':
-      return 'Mercury referral';
-    case 'subscription':
-      return 'Subscription';
-    case 'lifetime_purchase':
-      return 'Lifetime membership';
-    case 'admin':
-      return 'Administrative access';
-    default:
-      return 'No active access';
-  }
-}
-
-function formatAccessStatus(access: HostedAccessResult): string {
-  switch (access.status) {
-    case 'active':
-      return 'Active';
-    case 'grace':
-      return 'Grace period';
-    case 'past_due':
-      return 'Payment past due';
-    case 'suspended':
-      return 'Suspended';
-    default:
-      return 'Access required';
-  }
 }
 
 function formatError(error: unknown): string {
@@ -172,6 +143,22 @@ function OfferCard({
   );
 }
 
+function SubscriptionAccessLoadingPanel() {
+  return (
+    <View
+      className="items-center gap-3 rounded-xl border border-border bg-card px-5 py-6"
+      accessibilityRole="progressbar"
+      accessibilityLabel="Checking subscription access"
+    >
+      <CosmosLoadingAnimation size={72} />
+      <Text className="text-base font-bold text-heading">Checking subscription access...</Text>
+      <Text className="text-center text-sm text-muted">
+        Confirming your plan, renewal, and access status.
+      </Text>
+    </View>
+  );
+}
+
 export function BillingScreen({ variant }: BillingScreenProps) {
   const searchParams = useLocalSearchParams<{ checkout?: string | string[]; session_id?: string | string[] }>();
   const colorScheme = useColorScheme();
@@ -181,7 +168,7 @@ export function BillingScreen({ variant }: BillingScreenProps) {
   const isWeb = process.env.EXPO_OS === 'web';
   const [access, setAccess] = useState<HostedAccessResult | null>(null);
   const [referral, setReferral] = useState<MercuryReferralStatus | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(() => hostedMode && isAuthenticated && !tourModeEnabled);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [busyOffer, setBusyOffer] = useState<HostedOffer | null>(null);
   const [checkoutOffer, setCheckoutOffer] = useState<HostedOffer | null>(null);
@@ -299,47 +286,6 @@ export function BillingScreen({ variant }: BillingScreenProps) {
     tourModeEnabled,
   ]);
 
-  async function refresh(): Promise<void> {
-    if (!hostedMode || !isAuthenticated || tourModeEnabled) {
-      return;
-    }
-
-    activeAccessRequest.current?.abort();
-    const controller = new AbortController();
-    activeAccessRequest.current = controller;
-    const requestSequence = accessRequestSequence.current + 1;
-    accessRequestSequence.current = requestSequence;
-
-    setError(null);
-    setIsLoading(false);
-    setIsRefreshing(true);
-    try {
-      const [nextAccess, nextReferral, nextSubscription] = await Promise.all([
-        syncHostedBilling(undefined, controller.signal),
-        isReferralScreen ? getMercuryReferralStatus() : Promise.resolve(null),
-        isBillingSettings && isWeb
-          ? getBillingSubscription(controller.signal)
-          : Promise.resolve(null),
-      ]);
-      if (!controller.signal.aborted && accessRequestSequence.current === requestSequence) {
-        setAccess(nextAccess);
-        setReferral(nextReferral);
-        setSubscription(nextSubscription);
-      }
-    } catch (refreshError) {
-      if (!controller.signal.aborted && accessRequestSequence.current === requestSequence) {
-        setError(formatError(refreshError));
-      }
-    } finally {
-      if (!controller.signal.aborted && accessRequestSequence.current === requestSequence) {
-        setIsRefreshing(false);
-      }
-      if (activeAccessRequest.current === controller) {
-        activeAccessRequest.current = null;
-      }
-    }
-  }
-
   async function startCheckout(offer: HostedOffer): Promise<void> {
     if (!isWeb) {
       setError('Purchases are available on the web. Native purchase options will use the app stores.');
@@ -425,11 +371,17 @@ export function BillingScreen({ variant }: BillingScreenProps) {
     isWeb &&
     checkoutClientSecret === null &&
     !isPurchaseFlowTransitioning;
+  const isCheckingSubscriptionAccess = isLoading || isRefreshing;
   const canShowSubscriptionManager =
-    isBillingSettings && access?.source === 'subscription' && subscription !== null;
-  const shouldShowOffers = !access?.hasAccess || variant === 'pricing';
+    !isCheckingSubscriptionAccess &&
+    isBillingSettings &&
+    access?.source === 'subscription' &&
+    subscription !== null;
+  const shouldShowOffers =
+    !isCheckingSubscriptionAccess && access !== null && (!access.hasAccess || variant === 'pricing');
   const shouldShowPurchaseFlow =
-    shouldShowOffers || checkoutClientSecret !== null || isCheckoutPanelVisible || isPurchaseFlowTransitioning;
+    !isCheckingSubscriptionAccess &&
+    (shouldShowOffers || checkoutClientSecret !== null || isCheckoutPanelVisible || isPurchaseFlowTransitioning);
   const activeCheckoutOffer = checkoutOffer ? offerDetails(checkoutOffer) : null;
 
   return (
@@ -481,41 +433,8 @@ export function BillingScreen({ variant }: BillingScreenProps) {
           <Text className="text-base font-bold text-heading">Tour mode has no billing state</Text>
           <Text className="text-sm text-muted">Sign in to view your real access and referral progress.</Text>
         </View>
-      ) : isLoading ? (
-        <View className="items-center gap-3 rounded-xl border border-border bg-card p-5">
-          <ActivityIndicator color="#bb7e5d" />
-          <Text className="text-sm text-muted">Loading billing...</Text>
-        </View>
-      ) : access ? (
-        <View className="gap-3 rounded-xl border border-border bg-card p-4">
-          <View className="flex-row flex-wrap items-center justify-between gap-2">
-            <View className="gap-1">
-              <Text className="text-base font-bold text-heading">{formatAccessStatus(access)}</Text>
-              <Text className="text-sm text-muted">{formatAccessSource(access)}</Text>
-            </View>
-            <View className={access.hasAccess ? 'rounded-full bg-success/15 px-3 py-1' : 'rounded-full bg-danger/10 px-3 py-1'}>
-              <Text className={access.hasAccess ? 'text-xs font-bold text-success' : 'text-xs font-bold text-danger'}>
-                {access.hasAccess ? 'Enabled' : 'Action needed'}
-              </Text>
-            </View>
-          </View>
-          <Text className="text-sm text-muted">
-            {access.validUntil ? `Valid until ${formatDate(access.validUntil)}.` : 'No expiration is recorded.'}
-          </Text>
-          <View className="flex-row flex-wrap gap-2">
-            <Pressable
-              className="rounded-md border border-border px-4 py-2"
-              onPress={() => {
-                refresh().catch(() => undefined);
-              }}
-              disabled={isRefreshing}
-            >
-              <Text className="font-semibold text-heading">
-                {isRefreshing ? 'Refreshing...' : 'Refresh access'}
-              </Text>
-            </Pressable>
-          </View>
-        </View>
+      ) : isCheckingSubscriptionAccess ? (
+        <SubscriptionAccessLoadingPanel />
       ) : null}
 
       {canShowSubscriptionManager ? (
@@ -530,9 +449,6 @@ export function BillingScreen({ variant }: BillingScreenProps) {
 
       {checkoutState === 'canceled' ? (
         <InlineNotice tone="neutral" message="Checkout was canceled. No billing changes were made." />
-      ) : null}
-      {(checkoutState === 'success' || checkoutState === 'return') && isRefreshing ? (
-        <InlineNotice tone="neutral" message="Confirming your access..." />
       ) : null}
       {error ? <InlineNotice tone="error" message={error} /> : null}
 

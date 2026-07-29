@@ -56,6 +56,15 @@ vi.mock('react-native-reanimated', async () => {
   };
 });
 
+vi.mock('@/components/UI/Loading', async () => {
+  const ReactModule = await import('react');
+
+  return {
+    CosmosLoadingAnimation: (props: { size?: number }) =>
+      ReactModule.createElement('CosmosLoadingAnimation', props),
+  };
+});
+
 vi.mock('expo-router', async () => {
   const ReactModule = await import('react');
 
@@ -156,6 +165,29 @@ describe('BillingScreen checkout sync', () => {
     await renderer.act(async () => {
       instance?.unmount();
     });
+  });
+
+  it('shows the subscription-access loader instead of plans until access resolves', async () => {
+    mocks.getHostedBillingStatus.mockImplementation(() => new Promise(() => undefined));
+    const { BillingScreen } = await import('@/features/billing/billing-screen');
+    let instance!: renderer.ReactTestRenderer;
+
+    await renderer.act(async () => {
+      instance = renderer.create(<BillingScreen variant="pricing" />);
+    });
+
+    expect(
+      instance.root.find(
+        (node: renderer.ReactTestInstance) =>
+          String(node.type) === 'Text' && node.props.children === 'Checking subscription access...',
+      ),
+    ).toBeTruthy();
+    expect(
+      instance.root.findAll(
+        (node: renderer.ReactTestInstance) =>
+          String(node.type) === 'Text' && node.props.children === 'Choose Annual',
+      ),
+    ).toHaveLength(0);
   });
 
   it('starts checkout with the current dark-mode theme after the plans panel fades away', async () => {

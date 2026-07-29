@@ -40,7 +40,7 @@ export function SubscriptionManager({
     <View className="gap-4 rounded-xl border border-border bg-card p-4">
       <View className="flex-row flex-wrap items-start justify-between gap-3">
         <View className="gap-1">
-          <Text className="text-base font-bold text-heading">Subscription</Text>
+          <Text className="text-base font-bold text-heading">Subscription & access</Text>
           <Text className="text-2xl font-bold text-heading">
             {subscription.plan === 'annual' ? 'Annual · $20/year' : 'Monthly · $2/month'}
           </Text>
@@ -54,7 +54,7 @@ export function SubscriptionManager({
 
       <View className="gap-1">
         <Text className="text-sm font-semibold text-heading">
-          {subscription.cancelAtPeriodEnd ? 'Access ends' : 'Next renewal'}
+          {subscription.cancelAtPeriodEnd ? 'Access ends' : 'Next renewal & access through'}
         </Text>
         <Text className="text-sm text-muted">
           {formatDate(subscription.currentPeriodEnd)}
