@@ -22,6 +22,7 @@ import type {
   HostedOffer,
   HostedPlan,
 } from '@/database/hosted/billing/types';
+import type { BillingCheckoutTheme } from '@/services/billing';
 import { resolveHostedAccess } from '@/server/billing/entitlements';
 import { BillingError } from '@/server/billing/errors';
 import {
@@ -48,12 +49,24 @@ type SyncedStripeSubscription = StripeSubscriptionTerms & {
   graceExpiresAt: Date | null;
 };
 
-const TIME2PAY_CHECKOUT_BRANDING: Stripe.Checkout.SessionCreateParams.BrandingSettings = {
-  background_color: '#f8f7f3',
-  button_color: '#1a1f16',
-  border_style: 'rounded',
-  display_name: 'Time2Pay',
-  font_family: 'inter',
+const TIME2PAY_CHECKOUT_BRANDING_BY_THEME: Record<
+  BillingCheckoutTheme,
+  Stripe.Checkout.SessionCreateParams.BrandingSettings
+> = {
+  light: {
+    background_color: '#f8f7f3',
+    button_color: '#1a1f16',
+    border_style: 'rounded',
+    display_name: 'Time2Pay',
+    font_family: 'inter',
+  },
+  dark: {
+    background_color: '#24291f',
+    button_color: '#d4955f',
+    border_style: 'rounded',
+    display_name: 'Time2Pay',
+    font_family: 'inter',
+  },
 };
 
 function stripeId(value: string | { id: string } | null | undefined): string | null {
@@ -251,6 +264,7 @@ export async function createStripeCheckoutSession(
   authUserId: string,
   offer: HostedOffer,
   requestUrl?: string,
+  theme: BillingCheckoutTheme = 'light',
 ): Promise<{ clientSecret: string }> {
   const access = await resolveHostedAccess(authUserId);
   assertOfferAllowed(access, offer);
@@ -268,7 +282,7 @@ export async function createStripeCheckoutSession(
     customer: customerId,
     client_reference_id: authUserId,
     line_items: [{ price: config.priceIds[offer], quantity: 1 }],
-    branding_settings: TIME2PAY_CHECKOUT_BRANDING,
+    branding_settings: TIME2PAY_CHECKOUT_BRANDING_BY_THEME[theme],
     metadata,
     ...(isLifetimePurchase
       ? { payment_intent_data: { metadata } }

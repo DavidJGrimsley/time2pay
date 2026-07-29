@@ -7,6 +7,7 @@ import type { HostedAccessResult } from '@/database/hosted/billing/types';
 
 const mocks = vi.hoisted(() => ({
   searchParams: {} as { checkout?: string; session_id?: string },
+  colorScheme: 'dark' as 'light' | 'dark' | null,
   getHostedBillingStatus: vi.fn(),
   syncHostedBilling: vi.fn(),
   createHostedCheckout: vi.fn(),
@@ -29,7 +30,29 @@ vi.mock('react-native', async () => {
     Pressable: makeComponent('Pressable'),
     ScrollView: makeComponent('ScrollView'),
     Text: makeComponent('Text'),
+    useColorScheme: () => mocks.colorScheme,
     View: makeComponent('View'),
+  };
+});
+
+vi.mock('react-native-reanimated', async () => {
+  const ReactModule = await import('react');
+
+  return {
+    __esModule: true,
+    default: {
+      View: ({ children, ...props }: { children?: React.ReactNode }) =>
+        ReactModule.createElement('AnimatedView', props, children),
+    },
+    FadeIn: {
+      duration: () => undefined,
+    },
+    FadeOut: {
+      duration: () => undefined,
+    },
+    LinearTransition: {
+      duration: () => ({}),
+    },
   };
 });
 
@@ -77,8 +100,10 @@ describe('BillingScreen checkout sync', () => {
     vi.clearAllMocks();
     process.env.EXPO_OS = 'web';
     mocks.searchParams = {};
+    mocks.colorScheme = 'dark';
     mocks.getHostedBillingStatus.mockResolvedValue(activeAccess);
     mocks.syncHostedBilling.mockResolvedValue(activeAccess);
+    mocks.createHostedCheckout.mockResolvedValue({ clientSecret: 'cs_test_secret_123' });
     mocks.getBillingSubscription.mockResolvedValue({
       plan: 'annual',
       status: 'active',
@@ -131,5 +156,39 @@ describe('BillingScreen checkout sync', () => {
     await renderer.act(async () => {
       instance?.unmount();
     });
+  });
+
+  it('starts checkout with the current dark-mode theme and swaps to the embedded step', async () => {
+    const { BillingScreen } = await import('@/features/billing/billing-screen');
+    mocks.getHostedBillingStatus.mockResolvedValue({
+      ...activeAccess,
+      eligibleOffers: ['annual', 'monthly'],
+    });
+    let instance!: renderer.ReactTestRenderer;
+
+    await renderer.act(async () => {
+      instance = renderer.create(<BillingScreen variant="pricing" />);
+    });
+
+    const annualButton = instance.root.find(
+      (node: renderer.ReactTestInstance) =>
+        String(node.type) === 'Pressable' &&
+        node.findAll(
+          (child: renderer.ReactTestInstance) =>
+            String(child.type) === 'Text' && child.props.children === 'Choose Annual',
+        ).length > 0,
+    );
+
+    await renderer.act(async () => {
+      annualButton.props.onPress();
+    });
+
+    expect(mocks.createHostedCheckout).toHaveBeenCalledWith('annual', 'dark');
+    expect(
+      instance.root.find(
+        (node: renderer.ReactTestInstance) =>
+          String(node.type) === 'Text' && node.props.children === 'Secure checkout',
+      ),
+    ).toBeTruthy();
   });
 });

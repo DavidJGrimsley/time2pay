@@ -1,6 +1,7 @@
 import { Link, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, Text, useColorScheme, View } from 'react-native';
+import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 import { InlineNotice } from '@/components/inline-notice';
 import type {
   BillingSubscriptionAction,
@@ -11,6 +12,7 @@ import type {
 import { EmbeddedBillingCheckout } from '@/features/billing/embedded-billing-checkout';
 import { SubscriptionManager } from '@/features/billing/subscription-manager';
 import {
+  type BillingCheckoutTheme,
   createHostedCheckout,
   getBillingSubscription,
   getHostedBillingStatus,
@@ -89,6 +91,30 @@ function hasResolvedCheckoutSessionId(value: string | null): value is string {
   return Boolean(value && !value.includes('CHECKOUT_SESSION_ID'));
 }
 
+function offerDetails(offer: HostedOffer): { title: string; price: string; detail: string; recommended?: boolean } {
+  switch (offer) {
+    case 'annual':
+      return {
+        title: 'Annual',
+        price: '$20/year',
+        detail: 'Less than $1.67 per month.',
+        recommended: true,
+      };
+    case 'monthly':
+      return {
+        title: 'Monthly',
+        price: '$2/month',
+        detail: 'Flexible access with monthly renewal.',
+      };
+    case 'mercury_lifetime':
+      return {
+        title: 'Mercury lifetime',
+        price: '$20 once',
+        detail: 'Available after your verified Mercury outcome is confirmed.',
+      };
+  }
+}
+
 function OfferCard({
   title,
   price,
@@ -146,6 +172,7 @@ function OfferCard({
 
 export function BillingScreen({ variant }: BillingScreenProps) {
   const searchParams = useLocalSearchParams<{ checkout?: string | string[]; session_id?: string | string[] }>();
+  const colorScheme = useColorScheme();
   const isAuthenticated = useAuthUiStore((state) => state.isAuthenticated);
   const tourModeEnabled = useAuthUiStore((state) => state.tourModeEnabled);
   const hostedMode = isHostedMode();
@@ -155,6 +182,7 @@ export function BillingScreen({ variant }: BillingScreenProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [busyOffer, setBusyOffer] = useState<HostedOffer | null>(null);
+  const [checkoutOffer, setCheckoutOffer] = useState<HostedOffer | null>(null);
   const [checkoutClientSecret, setCheckoutClientSecret] = useState<string | null>(null);
   const [subscription, setSubscription] = useState<BillingSubscriptionSummary | null>(null);
   const [busySubscriptionAction, setBusySubscriptionAction] =
@@ -303,20 +331,30 @@ export function BillingScreen({ variant }: BillingScreenProps) {
       return;
     }
 
+    const checkoutTheme: BillingCheckoutTheme = colorScheme === 'dark' ? 'dark' : 'light';
     setBusyOffer(offer);
     setError(null);
     try {
-      const session = await createHostedCheckout(offer);
+      const session = await createHostedCheckout(offer, checkoutTheme);
+      setCheckoutOffer(offer);
       setCheckoutClientSecret(session.clientSecret);
     } catch (checkoutError) {
+      setCheckoutOffer(null);
       setError(formatError(checkoutError));
     } finally {
       setBusyOffer(null);
     }
   }
 
+  const closeCheckout = useCallback((): void => {
+    setCheckoutClientSecret(null);
+    setCheckoutOffer(null);
+    setBusyOffer(null);
+  }, []);
+
   const completeEmbeddedCheckout = useCallback(async (): Promise<void> => {
     setCheckoutClientSecret(null);
+    setCheckoutOffer(null);
     setBusyOffer(null);
     setIsRefreshing(true);
     setError(null);
@@ -356,6 +394,8 @@ export function BillingScreen({ variant }: BillingScreenProps) {
   const canShowSubscriptionManager =
     isBillingSettings && access?.source === 'subscription' && subscription !== null;
   const shouldShowOffers = !access?.hasAccess || variant === 'pricing';
+  const shouldShowPurchaseFlow = shouldShowOffers || checkoutClientSecret !== null;
+  const activeCheckoutOffer = checkoutOffer ? offerDetails(checkoutOffer) : null;
 
   return (
     <ScrollView
@@ -461,53 +501,89 @@ export function BillingScreen({ variant }: BillingScreenProps) {
       ) : null}
       {error ? <InlineNotice tone="error" message={error} /> : null}
 
-      {shouldShowOffers ? (
-        <View className="gap-3">
-          <Text className="text-lg font-bold text-heading">Plans</Text>
-          <OfferCard
-            title="Annual"
-            price="$20/year"
-            detail="Less than $1.67 per month."
-            recommended
-            enabled={canStartCheckout && eligibleOffers.includes('annual')}
-            busy={busyOffer === 'annual'}
-            onPress={() => {
-              startCheckout('annual').catch(() => undefined);
-            }}
-          />
-          <OfferCard
-            title="Monthly"
-            price="$2/month"
-            detail="Flexible access with monthly renewal."
-            enabled={canStartCheckout && eligibleOffers.includes('monthly')}
-            busy={busyOffer === 'monthly'}
-            onPress={() => {
-              startCheckout('monthly').catch(() => undefined);
-            }}
-          />
-          {eligibleOffers.includes('mercury_lifetime') ? (
-            <OfferCard
-              title="Mercury lifetime"
-              price="$20 once"
-              detail="Available after your verified Mercury outcome is confirmed."
-              enabled={canStartCheckout}
-              busy={busyOffer === 'mercury_lifetime'}
-              onPress={() => {
-                startCheckout('mercury_lifetime').catch(() => undefined);
-              }}
-            />
-          ) : null}
-        </View>
-      ) : null}
-
-      {checkoutClientSecret ? (
-        <EmbeddedBillingCheckout
-          clientSecret={checkoutClientSecret}
-          onClose={() => setCheckoutClientSecret(null)}
-          onComplete={() => {
-            completeEmbeddedCheckout().catch(() => undefined);
-          }}
-        />
+      {shouldShowPurchaseFlow ? (
+        <Animated.View
+          className="overflow-hidden rounded-2xl border border-border bg-card"
+          layout={LinearTransition.duration(180)}
+        >
+          {checkoutClientSecret ? (
+            <Animated.View
+              key="checkout"
+              className="gap-5 p-4 md:p-6"
+              entering={FadeIn.duration(180)}
+              exiting={FadeOut.duration(140)}
+            >
+              <View className="flex-row flex-wrap items-start justify-between gap-3">
+                <View className="max-w-3xl gap-1">
+                  <Text className="text-lg font-bold text-heading">Secure checkout</Text>
+                  {activeCheckoutOffer ? (
+                    <Text className="text-sm font-semibold text-heading">
+                      {activeCheckoutOffer.title} · {activeCheckoutOffer.price}
+                    </Text>
+                  ) : null}
+                  <Text className="text-sm text-muted">
+                    Payment details stay inside Stripe, but the flow stays here in Time2Pay.
+                  </Text>
+                </View>
+                <Pressable
+                  className="rounded-md border border-border px-4 py-2"
+                  onPress={closeCheckout}
+                  accessibilityRole="button"
+                  accessibilityLabel="Back to plans"
+                >
+                  <Text className="font-semibold text-heading">Back</Text>
+                </Pressable>
+              </View>
+              <EmbeddedBillingCheckout
+                clientSecret={checkoutClientSecret}
+                onClose={closeCheckout}
+                onComplete={() => {
+                  completeEmbeddedCheckout().catch(() => undefined);
+                }}
+              />
+            </Animated.View>
+          ) : (
+            <Animated.View
+              key="plans"
+              className="gap-4 p-4"
+              entering={FadeIn.duration(180)}
+              exiting={FadeOut.duration(140)}
+            >
+              <View className="gap-1">
+                <Text className="text-lg font-bold text-heading">Plans</Text>
+                <Text className="text-sm text-muted">
+                  Choose the web plan that fits how you want to run Time2Pay.
+                </Text>
+              </View>
+              <OfferCard
+                {...offerDetails('annual')}
+                enabled={canStartCheckout && eligibleOffers.includes('annual')}
+                busy={busyOffer === 'annual'}
+                onPress={() => {
+                  startCheckout('annual').catch(() => undefined);
+                }}
+              />
+              <OfferCard
+                {...offerDetails('monthly')}
+                enabled={canStartCheckout && eligibleOffers.includes('monthly')}
+                busy={busyOffer === 'monthly'}
+                onPress={() => {
+                  startCheckout('monthly').catch(() => undefined);
+                }}
+              />
+              {eligibleOffers.includes('mercury_lifetime') ? (
+                <OfferCard
+                  {...offerDetails('mercury_lifetime')}
+                  enabled={canStartCheckout}
+                  busy={busyOffer === 'mercury_lifetime'}
+                  onPress={() => {
+                    startCheckout('mercury_lifetime').catch(() => undefined);
+                  }}
+                />
+              ) : null}
+            </Animated.View>
+          )}
+        </Animated.View>
       ) : null}
 
       {isReferralScreen && isAuthenticated && !tourModeEnabled ? (

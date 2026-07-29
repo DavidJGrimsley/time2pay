@@ -161,6 +161,31 @@ describe('Stripe billing service', () => {
     );
   });
 
+  it('uses darker Stripe branding when the checkout session starts in dark mode', async () => {
+    const config = stripeConfig() as {
+      client: { checkout: { sessions: { create: ReturnType<typeof vi.fn> } } };
+    };
+    config.client.checkout.sessions.create.mockResolvedValue({
+      client_secret: 'cs_test_secret_dark',
+    });
+    mocks.getStripeBillingConfig.mockReturnValue(config);
+    const { createStripeCheckoutSession } = await import('@/server/billing/stripe-service');
+
+    await createStripeCheckoutSession('user-1', 'annual', undefined, 'dark');
+
+    expect(config.client.checkout.sessions.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        branding_settings: {
+          background_color: '#24291f',
+          button_color: '#d4955f',
+          border_style: 'rounded',
+          display_name: 'Time2Pay',
+          font_family: 'inter',
+        },
+      }),
+    );
+  });
+
   it('refuses the hidden Mercury lifetime offer before contacting Stripe when the server says it is ineligible', async () => {
     mocks.resolveHostedAccess.mockResolvedValue({
       hasAccess: false,

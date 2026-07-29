@@ -60,13 +60,14 @@ describe('billing API routes', () => {
     mocks.createStripeCheckoutSession.mockResolvedValue({ clientSecret: 'cs_test_secret_123' });
     const { POST } = await import('@/app/api/billing/checkout+api');
 
-    const response = await POST(authenticatedRequest('/api/billing/checkout', { offer: 'annual' }));
+    const response = await POST(authenticatedRequest('/api/billing/checkout', { offer: 'annual', theme: 'dark' }));
 
     expect(response.status).toBe(200);
     expect(mocks.createStripeCheckoutSession).toHaveBeenCalledWith(
       'user-1',
       'annual',
       'http://localhost/api/billing/checkout',
+      'dark',
     );
     await expect(response.json()).resolves.toEqual({ clientSecret: 'cs_test_secret_123' });
   });

@@ -1,6 +1,6 @@
 type EmbeddedBillingCheckoutProps = {
   clientSecret: string;
-  onClose: () => void;
+  onClose?: () => void;
   onComplete: () => void;
 };
 

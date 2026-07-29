@@ -7,6 +7,8 @@ import type {
 import { getAppAccessMode } from '@/services/runtime-mode';
 import { getSupabaseClient } from '@/services/supabase-client';
 
+export type BillingCheckoutTheme = 'light' | 'dark';
+
 export class BillingApiError extends Error {
   constructor(
     message: string,
@@ -80,11 +82,14 @@ export function getHostedBillingStatus(signal?: AbortSignal): Promise<HostedAcce
   return billingRequest<HostedAccessResult>('/api/billing/status', { method: 'GET', signal });
 }
 
-export function createHostedCheckout(offer: HostedOffer): Promise<{ clientSecret: string }> {
+export function createHostedCheckout(
+  offer: HostedOffer,
+  theme: BillingCheckoutTheme = 'light',
+): Promise<{ clientSecret: string }> {
   return billingRequest<{ clientSecret: string }>('/api/billing/checkout', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ offer }),
+    body: JSON.stringify({ offer, theme }),
   });
 }
 
