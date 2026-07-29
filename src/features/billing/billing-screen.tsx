@@ -29,7 +29,7 @@ type BillingScreenProps = {
   variant: BillingScreenVariant;
 };
 
-const PURCHASE_FLOW_FADE_DURATION_MS = 180;
+const PURCHASE_FLOW_FADE_DURATION_MS = 260;
 
 function formatDate(value: string | null): string {
   if (!value) {

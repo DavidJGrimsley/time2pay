@@ -193,7 +193,7 @@ describe('BillingScreen checkout sync', () => {
 
     await renderer.act(async () => {
       await new Promise<void>((resolve) => {
-        setTimeout(resolve, 200);
+        setTimeout(resolve, 280);
       });
     });
 
