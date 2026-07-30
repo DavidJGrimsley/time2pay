@@ -112,6 +112,22 @@ export function updateBillingSubscription(
   });
 }
 
+export function createBillingPaymentMethodSetup(): Promise<{ clientSecret: string }> {
+  return billingRequest<{ clientSecret: string }>('/api/billing/payment-method', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'create_setup' }),
+  });
+}
+
+export function updateBillingPaymentMethod(paymentMethodId: string): Promise<BillingSubscriptionSummary> {
+  return billingRequest<BillingSubscriptionSummary>('/api/billing/payment-method', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'set_default', paymentMethodId }),
+  });
+}
+
 export function syncHostedBilling(
   checkoutSessionId?: string,
   signal?: AbortSignal,

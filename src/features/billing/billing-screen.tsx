@@ -11,13 +11,16 @@ import type {
   HostedOffer,
 } from '@/database/hosted/billing/types';
 import { EmbeddedBillingCheckout } from '@/features/billing/embedded-billing-checkout';
+import { PaymentMethodUpdate } from '@/features/billing/payment-method-update';
 import { SubscriptionManager } from '@/features/billing/subscription-manager';
 import {
   type BillingCheckoutTheme,
+  createBillingPaymentMethodSetup,
   createHostedCheckout,
   getBillingSubscription,
   getHostedBillingStatus,
   syncHostedBilling,
+  updateBillingPaymentMethod,
   updateBillingSubscription,
 } from '@/services/billing';
 import { getMercuryReferralStatus, type MercuryReferralStatus } from '@/services/mercury-referrals';
@@ -173,6 +176,9 @@ export function BillingScreen({ variant }: BillingScreenProps) {
   const [busyOffer, setBusyOffer] = useState<HostedOffer | null>(null);
   const [checkoutOffer, setCheckoutOffer] = useState<HostedOffer | null>(null);
   const [checkoutClientSecret, setCheckoutClientSecret] = useState<string | null>(null);
+  const [paymentMethodSetupClientSecret, setPaymentMethodSetupClientSecret] = useState<string | null>(null);
+  const [isPreparingPaymentMethod, setIsPreparingPaymentMethod] = useState(false);
+  const [isSavingPaymentMethod, setIsSavingPaymentMethod] = useState(false);
   const [isPlansPanelVisible, setIsPlansPanelVisible] = useState(true);
   const [isCheckoutPanelVisible, setIsCheckoutPanelVisible] = useState(false);
   const [isPurchaseFlowTransitioning, setIsPurchaseFlowTransitioning] = useState(false);
@@ -363,6 +369,38 @@ export function BillingScreen({ variant }: BillingScreenProps) {
     }
   }
 
+  async function startPaymentMethodUpdate(): Promise<void> {
+    if (!isWeb) {
+      setError('Payment-method updates are available on the web.');
+      return;
+    }
+
+    setIsPreparingPaymentMethod(true);
+    setError(null);
+    try {
+      const setup = await createBillingPaymentMethodSetup();
+      setPaymentMethodSetupClientSecret(setup.clientSecret);
+    } catch (paymentMethodError) {
+      setError(formatError(paymentMethodError));
+    } finally {
+      setIsPreparingPaymentMethod(false);
+    }
+  }
+
+  async function savePaymentMethod(paymentMethodId: string): Promise<void> {
+    setIsSavingPaymentMethod(true);
+    setError(null);
+    try {
+      setSubscription(await updateBillingPaymentMethod(paymentMethodId));
+      setPaymentMethodSetupClientSecret(null);
+    } catch (paymentMethodError) {
+      setError(formatError(paymentMethodError));
+      throw paymentMethodError;
+    } finally {
+      setIsSavingPaymentMethod(false);
+    }
+  }
+
   const eligibleOffers = access?.eligibleOffers ?? [];
   const canStartCheckout =
     hostedMode &&
@@ -441,9 +479,21 @@ export function BillingScreen({ variant }: BillingScreenProps) {
         <SubscriptionManager
           subscription={subscription}
           busyAction={busySubscriptionAction}
+          isPaymentMethodBusy={isPreparingPaymentMethod || isSavingPaymentMethod}
           onAction={(action) => {
             manageSubscription(action).catch(() => undefined);
           }}
+          onChangePaymentMethod={() => {
+            startPaymentMethodUpdate().catch(() => undefined);
+          }}
+        />
+      ) : null}
+
+      {paymentMethodSetupClientSecret ? (
+        <PaymentMethodUpdate
+          clientSecret={paymentMethodSetupClientSecret}
+          onCancel={() => setPaymentMethodSetupClientSecret(null)}
+          onComplete={savePaymentMethod}
         />
       ) : null}
 

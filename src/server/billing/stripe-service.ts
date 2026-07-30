@@ -16,6 +16,7 @@ import {
 } from '@/database/hosted/billing/queries';
 import type {
   BillingSubscriptionAction,
+  BillingPaymentMethodSummary,
   BillingSubscriptionStatus,
   BillingSubscriptionSummary,
   HostedAccessResult,
@@ -538,16 +539,56 @@ function manageableStripeSubscription(
   );
 }
 
-function stripeSubscriptionSummary(
+function billingPaymentMethodSummary(
+  paymentMethod: Stripe.PaymentMethod | null,
+): BillingPaymentMethodSummary | null {
+  if (paymentMethod?.type !== 'card' || !paymentMethod.card) {
+    return null;
+  }
+
+  return {
+    brand: paymentMethod.card.brand,
+    last4: paymentMethod.card.last4,
+    expMonth: paymentMethod.card.exp_month,
+    expYear: paymentMethod.card.exp_year,
+  };
+}
+
+async function defaultPaymentMethodForSubscription(
   config: StripeBillingConfig,
+  providerCustomerId: string,
   subscription: Stripe.Subscription,
-): BillingSubscriptionSummary {
+): Promise<Stripe.PaymentMethod | null> {
+  let paymentMethodId = stripeId(subscription.default_payment_method);
+
+  if (!paymentMethodId) {
+    const customer = await config.client.customers.retrieve(providerCustomerId);
+    if ('deleted' in customer && customer.deleted) {
+      return null;
+    }
+    paymentMethodId = stripeId(customer.invoice_settings.default_payment_method);
+  }
+
+  return paymentMethodId ? config.client.paymentMethods.retrieve(paymentMethodId) : null;
+}
+
+async function stripeSubscriptionSummary(
+  config: StripeBillingConfig,
+  providerCustomerId: string,
+  subscription: Stripe.Subscription,
+  paymentMethod?: Stripe.PaymentMethod | null,
+): Promise<BillingSubscriptionSummary> {
   const terms = subscriptionTerms(config, subscription);
+  const resolvedPaymentMethod =
+    paymentMethod === undefined
+      ? await defaultPaymentMethodForSubscription(config, providerCustomerId, subscription)
+      : paymentMethod;
   return {
     plan: terms.plan,
     status: terms.status,
     currentPeriodEnd: terms.currentPeriodEnd.toISOString(),
     cancelAtPeriodEnd: terms.cancelAtPeriodEnd,
+    paymentMethod: billingPaymentMethodSummary(resolvedPaymentMethod),
   };
 }
 
@@ -567,7 +608,7 @@ export async function getStripeSubscriptionManagement(
     customer.providerCustomerId,
   );
   const subscription = manageableStripeSubscription(config, subscriptions);
-  return subscription ? stripeSubscriptionSummary(config, subscription) : null;
+  return subscription ? stripeSubscriptionSummary(config, customer.providerCustomerId, subscription) : null;
 }
 
 export async function updateStripeSubscriptionManagement(
@@ -603,7 +644,80 @@ export async function updateStripeSubscriptionManagement(
     cancel_at_period_end: action === 'cancel_at_period_end',
   });
   await syncStripeSubscriptionFamily(config, updated, authUserId);
-  return stripeSubscriptionSummary(config, updated);
+  return stripeSubscriptionSummary(config, customer.providerCustomerId, updated);
+}
+
+async function manageableStripeSubscriptionForUser(
+  config: StripeBillingConfig,
+  authUserId: string,
+): Promise<{ providerCustomerId: string; subscription: Stripe.Subscription }> {
+  const customer = await withWriteDb((db) =>
+    getBillingCustomerForUser(db, authUserId, 'stripe'),
+  );
+  if (!customer) {
+    throw new BillingError(404, 'billing_subscription_missing', 'No Stripe subscription exists for this account.');
+  }
+
+  const subscriptions = await listStripeSubscriptionsForCustomer(
+    config,
+    customer.providerCustomerId,
+  );
+  const subscription = manageableStripeSubscription(config, subscriptions);
+  if (!subscription || subscriptionManagementRank(subscription) === 0) {
+    throw new BillingError(
+      404,
+      'billing_subscription_missing',
+      'No manageable Stripe subscription exists for this account.',
+    );
+  }
+
+  return { providerCustomerId: customer.providerCustomerId, subscription };
+}
+
+export async function createStripePaymentMethodSetup(
+  authUserId: string,
+): Promise<{ clientSecret: string }> {
+  const config = getStripeBillingConfig();
+  const { providerCustomerId } = await manageableStripeSubscriptionForUser(config, authUserId);
+  const setupIntent = await config.client.setupIntents.create({
+    customer: providerCustomerId,
+    payment_method_types: ['card'],
+    usage: 'off_session',
+  });
+
+  if (!setupIntent.client_secret) {
+    throw new BillingError(
+      502,
+      'billing_setup_client_secret_missing',
+      'Stripe did not return a payment-method update secret. Please try again.',
+    );
+  }
+
+  return { clientSecret: setupIntent.client_secret };
+}
+
+export async function updateStripePaymentMethod(
+  authUserId: string,
+  paymentMethodId: string,
+): Promise<BillingSubscriptionSummary> {
+  const config = getStripeBillingConfig();
+  const { providerCustomerId, subscription } = await manageableStripeSubscriptionForUser(config, authUserId);
+  const paymentMethod = await config.client.paymentMethods.retrieve(paymentMethodId);
+  if (paymentMethod.customer !== providerCustomerId || paymentMethod.type !== 'card') {
+    throw new BillingError(
+      403,
+      'billing_payment_method_ineligible',
+      'The payment method does not belong to this billing account.',
+    );
+  }
+
+  await config.client.customers.update(providerCustomerId, {
+    invoice_settings: { default_payment_method: paymentMethodId },
+  });
+  const updatedSubscription = await config.client.subscriptions.update(subscription.id, {
+    default_payment_method: paymentMethodId,
+  });
+  return stripeSubscriptionSummary(config, providerCustomerId, updatedSubscription, paymentMethod);
 }
 
 async function syncStripeLifetimeCheckout(

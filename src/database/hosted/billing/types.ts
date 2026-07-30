@@ -64,11 +64,19 @@ export type HostedOffer = (typeof HOSTED_OFFERS)[number];
 export const BILLING_SUBSCRIPTION_ACTIONS = ['cancel_at_period_end', 'resume'] as const;
 export type BillingSubscriptionAction = (typeof BILLING_SUBSCRIPTION_ACTIONS)[number];
 
+export type BillingPaymentMethodSummary = {
+  brand: string;
+  last4: string;
+  expMonth: number;
+  expYear: number;
+};
+
 export type BillingSubscriptionSummary = {
   plan: HostedPlan;
   status: BillingSubscriptionStatus;
   currentPeriodEnd: string;
   cancelAtPeriodEnd: boolean;
+  paymentMethod: BillingPaymentMethodSummary | null;
 };
 
 export type HostedAccessResult = {

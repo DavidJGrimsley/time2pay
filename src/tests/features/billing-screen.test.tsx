@@ -11,7 +11,9 @@ const mocks = vi.hoisted(() => ({
   getHostedBillingStatus: vi.fn(),
   syncHostedBilling: vi.fn(),
   createHostedCheckout: vi.fn(),
+  createBillingPaymentMethodSetup: vi.fn(),
   getBillingSubscription: vi.fn(),
+  updateBillingPaymentMethod: vi.fn(),
   updateBillingSubscription: vi.fn(),
   getMercuryReferralStatus: vi.fn(),
 }));
@@ -77,9 +79,11 @@ vi.mock('expo-router', async () => {
 
 vi.mock('@/services/billing', () => ({
   createHostedCheckout: mocks.createHostedCheckout,
+  createBillingPaymentMethodSetup: mocks.createBillingPaymentMethodSetup,
   getBillingSubscription: mocks.getBillingSubscription,
   getHostedBillingStatus: mocks.getHostedBillingStatus,
   syncHostedBilling: mocks.syncHostedBilling,
+  updateBillingPaymentMethod: mocks.updateBillingPaymentMethod,
   updateBillingSubscription: mocks.updateBillingSubscription,
 }));
 
@@ -118,6 +122,7 @@ describe('BillingScreen checkout sync', () => {
       status: 'active',
       currentPeriodEnd: '2033-05-18T03:33:20.000Z',
       cancelAtPeriodEnd: false,
+      paymentMethod: null,
     });
     mocks.getMercuryReferralStatus.mockResolvedValue({
       status: 'not_started',
@@ -188,6 +193,44 @@ describe('BillingScreen checkout sync', () => {
           String(node.type) === 'Text' && node.props.children === 'Choose Annual',
       ),
     ).toHaveLength(0);
+  });
+
+  it('shows a payment-method section only when Stripe returns saved card details', async () => {
+    mocks.getBillingSubscription.mockResolvedValue({
+      plan: 'annual',
+      status: 'active',
+      currentPeriodEnd: '2033-05-18T03:33:20.000Z',
+      cancelAtPeriodEnd: false,
+      paymentMethod: { brand: 'visa', last4: '4242', expMonth: 8, expYear: 2030 },
+    });
+    mocks.createBillingPaymentMethodSetup.mockResolvedValue({ clientSecret: 'seti_secret_123' });
+    const { BillingScreen } = await import('@/features/billing/billing-screen');
+    let instance!: renderer.ReactTestRenderer;
+
+    await renderer.act(async () => {
+      instance = renderer.create(<BillingScreen variant="settings" />);
+    });
+
+    expect(
+      instance.root.find(
+        (node: renderer.ReactTestInstance) =>
+          String(node.type) === 'Text' && node.props.children === 'Payment method',
+      ),
+    ).toBeTruthy();
+    const changeButton = instance.root.find(
+      (node: renderer.ReactTestInstance) =>
+        String(node.type) === 'Pressable' &&
+        node.findAll(
+          (child: renderer.ReactTestInstance) =>
+            String(child.type) === 'Text' && child.props.children === 'Change payment method',
+        ).length > 0,
+    );
+
+    await renderer.act(async () => {
+      changeButton.props.onPress();
+    });
+
+    expect(mocks.createBillingPaymentMethodSetup).toHaveBeenCalledTimes(1);
   });
 
   it('starts checkout with the current dark-mode theme after the plans panel fades away', async () => {

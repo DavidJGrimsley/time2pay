@@ -4,7 +4,9 @@ const mocks = vi.hoisted(() => ({
   requireAuthUserId: vi.fn(),
   resolveHostedAccess: vi.fn(),
   createStripeCheckoutSession: vi.fn(),
+  createStripePaymentMethodSetup: vi.fn(),
   getStripeSubscriptionManagement: vi.fn(),
+  updateStripePaymentMethod: vi.fn(),
   updateStripeSubscriptionManagement: vi.fn(),
   syncStripeBillingForUser: vi.fn(),
   processStripeWebhook: vi.fn(),
@@ -20,7 +22,9 @@ vi.mock('@/server/billing/entitlements', () => ({
 
 vi.mock('@/server/billing/stripe-service', () => ({
   createStripeCheckoutSession: mocks.createStripeCheckoutSession,
+  createStripePaymentMethodSetup: mocks.createStripePaymentMethodSetup,
   getStripeSubscriptionManagement: mocks.getStripeSubscriptionManagement,
+  updateStripePaymentMethod: mocks.updateStripePaymentMethod,
   updateStripeSubscriptionManagement: mocks.updateStripeSubscriptionManagement,
   syncStripeBillingForUser: mocks.syncStripeBillingForUser,
   processStripeWebhook: mocks.processStripeWebhook,
@@ -89,6 +93,7 @@ describe('billing API routes', () => {
       status: 'active',
       currentPeriodEnd: '2033-05-18T03:33:20.000Z',
       cancelAtPeriodEnd: false,
+      paymentMethod: null,
     });
     const { GET } = await import('@/app/api/billing/subscription+api');
     const response = await GET(
@@ -107,6 +112,7 @@ describe('billing API routes', () => {
       status: 'active',
       currentPeriodEnd: '2033-05-18T03:33:20.000Z',
       cancelAtPeriodEnd: true,
+      paymentMethod: null,
     });
     const { POST } = await import('@/app/api/billing/subscription+api');
     const response = await POST(
@@ -120,6 +126,40 @@ describe('billing API routes', () => {
       'user-1',
       'cancel_at_period_end',
     );
+  });
+
+  it('creates an authenticated payment-method SetupIntent', async () => {
+    mocks.createStripePaymentMethodSetup.mockResolvedValue({ clientSecret: 'seti_secret_123' });
+    const { POST } = await import('@/app/api/billing/payment-method+api');
+
+    const response = await POST(
+      authenticatedRequest('/api/billing/payment-method', { action: 'create_setup' }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.createStripePaymentMethodSetup).toHaveBeenCalledWith('user-1');
+    await expect(response.json()).resolves.toEqual({ clientSecret: 'seti_secret_123' });
+  });
+
+  it('only accepts a validated payment-method id when changing the subscription default', async () => {
+    mocks.updateStripePaymentMethod.mockResolvedValue({
+      plan: 'annual',
+      status: 'active',
+      currentPeriodEnd: '2033-05-18T03:33:20.000Z',
+      cancelAtPeriodEnd: false,
+      paymentMethod: { brand: 'visa', last4: '4242', expMonth: 8, expYear: 2030 },
+    });
+    const { POST } = await import('@/app/api/billing/payment-method+api');
+
+    const response = await POST(
+      authenticatedRequest('/api/billing/payment-method', {
+        action: 'set_default',
+        paymentMethodId: 'pm_card_123',
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.updateStripePaymentMethod).toHaveBeenCalledWith('user-1', 'pm_card_123');
   });
 
   it('passes an unparsed raw body and Stripe signature to webhook verification', async () => {

@@ -24,23 +24,34 @@ function formatDate(value: string): string {
   }).format(date);
 }
 
+function formatCardBrand(value: string): string {
+  return value
+    .split('_')
+    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+    .join(' ');
+}
+
 export function SubscriptionManager({
   subscription,
   busyAction,
   onAction,
+  isPaymentMethodBusy = false,
+  onChangePaymentMethod,
 }: {
   subscription: BillingSubscriptionSummary;
   busyAction: BillingSubscriptionAction | null;
   onAction: (action: BillingSubscriptionAction) => void;
+  isPaymentMethodBusy?: boolean;
+  onChangePaymentMethod?: () => void;
 }) {
   const [isConfirmingCancellation, setIsConfirmingCancellation] = useState(false);
-  const isBusy = busyAction !== null;
+  const isBusy = busyAction !== null || isPaymentMethodBusy;
 
   return (
     <View className="gap-4 rounded-xl border border-border bg-card p-4">
       <View className="flex-row flex-wrap items-start justify-between gap-3">
         <View className="gap-1">
-          <Text className="text-base font-bold text-heading">Subscription & access</Text>
+          <Text className="text-base font-bold text-heading">Subscription</Text>
           <Text className="text-2xl font-bold text-heading">
             {subscription.plan === 'annual' ? 'Annual · $20/year' : 'Monthly · $2/month'}
           </Text>
@@ -60,6 +71,31 @@ export function SubscriptionManager({
           {formatDate(subscription.currentPeriodEnd)}
         </Text>
       </View>
+
+      {subscription.paymentMethod ? (
+        <View className="gap-3 rounded-lg border border-border bg-background p-3">
+          <View className="gap-1">
+            <Text className="text-sm font-semibold text-heading">Payment method</Text>
+            <Text className="text-base font-bold text-heading">
+              {formatCardBrand(subscription.paymentMethod.brand)} ending in {subscription.paymentMethod.last4}
+            </Text>
+            <Text className="text-sm text-muted">
+              Expires {String(subscription.paymentMethod.expMonth).padStart(2, '0')}/
+              {subscription.paymentMethod.expYear}
+            </Text>
+          </View>
+          <Pressable
+            className="self-start rounded-md border border-border px-4 py-2"
+            onPress={onChangePaymentMethod}
+            disabled={!onChangePaymentMethod || isBusy}
+            accessibilityRole="button"
+          >
+            <Text className="font-semibold text-heading">
+              {isPaymentMethodBusy ? 'Opening secure form...' : 'Change payment method'}
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       {subscription.cancelAtPeriodEnd ? (
         <View className="gap-3 rounded-lg border border-warning/30 bg-warning/10 p-3">
