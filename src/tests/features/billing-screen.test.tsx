@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   getBillingSubscription: vi.fn(),
   updateBillingPaymentMethod: vi.fn(),
   updateBillingSubscription: vi.fn(),
+  switchBillingSubscriptionPlan: vi.fn(),
   getMercuryReferralStatus: vi.fn(),
 }));
 
@@ -85,6 +86,7 @@ vi.mock('@/services/billing', () => ({
   syncHostedBilling: mocks.syncHostedBilling,
   updateBillingPaymentMethod: mocks.updateBillingPaymentMethod,
   updateBillingSubscription: mocks.updateBillingSubscription,
+  switchBillingSubscriptionPlan: mocks.switchBillingSubscriptionPlan,
 }));
 
 vi.mock('@/services/mercury-referrals', () => ({
@@ -231,6 +233,64 @@ describe('BillingScreen checkout sync', () => {
     });
 
     expect(mocks.createBillingPaymentMethodSetup).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets the user switch plans inline and hides the billing profile shortcut', async () => {
+    mocks.getBillingSubscription.mockResolvedValue({
+      plan: 'annual',
+      status: 'active',
+      currentPeriodEnd: '2033-05-18T03:33:20.000Z',
+      cancelAtPeriodEnd: false,
+      paymentMethod: null,
+    });
+    mocks.switchBillingSubscriptionPlan.mockResolvedValue({
+      plan: 'monthly',
+      status: 'active',
+      currentPeriodEnd: '2032-05-18T03:33:20.000Z',
+      cancelAtPeriodEnd: false,
+      paymentMethod: null,
+    });
+    const { BillingScreen } = await import('@/features/billing/billing-screen');
+    let instance!: renderer.ReactTestRenderer;
+
+    await renderer.act(async () => {
+      instance = renderer.create(<BillingScreen variant="settings" />);
+    });
+
+    expect(
+      instance.root.findAll(
+        (node: renderer.ReactTestInstance) =>
+          String(node.type) === 'Text' && node.props.children === 'Data export and profile',
+      ),
+    ).toHaveLength(0);
+
+    const changePlanButton = instance.root.find(
+      (node: renderer.ReactTestInstance) =>
+        String(node.type) === 'Pressable' &&
+        node.findAll(
+          (child: renderer.ReactTestInstance) =>
+            String(child.type) === 'Text' && child.props.children === 'Change plan',
+        ).length > 0,
+    );
+
+    await renderer.act(async () => {
+      changePlanButton.props.onPress();
+    });
+
+    const confirmSwitchButton = instance.root.find(
+      (node: renderer.ReactTestInstance) =>
+        String(node.type) === 'Pressable' &&
+        node.findAll(
+          (child: renderer.ReactTestInstance) =>
+            String(child.type) === 'Text' && child.props.children === 'Confirm switch',
+        ).length > 0,
+    );
+
+    await renderer.act(async () => {
+      confirmSwitchButton.props.onPress();
+    });
+
+    expect(mocks.switchBillingSubscriptionPlan).toHaveBeenCalledWith('monthly');
   });
 
   it('starts checkout with the current dark-mode theme after the plans panel fades away', async () => {

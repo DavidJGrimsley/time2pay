@@ -296,6 +296,61 @@ describe('Stripe billing service', () => {
     });
   });
 
+  it('switches the active subscription plan with Stripe proration', async () => {
+    const config = stripeConfig() as {
+      client: {
+        subscriptions: {
+          list: ReturnType<typeof vi.fn>;
+          update: ReturnType<typeof vi.fn>;
+        };
+      };
+    };
+    const subscription = stripeSubscription({
+      id: 'sub_monthly',
+      status: 'active',
+      priceId: 'price_monthly',
+    });
+    Object.assign(subscription.items.data[0] as unknown as Record<string, unknown>, {
+      id: 'si_monthly',
+      quantity: 1,
+    });
+    const updatedSubscription = stripeSubscription({
+      id: 'sub_monthly',
+      status: 'active',
+      priceId: 'price_annual',
+      periodEnd: 2_100_000_000,
+    });
+    config.client.subscriptions.list.mockResolvedValue({ data: [subscription] });
+    config.client.subscriptions.update.mockResolvedValue(updatedSubscription);
+    mocks.getStripeBillingConfig.mockReturnValue(config);
+    const { updateStripeSubscriptionManagement } = await import(
+      '@/server/billing/stripe-service'
+    );
+
+    await expect(
+      updateStripeSubscriptionManagement('user-1', {
+        action: 'switch_plan',
+        plan: 'annual',
+      }),
+    ).resolves.toMatchObject({
+      plan: 'annual',
+      cancelAtPeriodEnd: false,
+    });
+
+    expect(config.client.subscriptions.update).toHaveBeenCalledWith('sub_monthly', {
+      cancel_at_period_end: false,
+      billing_cycle_anchor: 'now',
+      items: [
+        {
+          id: 'si_monthly',
+          price: 'price_annual',
+          quantity: 1,
+        },
+      ],
+      proration_behavior: 'always_invoice',
+    });
+  });
+
   it('falls back to a saved customer card when Stripe did not mark a default', async () => {
     const config = stripeConfig() as {
       client: {
@@ -422,7 +477,7 @@ describe('Stripe billing service', () => {
     );
 
     await expect(
-      updateStripeSubscriptionManagement('user-1', 'cancel_at_period_end'),
+      updateStripeSubscriptionManagement('user-1', { action: 'cancel_at_period_end' }),
     ).resolves.toMatchObject({
       plan: 'annual',
       cancelAtPeriodEnd: true,

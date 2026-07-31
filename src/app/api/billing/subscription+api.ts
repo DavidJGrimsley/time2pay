@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { BILLING_SUBSCRIPTION_ACTIONS } from '@/database/hosted/billing/types';
+import { HOSTED_PLANS } from '@/database/hosted/billing/types';
 import { billingErrorResponse } from '@/server/billing/errors';
 import { parseBillingJson, requireBillingAuthUserId } from '@/server/billing/routes';
 import {
@@ -7,11 +7,16 @@ import {
   updateStripeSubscriptionManagement,
 } from '@/server/billing/stripe-service';
 
-const subscriptionActionSchema = z
-  .object({
-    action: z.enum(BILLING_SUBSCRIPTION_ACTIONS),
-  })
-  .strict();
+const subscriptionActionSchema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('cancel_at_period_end') }).strict(),
+  z.object({ action: z.literal('resume') }).strict(),
+  z
+    .object({
+      action: z.literal('switch_plan'),
+      plan: z.enum(HOSTED_PLANS),
+    })
+    .strict(),
+]);
 
 export async function GET(request: Request): Promise<Response> {
   try {
@@ -25,8 +30,8 @@ export async function GET(request: Request): Promise<Response> {
 export async function POST(request: Request): Promise<Response> {
   try {
     const authUserId = await requireBillingAuthUserId(request);
-    const { action } = await parseBillingJson(request, subscriptionActionSchema);
-    return Response.json(await updateStripeSubscriptionManagement(authUserId, action));
+    const payload = await parseBillingJson(request, subscriptionActionSchema);
+    return Response.json(await updateStripeSubscriptionManagement(authUserId, payload));
   } catch (error) {
     return billingErrorResponse(error);
   }

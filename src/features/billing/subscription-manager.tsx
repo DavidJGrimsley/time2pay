@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import type {
   BillingSubscriptionAction,
   BillingSubscriptionSummary,
+  HostedPlan,
 } from '@/database/hosted/billing/types';
 
 function titleCase(value: string): string {
@@ -35,31 +36,40 @@ export function SubscriptionManager({
   subscription,
   busyAction,
   onAction,
+  busyPlan = null,
+  onChangePlan,
   isPaymentMethodBusy = false,
   onChangePaymentMethod,
 }: {
   subscription: BillingSubscriptionSummary;
   busyAction: BillingSubscriptionAction | null;
   onAction: (action: BillingSubscriptionAction) => void;
+  busyPlan?: HostedPlan | null;
+  onChangePlan: (plan: HostedPlan) => void;
   isPaymentMethodBusy?: boolean;
   onChangePaymentMethod?: () => void;
 }) {
   const [isConfirmingCancellation, setIsConfirmingCancellation] = useState(false);
-  const isBusy = busyAction !== null || isPaymentMethodBusy;
+  const [isConfirmingPlanChange, setIsConfirmingPlanChange] = useState(false);
+  const currentPlanLabel = subscription.plan === 'annual' ? 'Annual - $20/year' : 'Monthly - $2/month';
+  const targetPlan = subscription.plan === 'annual' ? 'monthly' : 'annual';
+  const targetPlanLabel = targetPlan === 'annual' ? 'Annual - $20/year' : 'Monthly - $2/month';
+  const isBusy = busyAction !== null || isPaymentMethodBusy || busyPlan !== null;
+
+  useEffect(() => {
+    setIsConfirmingCancellation(false);
+    setIsConfirmingPlanChange(false);
+  }, [subscription.cancelAtPeriodEnd, subscription.plan]);
 
   return (
     <View className="gap-4 rounded-xl border border-border bg-card p-4">
       <View className="flex-row flex-wrap items-start justify-between gap-3">
         <View className="gap-1">
           <Text className="text-base font-bold text-heading">Subscription</Text>
-          <Text className="text-2xl font-bold text-heading">
-            {subscription.plan === 'annual' ? 'Annual · $20/year' : 'Monthly · $2/month'}
-          </Text>
+          <Text className="text-2xl font-bold text-heading">{currentPlanLabel}</Text>
         </View>
         <View className="rounded-full bg-success/15 px-3 py-1">
-          <Text className="text-xs font-bold text-success">
-            {titleCase(subscription.status)}
-          </Text>
+          <Text className="text-xs font-bold text-success">{titleCase(subscription.status)}</Text>
         </View>
       </View>
 
@@ -67,9 +77,57 @@ export function SubscriptionManager({
         <Text className="text-sm font-semibold text-heading">
           {subscription.cancelAtPeriodEnd ? 'Access ends' : 'Next renewal & access through'}
         </Text>
-        <Text className="text-sm text-muted">
-          {formatDate(subscription.currentPeriodEnd)}
-        </Text>
+        <Text className="text-sm text-muted">{formatDate(subscription.currentPeriodEnd)}</Text>
+      </View>
+
+      <View className="gap-3 rounded-lg border border-border bg-background p-3">
+        <View className="gap-1">
+          <Text className="text-sm font-semibold text-heading">Change plan</Text>
+          <Text className="text-sm text-muted">
+            Move between monthly and annual with Stripe proration.
+          </Text>
+        </View>
+
+        {isConfirmingPlanChange ? (
+          <View className="gap-3 rounded-lg border border-secondary/30 bg-secondary/10 p-3">
+            <Text className="font-semibold text-heading">Switch to {targetPlanLabel}?</Text>
+            <Text className="text-sm text-muted">
+              Stripe will prorate this change immediately and reset your renewal date.
+            </Text>
+            <View className="flex-row flex-wrap gap-2">
+              <Pressable
+                className="rounded-md border border-border bg-card px-4 py-2"
+                onPress={() => setIsConfirmingPlanChange(false)}
+                disabled={isBusy}
+                accessibilityRole="button"
+              >
+                <Text className="font-semibold text-heading">Keep current plan</Text>
+              </Pressable>
+              <Pressable
+                className="rounded-md bg-secondary px-4 py-2"
+                onPress={() => onChangePlan(targetPlan)}
+                disabled={isBusy}
+                accessibilityRole="button"
+              >
+                <Text className="font-semibold text-white">
+                  {busyPlan === targetPlan ? 'Switching plan...' : 'Confirm switch'}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : (
+          <Pressable
+            className="self-start rounded-md border border-secondary/40 bg-secondary/10 px-4 py-2"
+            onPress={() => {
+              setIsConfirmingCancellation(false);
+              setIsConfirmingPlanChange(true);
+            }}
+            disabled={isBusy}
+            accessibilityRole="button"
+          >
+            <Text className="font-semibold text-heading">Change plan</Text>
+          </Pressable>
+        )}
       </View>
 
       {subscription.paymentMethod ? (
@@ -109,7 +167,7 @@ export function SubscriptionManager({
             accessibilityRole="button"
           >
             <Text className="font-semibold text-white">
-              {busyAction === 'resume' ? 'Restoring renewal...' : 'Keep subscription'}
+              {busyAction === 'resume' ? 'Renewing subscription...' : 'Renew subscription'}
             </Text>
           </Pressable>
         </View>
@@ -148,7 +206,10 @@ export function SubscriptionManager({
       ) : (
         <Pressable
           className="self-start rounded-md border border-danger/40 px-4 py-2"
-          onPress={() => setIsConfirmingCancellation(true)}
+          onPress={() => {
+            setIsConfirmingPlanChange(false);
+            setIsConfirmingCancellation(true);
+          }}
           disabled={isBusy}
           accessibilityRole="button"
         >

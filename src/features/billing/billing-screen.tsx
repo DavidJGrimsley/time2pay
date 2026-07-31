@@ -9,6 +9,7 @@ import type {
   BillingSubscriptionSummary,
   HostedAccessResult,
   HostedOffer,
+  HostedPlan,
 } from '@/database/hosted/billing/types';
 import { EmbeddedBillingCheckout } from '@/features/billing/embedded-billing-checkout';
 import { PaymentMethodUpdate } from '@/features/billing/payment-method-update';
@@ -22,6 +23,7 @@ import {
   syncHostedBilling,
   updateBillingPaymentMethod,
   updateBillingSubscription,
+  switchBillingSubscriptionPlan,
 } from '@/services/billing';
 import { getMercuryReferralStatus, type MercuryReferralStatus } from '@/services/mercury-referrals';
 import { isHostedMode } from '@/services/runtime-mode';
@@ -185,6 +187,7 @@ export function BillingScreen({ variant }: BillingScreenProps) {
   const [subscription, setSubscription] = useState<BillingSubscriptionSummary | null>(null);
   const [busySubscriptionAction, setBusySubscriptionAction] =
     useState<BillingSubscriptionAction | null>(null);
+  const [busySubscriptionPlan, setBusySubscriptionPlan] = useState<HostedPlan | null>(null);
   const [error, setError] = useState<string | null>(null);
   const syncedCheckoutSession = useRef<string | null>(null);
   const activeAccessRequest = useRef<AbortController | null>(null);
@@ -369,6 +372,18 @@ export function BillingScreen({ variant }: BillingScreenProps) {
     }
   }
 
+  async function changeSubscriptionPlan(plan: HostedPlan): Promise<void> {
+    setBusySubscriptionPlan(plan);
+    setError(null);
+    try {
+      setSubscription(await switchBillingSubscriptionPlan(plan));
+    } catch (subscriptionError) {
+      setError(formatError(subscriptionError));
+    } finally {
+      setBusySubscriptionPlan(null);
+    }
+  }
+
   async function startPaymentMethodUpdate(): Promise<void> {
     if (!isWeb) {
       setError('Payment-method updates are available on the web.');
@@ -479,9 +494,13 @@ export function BillingScreen({ variant }: BillingScreenProps) {
         <SubscriptionManager
           subscription={subscription}
           busyAction={busySubscriptionAction}
+          busyPlan={busySubscriptionPlan}
           isPaymentMethodBusy={isPreparingPaymentMethod || isSavingPaymentMethod}
           onAction={(action) => {
             manageSubscription(action).catch(() => undefined);
+          }}
+          onChangePlan={(plan) => {
+            changeSubscriptionPlan(plan).catch(() => undefined);
           }}
           onChangePaymentMethod={() => {
             startPaymentMethodUpdate().catch(() => undefined);
@@ -618,13 +637,6 @@ export function BillingScreen({ variant }: BillingScreenProps) {
         </View>
       ) : null}
 
-      {isAuthenticated ? (
-        <Link href="/profile" asChild>
-          <Pressable className="self-start rounded-md border border-border px-4 py-2">
-            <Text className="font-semibold text-heading">Data export and profile</Text>
-          </Pressable>
-        </Link>
-      ) : null}
     </ScrollView>
   );
 }

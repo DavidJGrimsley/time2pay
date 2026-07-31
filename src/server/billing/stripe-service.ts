@@ -15,8 +15,8 @@ import {
   upsertBillingSubscription,
 } from '@/database/hosted/billing/queries';
 import type {
-  BillingSubscriptionAction,
   BillingPaymentMethodSummary,
+  BillingSubscriptionManagementRequest,
   BillingSubscriptionStatus,
   BillingSubscriptionSummary,
   HostedAccessResult,
@@ -113,10 +113,17 @@ function planForStripePrice(config: StripeBillingConfig, priceId: string): Hoste
   );
 }
 
-function subscriptionTerms(
+function priceIdForHostedPlan(config: StripeBillingConfig, plan: HostedPlan): string {
+  if (plan === 'annual') {
+    return config.priceIds.annual;
+  }
+  return config.priceIds.monthly;
+}
+
+function managedSubscriptionItem(
   config: StripeBillingConfig,
   subscription: Stripe.Subscription,
-): StripeSubscriptionTerms {
+): Stripe.SubscriptionItem {
   const item = subscription.items.data.find(
     (candidate) =>
       candidate.price.id === config.priceIds.annual ||
@@ -129,6 +136,15 @@ function subscriptionTerms(
       'The subscription does not include a Time2Pay hosted price.',
     );
   }
+
+  return item;
+}
+
+function subscriptionTerms(
+  config: StripeBillingConfig,
+  subscription: Stripe.Subscription,
+): StripeSubscriptionTerms {
+  const item = managedSubscriptionItem(config, subscription);
 
   const providerCustomerId = stripeId(subscription.customer);
   if (!providerCustomerId) {
@@ -626,7 +642,7 @@ export async function getStripeSubscriptionManagement(
 
 export async function updateStripeSubscriptionManagement(
   authUserId: string,
-  action: BillingSubscriptionAction,
+  request: BillingSubscriptionManagementRequest,
 ): Promise<BillingSubscriptionSummary> {
   const config = getStripeBillingConfig();
   const customer = await withWriteDb((db) =>
@@ -653,9 +669,38 @@ export async function updateStripeSubscriptionManagement(
     );
   }
 
-  const updated = await config.client.subscriptions.update(subscription.id, {
-    cancel_at_period_end: action === 'cancel_at_period_end',
-  });
+  const baseUpdate = {
+    cancel_at_period_end: false,
+  } as const;
+  let updated: Stripe.Subscription;
+
+  if (request.action === 'cancel_at_period_end') {
+    updated = await config.client.subscriptions.update(subscription.id, {
+      cancel_at_period_end: true,
+    });
+  } else if (request.action === 'resume') {
+    updated = await config.client.subscriptions.update(subscription.id, baseUpdate);
+  } else {
+    const currentItem = managedSubscriptionItem(config, subscription);
+    const currentPlan = planForStripePrice(config, currentItem.price.id);
+    if (currentPlan === request.plan) {
+      return stripeSubscriptionSummary(config, customer.providerCustomerId, subscription);
+    }
+
+    updated = await config.client.subscriptions.update(subscription.id, {
+      ...baseUpdate,
+      billing_cycle_anchor: 'now',
+      items: [
+        {
+          id: currentItem.id,
+          price: priceIdForHostedPlan(config, request.plan),
+          quantity: currentItem.quantity ?? 1,
+        },
+      ],
+      proration_behavior: 'always_invoice',
+    });
+  }
+
   await syncStripeSubscriptionFamily(config, updated, authUserId);
   return stripeSubscriptionSummary(config, customer.providerCustomerId, updated);
 }

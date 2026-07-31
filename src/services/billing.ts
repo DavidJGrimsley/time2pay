@@ -3,6 +3,7 @@ import type {
   BillingSubscriptionSummary,
   HostedAccessResult,
   HostedOffer,
+  HostedPlan,
 } from '@/database/hosted/billing/types';
 import { getAppAccessMode } from '@/services/runtime-mode';
 import { getSupabaseClient } from '@/services/supabase-client';
@@ -109,6 +110,16 @@ export function updateBillingSubscription(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action }),
+  });
+}
+
+export function switchBillingSubscriptionPlan(
+  plan: HostedPlan,
+): Promise<BillingSubscriptionSummary> {
+  return billingRequest<BillingSubscriptionSummary>('/api/billing/subscription', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'switch_plan', plan }),
   });
 }
 

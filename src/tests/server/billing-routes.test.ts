@@ -124,8 +124,31 @@ describe('billing API routes', () => {
     expect(response.status).toBe(200);
     expect(mocks.updateStripeSubscriptionManagement).toHaveBeenCalledWith(
       'user-1',
-      'cancel_at_period_end',
+      { action: 'cancel_at_period_end' },
     );
+  });
+
+  it('passes the requested target plan to the subscription updater', async () => {
+    mocks.updateStripeSubscriptionManagement.mockResolvedValue({
+      plan: 'monthly',
+      status: 'active',
+      currentPeriodEnd: '2032-05-18T03:33:20.000Z',
+      cancelAtPeriodEnd: false,
+      paymentMethod: null,
+    });
+    const { POST } = await import('@/app/api/billing/subscription+api');
+    const response = await POST(
+      authenticatedRequest('/api/billing/subscription', {
+        action: 'switch_plan',
+        plan: 'monthly',
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.updateStripeSubscriptionManagement).toHaveBeenCalledWith('user-1', {
+      action: 'switch_plan',
+      plan: 'monthly',
+    });
   });
 
   it('creates an authenticated payment-method SetupIntent', async () => {

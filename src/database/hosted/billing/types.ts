@@ -64,6 +64,11 @@ export type HostedOffer = (typeof HOSTED_OFFERS)[number];
 export const BILLING_SUBSCRIPTION_ACTIONS = ['cancel_at_period_end', 'resume'] as const;
 export type BillingSubscriptionAction = (typeof BILLING_SUBSCRIPTION_ACTIONS)[number];
 
+export type BillingSubscriptionManagementRequest =
+  | { action: 'cancel_at_period_end' }
+  | { action: 'resume' }
+  | { action: 'switch_plan'; plan: HostedPlan };
+
 export type BillingPaymentMethodSummary = {
   brand: string;
   last4: string;
