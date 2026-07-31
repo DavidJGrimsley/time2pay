@@ -83,7 +83,7 @@ function stripeConfig(overrides: Record<string, unknown> = {}): unknown {
         list: vi.fn().mockResolvedValue({ data: [] }),
         update: vi.fn(),
       },
-      paymentMethods: { retrieve: vi.fn() },
+      paymentMethods: { retrieve: vi.fn(), list: vi.fn().mockResolvedValue({ data: [] }) },
       setupIntents: { create: vi.fn() },
       webhooks: { constructEvent: vi.fn() },
       ...overrides,
@@ -293,6 +293,44 @@ describe('Stripe billing service', () => {
 
     await expect(getStripeSubscriptionManagement('user-1')).resolves.toMatchObject({
       paymentMethod: { brand: 'visa', last4: '4242', expMonth: 8, expYear: 2030 },
+    });
+  });
+
+  it('falls back to a saved customer card when Stripe did not mark a default', async () => {
+    const config = stripeConfig() as {
+      client: {
+        subscriptions: { list: ReturnType<typeof vi.fn> };
+        paymentMethods: { list: ReturnType<typeof vi.fn> };
+      };
+    };
+    const subscription = stripeSubscription({
+      id: 'sub_monthly',
+      status: 'active',
+      priceId: 'price_monthly',
+    });
+    config.client.subscriptions.list.mockResolvedValue({ data: [subscription] });
+    config.client.paymentMethods.list.mockResolvedValue({
+      data: [
+        {
+          id: 'pm_saved_card',
+          customer: 'cus_123',
+          type: 'card',
+          card: { brand: 'visa', last4: '4242', exp_month: 8, exp_year: 2030 },
+        },
+      ],
+    });
+    mocks.getStripeBillingConfig.mockReturnValue(config);
+    const { getStripeSubscriptionManagement } = await import(
+      '@/server/billing/stripe-service'
+    );
+
+    await expect(getStripeSubscriptionManagement('user-1')).resolves.toMatchObject({
+      paymentMethod: { brand: 'visa', last4: '4242', expMonth: 8, expYear: 2030 },
+    });
+    expect(config.client.paymentMethods.list).toHaveBeenCalledWith({
+      customer: 'cus_123',
+      type: 'card',
+      limit: 1,
     });
   });
 

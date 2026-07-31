@@ -569,7 +569,20 @@ async function defaultPaymentMethodForSubscription(
     paymentMethodId = stripeId(customer.invoice_settings.default_payment_method);
   }
 
-  return paymentMethodId ? config.client.paymentMethods.retrieve(paymentMethodId) : null;
+  if (paymentMethodId) {
+    return config.client.paymentMethods.retrieve(paymentMethodId);
+  }
+
+  // Checkout can attach a card to the Stripe customer without setting either
+  // default-payment-method field, especially for subscriptions created before
+  // we began explicitly assigning a default. Show that saved card when it is
+  // safe to do so; only its masked summary is returned to the app.
+  const savedCards = await config.client.paymentMethods.list({
+    customer: providerCustomerId,
+    type: 'card',
+    limit: 1,
+  });
+  return savedCards.data[0] ?? null;
 }
 
 async function stripeSubscriptionSummary(
