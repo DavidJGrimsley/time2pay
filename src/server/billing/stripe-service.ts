@@ -746,7 +746,6 @@ export async function previewStripeSubscriptionPlanSwitch(
       customer: providerCustomerId,
       subscription: subscription.id,
       subscription_details: {
-        billing_cycle_anchor: 'now',
         cancel_at_period_end: false,
         items: planSwitchSubscriptionItems(config, subscription, targetPlan),
         proration_behavior: 'always_invoice',
@@ -814,7 +813,6 @@ export async function updateStripeSubscriptionManagement(
 
     updated = await config.client.subscriptions.update(subscription.id, {
       ...baseUpdate,
-      billing_cycle_anchor: 'now',
       items: planSwitchSubscriptionItems(config, subscription, request.plan),
       proration_behavior: 'always_invoice',
       proration_date: request.prorationDate ?? prorationTimestampForSubscriptionItem(currentItem),

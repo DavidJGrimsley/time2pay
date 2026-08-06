@@ -135,7 +135,7 @@ export function SubscriptionManager({
           <View className="gap-3 rounded-lg border border-secondary/30 bg-secondary/10 p-3">
             <Text className="font-semibold text-heading">Switch to {targetPlanLabel}?</Text>
             <Text className="text-sm text-muted">
-              Stripe will prorate this change immediately and reset your renewal date.
+              Stripe will prorate this change immediately. Your renewal date will stay the same.
             </Text>
             {isPreviewingPlanChange ? (
               <Text className="text-sm font-semibold text-heading">Calculating Stripe estimate...</Text>

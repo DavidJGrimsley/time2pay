@@ -344,7 +344,6 @@ describe('Stripe billing service', () => {
 
     expect(config.client.subscriptions.update).toHaveBeenCalledWith('sub_monthly', {
       cancel_at_period_end: false,
-      billing_cycle_anchor: 'now',
       items: [
         {
           id: 'si_monthly',
@@ -410,7 +409,6 @@ describe('Stripe billing service', () => {
       customer: 'cus_123',
       subscription: 'sub_annual',
       subscription_details: {
-        billing_cycle_anchor: 'now',
         cancel_at_period_end: false,
         items: [
           {
