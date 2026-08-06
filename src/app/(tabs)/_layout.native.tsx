@@ -1,7 +1,7 @@
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { usePathname, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { StyleSheet, useColorScheme, View } from 'react-native';
+import { useColorScheme, View } from 'react-native';
 import { AppLoadingShell } from '@/components/app-loading-shell';
 import { useResolvedDataMode } from '@/hooks/use-resolved-data-mode';
 import { getProfileCompletion } from '@/services/profile-completion';
@@ -71,7 +71,7 @@ export default function TabsLayoutNative() {
   const backgroundColor = isDark ? '#1a1f16' : '#f8f7f3';
 
   return (
-    <View style={[styles.container, { backgroundColor }]}>
+    <View className="flex-1" style={{ backgroundColor }}>
       <NativeTabs>
         <NativeTabs.Trigger name="dashboard">
           <NativeTabs.Trigger.Icon sf="house.fill" md="home" />
@@ -103,18 +103,10 @@ export default function TabsLayoutNative() {
         </NativeTabs.Trigger>
       </NativeTabs>
       {isTabsGateLoading ? (
-        <View
-          style={[StyleSheet.absoluteFill, { pointerEvents: 'auto', zIndex: 9999, elevation: 9999 }]}
-        >
+        <View className="absolute inset-0" pointerEvents="auto" style={{ zIndex: 9999, elevation: 9999 }}>
           <AppLoadingShell />
         </View>
       ) : null}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-});

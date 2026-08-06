@@ -1,6 +1,6 @@
 import { Tabs, usePathname, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { StyleSheet, useColorScheme, View } from 'react-native';
+import { useColorScheme, View } from 'react-native';
 import { AppLoadingShell } from '@/components/app-loading-shell';
 import { RouteNav } from '@/components/route-nav';
 import { useResolvedDataMode } from '@/hooks/use-resolved-data-mode';
@@ -72,11 +72,11 @@ export default function TabsLayout() {
   const backgroundColor = isDark ? '#1a1f16' : '#f8f7f3';
 
   return (
-    <View style={[styles.container, { backgroundColor }]}>
-      <View style={styles.navContainer}>
+    <View className="flex-1" style={{ backgroundColor }}>
+      <View className="px-6 pt-6 pb-2">
         <RouteNav />
       </View>
-      <View style={styles.tabsContainer}>
+      <View className="flex-1">
         <Tabs
           backBehavior="history"
           detachInactiveScreens={false}
@@ -103,26 +103,10 @@ export default function TabsLayout() {
         </Tabs>
       </View>
       {isTabsGateLoading ? (
-        <View
-          style={[StyleSheet.absoluteFill, { pointerEvents: 'auto', zIndex: 9999, elevation: 9999 }]}
-        >
+        <View className="absolute inset-0" pointerEvents="auto" style={{ zIndex: 9999, elevation: 9999 }}>
           <AppLoadingShell />
         </View>
       ) : null}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  navContainer: {
-    paddingHorizontal: 24,
-    paddingTop: 24,
-    paddingBottom: 8,
-  },
-  tabsContainer: {
-    flex: 1,
-  },
-});
