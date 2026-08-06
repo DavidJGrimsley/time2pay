@@ -71,9 +71,9 @@ const resumeSessionSchema = z.object({
 
 export async function POST(
   request: Request,
-  { action }: { action: string },
+  { params }: { params: { action: string } },
 ): Promise<Response> {
-  switch (action) {
+  switch (params.action) {
     case 'start':
       return handleDbWrite(request, startSessionSchema, startSession);
     case 'stop':
@@ -91,6 +91,6 @@ export async function POST(
     case 'resume':
       return handleDbWrite(request, resumeSessionSchema, resumeSession);
     default:
-      return Response.json({ error: `Unsupported sessions action: ${action}` }, { status: 404 });
+      return Response.json({ error: `Unsupported sessions action: ${params.action}` }, { status: 404 });
   }
 }

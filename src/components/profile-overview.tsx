@@ -276,7 +276,7 @@ export function ProfileOverview() {
     if (isHostedMode()) {
       try {
         requireConfiguredSiteOrigin();
-        return new URL('/profile', resolveBrowserSiteOrigin()).toString();
+        return new URL('/settings', resolveBrowserSiteOrigin()).toString();
       } catch (error) {
         if (typeof console !== 'undefined' && typeof console.error === 'function') {
           console.error(
@@ -292,7 +292,7 @@ export function ProfileOverview() {
       return null;
     }
 
-    return new URL('/profile', window.location.origin).toString();
+    return new URL('/settings', window.location.origin).toString();
   }, []);
 
   const loadProfileData = useCallback(async (): Promise<void> => {
@@ -370,7 +370,7 @@ export function ProfileOverview() {
       })
       .catch((error: unknown) => {
         showStatus('general', {
-          message: error instanceof Error ? error.message : 'Failed to load profile.',
+          message: error instanceof Error ? error.message : 'Failed to load settings.',
           tone: 'error',
         });
       })
@@ -555,9 +555,9 @@ export function ProfileOverview() {
         email: trimmedBusinessEmail,
       });
       await loadProfileData();
-      showStatus('business', { message: 'Business profile saved.', tone: 'success' });
+      showStatus('business', { message: 'Business settings saved.', tone: 'success' });
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to save business profile.';
+      const message = error instanceof Error ? error.message : 'Failed to save business settings.';
       showActionErrorAlert(message);
       showStatus('business', { message, tone: 'error' });
     } finally {
@@ -842,9 +842,9 @@ export function ProfileOverview() {
 
   return (
     <View className="gap-3">
-      <Text className="text-3xl font-extrabold text-heading">Profile</Text>
+      <Text className="text-3xl font-extrabold text-heading">Settings</Text>
       <Text className="text-muted">
-        Manage invoice sender details, integrations, and local backup tools.
+        Manage your account details, integrations, billing access, and local backup tools.
       </Text>
       {sectionStatus?.section === 'general' ? (
         <InlineNotice tone={sectionStatus.tone} message={sectionStatus.message} />
@@ -852,11 +852,21 @@ export function ProfileOverview() {
       {!fullName || !businessPhone ? (
         <InlineNotice
           tone="error"
-          message="Please complete your profile before using the rest of the app."
+          message="Please complete your settings before using the rest of the app."
         />
       ) : null}
       <View className="items-center">
         <View className="w-full gap-3" style={contentWidthStyle}>
+
+      <View className="gap-3 rounded-xl bg-card p-4">
+        <Text className="text-xl font-bold text-heading">Billing</Text>
+        <Text className="text-sm text-muted">
+          Billing settings are being added in the separate billing branch.
+        </Text>
+        <Pressable className="rounded-md border border-border px-4 py-2 opacity-70" disabled>
+          <Text className="text-center font-semibold text-heading">Open Billing Settings</Text>
+        </Pressable>
+      </View>
 
       <View className="gap-3 rounded-xl bg-card p-4">
         <Text className="text-xl font-bold text-heading">Your Business</Text>
@@ -916,7 +926,7 @@ export function ProfileOverview() {
           disabled={isSavingBusiness || isLoading}
         >
           <Text className="text-center font-semibold text-white">
-            {isSavingBusiness ? 'Saving...' : 'Save Business Profile'}
+            {isSavingBusiness ? 'Saving...' : 'Save Business Settings'}
           </Text>
         </Pressable>
         {sectionStatus?.section === 'business' ? (
@@ -1405,7 +1415,8 @@ export function ProfileOverview() {
           <View className="w-full max-w-lg rounded-xl bg-card p-4">
             <Text className="text-lg font-bold text-heading">GitHub PAT Help</Text>
             <ScrollView
-              className="mt-3 max-h-[420px]"
+              className="mt-3"
+              style={{ maxHeight: 420 }}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={{ paddingBottom: 8 }}
             >

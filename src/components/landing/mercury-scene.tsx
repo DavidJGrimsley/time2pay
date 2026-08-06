@@ -16,7 +16,7 @@ import Animated, {
 import {
   mercuryBullets,
   mercuryCallout,
-  MERCURY_REFERRAL_STATUS_PATH,
+  MERCURY_REFERRAL_URL,
   type LandingBullet,
 } from '../../content/landing-content';
 import {
@@ -168,6 +168,10 @@ export function MercuryScene({
       ? 'text-[40px] font-bold leading-[0.98] md:text-[50px]'
       : 'text-[44px] font-bold leading-[1] md:text-[60px]';
   const progress = usePinnedSceneProgress(scrollY, layout, viewportHeight);
+  const mercuryPrimaryCta =
+    mercuryCallout.ctas?.find((cta) => cta.href === MERCURY_REFERRAL_URL) ??
+    mercuryCallout.ctas?.[0] ??
+    { label: 'Sign Up Through Time2Pay', href: MERCURY_REFERRAL_URL, kind: 'primary' as const };
 
   const frameStyle = useAnimatedStyle(() => ({
     transform: [
@@ -317,13 +321,13 @@ export function MercuryScene({
                             borderWidth: 1,
                             borderColor: isDark ? MERCURY_LINE : MERCURY_NAVY,
                           }}
-                          onPress={() => onOpenLink(MERCURY_REFERRAL_STATUS_PATH)}
+                          onPress={() => onOpenLink(mercuryPrimaryCta.href)}
                         >
                           <Text
                             className="text-center text-sm font-semibold"
                             style={{ lineHeight: 20, color: isDark ? MERCURY_NAVY : '#ffffff' }}
                           >
-                            Mercury reward — Coming soon
+                            {mercuryPrimaryCta.label}
                           </Text>
                         </Pressable>
                       </Animated.View>

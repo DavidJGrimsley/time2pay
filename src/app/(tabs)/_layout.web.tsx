@@ -7,7 +7,7 @@ import { useResolvedDataMode } from '@/hooks/use-resolved-data-mode';
 import { getProfileCompletion } from '@/services/profile-completion';
 import { useAuthUiStore } from '@/stores/auth-ui-store';
 
-export default function TabsLayout() {
+export default function TabsLayoutWeb() {
   const pathname = usePathname();
   const router = useRouter();
   const colorScheme = useColorScheme();
@@ -68,7 +68,6 @@ export default function TabsLayout() {
   }, [isSettingsRoute, profileComplete, profileGateReady, router, shouldBypassProfileGate]);
 
   const isTabsGateLoading = !profileGateReady && !shouldBypassProfileGate && !isSettingsRoute;
-
   const backgroundColor = isDark ? '#1a1f16' : '#f8f7f3';
 
   return (

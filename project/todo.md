@@ -224,23 +224,24 @@ Milestone Payments:
 
 ## Other Cleanup random TODOs
 - [ ] Mercury Invoicing should not be visible unless the user has mercury ar api unlocked (by having a plus or greater plan) I thought I implemented this before, we should check the functionality before we show the invoice by checking their api key
-- [ ] Our navigation bar should live in our tabs _layout file and not individual files
+- [x] often when navigating to a specific page with the top nav bar, the app just forces me to the dashboard instead of the page i clicked. the second click will take me to the page I want to go to. Our navigation bar should live in our tabs _layout file and not individual files!
+      > 2026-08-05: Moved top nav ownership to tabs layout surfaces and split tabs layout by platform (`_layout.web.tsx` / `_layout.native.tsx`) with `/settings` route migration.
 - [ ] Add onboarding flow with a paywall/sign up for a subscription at the end of signing up for the app
       > The real paywall must gate navigation and server/database writes, keep billing/export/sign-out/account deletion reachable, and consistently gate state-changing Mercury actions.
-- [ ] Add user settings page with profile management, billing info, and app preferences
+- [x] Add user settings page with profile management, billing info, and app preferences
+      > 2026-08-05: Added `/settings` tab route, renamed Profile UI copy to Settings, and added a billing entry row (billing screen implementation remains in billing branch).
 - [ ] Add analytics tracking for user behavior, feature usage, and conversion funnels (e.g., referral sign-ups, invoice creation)
 - [ ] Add error monitoring and alerting for both client and server (e.g., Sentry)
 - [ ] Add internationalization (i18n) support for multiple languages and locales
 - [ ] Add accessibility features and ensure compliance with WCAG guidelines
 - [ ] Add automated testing (unit, integration, end-to-end) and CI/CD pipeline
 - [ ] Fix mercury hosted mode bug (might only effect localhost) see temp md
-- [ ] Fix nav bar white background (replace with other nav bar?) see temp md. consider using vert tab bar from my portfolio which would need to be updated and published to npm first but would consequentially remove the issue.
-- [ ] Use expo ui, native tab bars, universal components and optimize for general mobile view and responsive design using android emulator and mobile web as testing target. Create separate layout files for mobile and web.
-- [ ] Fix the invoice pdf to total the milestones AND the attached sessions. Currently it only totals the milestones and not the attached sessions. This is a bug that needs to be fixed but there's also some ugliness witht the wording and overlaping and overal layout of the invoice pdf that needs to be cleaned up. The invoice pdf should be clean and professional looking but modern and friendly to read. The invoice building for milestone projects needs to be refined/revisited because currently it can be done in the projects and the invoices screen but I'm wondering if that's necessary and if one is better than the other.
-- [ ] Optimize for iOS using platform-specific UI patterns file extensions where necessary.
-- [ ] Publish to iOS app store
-- [ ] Optimize for Android using platform-specific UI patterns file extensions where necessary.
-- [ ] Publish to Google Play Store
+- [ ] Fix nav bar white background (replace with other nav bar?) see temp md. consider using vert tab bar from my portfolio which would need to be updated and published to npm first.
+- [ ] Fix the invoice pdf to total the milestones AND the attached sessions. Currently it only totals the milestones and not the attached sessions. This is a bug that needs to be fixed but there's also some ugliness witht the wording and overlaping and overal layout of the invoice pdf that needs to be cleaned up. The invoice pdf should be clean and professional looking but modern and friendly to read. The invoice building for milestone projects needs to be refined/revisited because currently it can be done in the projects and the invoices screen but I'm wondering if that's necessary and if one is better than the other. The invoice pdf name is terrible as well. let's think of a good format that is readable and professional.
+- [ ] Add a 'customers' section/screen in settings that allows the editing of customer info.
+- [ ] Optimize for iOS and Android with responsive design and platform-specific UI patterns
+- [ ] Run a dedicated native validation session for layout restructure (Android/iOS): verify new native tabs, settings route behavior, and Android-specific errors; include test evidence in draft PR Files/Testing notes.
+- [ ] publish to ios and android app stores
 
 ## Future Roadmap
 These are larger feature areas that aren't part of the current stabilization push. Tracked here so they don't get lost; promote into an active section when ready to scope.
