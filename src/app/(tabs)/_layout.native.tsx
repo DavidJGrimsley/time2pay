@@ -90,11 +90,11 @@ export default function TabsLayoutNative() {
           <NativeTabs.Trigger.Label>Invoices</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
         <NativeTabs.Trigger name="bank">
-          <NativeTabs.Trigger.Icon sf="building.columns.fill" md="account-balance" />
+          <NativeTabs.Trigger.Icon sf="building.columns.fill" md="account_balance" />
           <NativeTabs.Trigger.Label>Bank</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
         <NativeTabs.Trigger name="payments">
-          <NativeTabs.Trigger.Icon sf="creditcard.fill" md="credit-card" />
+          <NativeTabs.Trigger.Icon sf="creditcard.fill" md="credit_card" />
           <NativeTabs.Trigger.Label>Payments</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
         <NativeTabs.Trigger name="settings">
