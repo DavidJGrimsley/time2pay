@@ -42,9 +42,9 @@ const updateClientHourlyRateSchema = clientInsertSchema
 
 export async function POST(
   request: Request,
-  { action }: { action: string },
+  { params }: { params: { action: string } },
 ): Promise<Response> {
-  switch (action) {
+  switch (params.action) {
     case 'create':
       return handleDbWrite(request, createClientSchema, createClient);
     case 'update-contact':
@@ -52,6 +52,6 @@ export async function POST(
     case 'update-hourly-rate':
       return handleDbWrite(request, updateClientHourlyRateSchema, updateClientHourlyRate);
     default:
-      return Response.json({ error: `Unsupported clients action: ${action}` }, { status: 404 });
+      return Response.json({ error: `Unsupported clients action: ${params.action}` }, { status: 404 });
   }
 }

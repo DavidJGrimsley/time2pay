@@ -35,16 +35,16 @@ const updateChecklistSchema = milestoneChecklistItemInsertSchema
 
 export async function POST(
   request: Request,
-  { action }: { action: string },
+  { params }: { params: { action: string } },
 ): Promise<Response> {
-  switch (action) {
+  switch (params.action) {
     case 'create':
       return handleDbWrite(request, createChecklistSchema, createMilestoneChecklistItem);
     case 'update':
       return handleDbWrite(request, updateChecklistSchema, updateMilestoneChecklistItem);
     default:
       return Response.json(
-        { error: `Unsupported milestone-checklist action: ${action}` },
+        { error: `Unsupported milestone-checklist action: ${params.action}` },
         { status: 404 },
       );
   }

@@ -1352,9 +1352,9 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
         </View>
       ) : (
         <Pressable
-          className={`rounded-2xl ${actionButtonPaddingClassName} ${isInteractionLocked || isClockingIn ? 'bg-secondary/60' : 'bg-secondary'}`}
+          className={`rounded-2xl ${actionButtonPaddingClassName} ${isInteractionLocked || isLoading || isClockingIn ? 'bg-secondary/60' : 'bg-secondary'}`}
           onPress={handleClockIn}
-          disabled={isClockingIn || isInteractionLocked}
+          disabled={isClockingIn || isLoading || isInteractionLocked}
         >
           <View className="flex-row items-center justify-center gap-2">
             {isClockingIn && <Text className={`${actionButtonLabelClassName} text-white animate-pulse`}>⏳</Text>}

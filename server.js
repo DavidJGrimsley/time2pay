@@ -176,7 +176,9 @@ async function handleDirectDbApiRoute(req, res, next) {
     });
 
     const match = pathname.match(matchedRoute.regex);
-    const response = await methodHandler(request, buildRouteParams(matchedRoute, match));
+    const response = await methodHandler(request, {
+      params: buildRouteParams(matchedRoute, match),
+    });
 
     res.status(response.status);
     response.headers.forEach((value, key) => {

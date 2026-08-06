@@ -1415,7 +1415,8 @@ export function ProfileOverview() {
           <View className="w-full max-w-lg rounded-xl bg-card p-4">
             <Text className="text-lg font-bold text-heading">GitHub PAT Help</Text>
             <ScrollView
-              className="mt-3 max-h-105"
+              className="mt-3"
+              style={{ maxHeight: 420 }}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={{ paddingBottom: 8 }}
             >
