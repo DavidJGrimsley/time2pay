@@ -47,11 +47,19 @@ Open `http://localhost:3000`.
 
 Set these in `.env`:
 
-- `MERCURY_API_KEY_ENCRYPTION_SECRET` (required in hosted mode): server-side secret used to encrypt signed-in users' saved Mercury API keys in Supabase
+- `MERCURY_API_KEY_ENCRYPTION_SECRET` (legacy credential compatibility): decrypts pre-Vault Mercury credential rows at runtime and during `npm run mercury:backfill-vault`; remove it only after those rows are migrated
 - `MERCURY_SANDBOX_API_KEY` (required for tour mode Mercury flows): Mercury sandbox API key
 - `MERCURY_SANDBOX_BASE_URL` (required for tour mode Mercury flows): defaults to `https://api-sandbox.mercury.com/api/v1`
 - `GITHUB_CLIENT_SECRET` (optional): server-side GitHub OAuth app client secret
 - `EXPO_PUBLIC_GITHUB_CLIENT_ID` (optional): GitHub OAuth app client id used by the client UI and server token exchange
+- `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY` (required for embedded web Checkout): Stripe publishable key for the same sandbox or live mode as `STRIPE_SECRET_KEY`
+- `STRIPE_SECRET_KEY` (required to enable Stripe billing): server-only Stripe secret key
+- `STRIPE_PRICE_HOSTED_ANNUAL` (required to enable Stripe billing): Stripe Price ID for the $20/year hosted plan
+- `STRIPE_PRICE_HOSTED_MONTHLY` (required to enable Stripe billing): Stripe Price ID for the $2/month hosted plan
+- `STRIPE_PRICE_MERCURY_LIFETIME` (optional until the Mercury offer launches): Stripe Price ID for the conditional $20 Mercury lifetime offer
+- `STRIPE_WEBHOOK_SECRET` (required for `/api/webhooks/stripe`): server-only signing secret for the configured Stripe webhook endpoint
+- `TIME2PAY_BILLING_GRACE_DAYS` (optional): server-only failed-payment grace period, `7` by default and limited to `0` through `31`
+- `TIME2PAY_ENFORCE_HOSTED_ACCESS` (optional): server-only `true` switch that enforces hosted write access after grants and billing configuration are ready; leave unset during rollout
 - `EXPO_PUBLIC_TIME2PAY_DATA_MODE` (optional): `local` (default) or `hosted`
 - `EXPO_PUBLIC_SITE_ORIGIN` (required in hosted mode): canonical site origin used for hosted auth redirects and hosted API writes. Set this per environment, for example `https://time2pay.app` for production or your `*.plesk.page` staging URL for `test`
 - `TIME2PAY_FAIL_BUILD_IF_LOCAL` (optional): when truthy (`1/true/yes/on`), blocks web export if data mode resolves to `local`
@@ -77,6 +85,26 @@ If GitHub OAuth env vars are missing, `/api/github` returns `501` and the Sign i
 If hosted env vars are missing while `EXPO_PUBLIC_TIME2PAY_DATA_MODE=hosted`, startup fails fast.
 If deprecated hosted env vars are present in hosted mode (`EXPO_PUBLIC_HOSTED_API_BASE_URL`, `EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_URL`, `EXPO_PUBLIC_SUPABASE_AUTH_REDIRECT_PATH`, `EXPO_PUBLIC_MERCURY_PROXY_PATH`, `SITE_ORIGIN`), startup fails fast.
 If `TIME2PAY_FAIL_BUILD_IF_LOCAL` is truthy, deployment builds fail fast unless mode resolves to `hosted`.
+
+## Hosted Billing (Stripe Web)
+
+Self-hosted Time2Pay remains free. Hosted access is currently designed around:
+
+- $20/year, the default paid recommendation
+- $2/month, the flexible alternative
+- $20 conditional lifetime access for verified existing Mercury customers or failed/expired referrals
+- free lifetime access for verified qualified Mercury referrals
+
+Checkout is embedded directly on the Time2Pay billing page. Stripe still owns the secure payment fields and compliance boundary. Subscription renewal can be turned off or restored on the same page through authenticated Time2Pay API routes; no Stripe secret or privileged provider credential is exposed to the app bundle.
+
+Before turning on Stripe test mode:
+
+1. Create the annual recurring ($20/year) and monthly recurring ($2/month) Stripe prices. Create the one-time Mercury lifetime ($20) price only when that coming-soon offer is ready to launch.
+2. Set `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `STRIPE_SECRET_KEY`, and the two recurring `STRIPE_PRICE_*` IDs in the environment for the target deployment. Add `STRIPE_PRICE_MERCURY_LIFETIME` only when enabling that offer. The publishable and secret keys must both be from the same Stripe sandbox or live mode.
+3. Register `https://<host>/api/webhooks/stripe`, copy its signing secret to `STRIPE_WEBHOOK_SECRET`, and subscribe to `checkout.session.completed`, `invoice.paid`, `invoice.payment_failed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `charge.refunded`, and `charge.dispute.created`.
+4. Run Stripe test-mode embedded checkout, renewal, failed-payment, on-page cancellation/resume, refund, duplicate-event, and out-of-order-event checks before enabling `TIME2PAY_ENFORCE_HOSTED_ACCESS=true`.
+
+The webhook path is explicitly raw-body parsed in `server.js` so Stripe signature verification receives unmodified request bytes. Billing tables are FORCE RLS with deny-all browser policies; API routes use the server database connection after authenticated provider verification.
 
 ## Hosted Mode (Supabase + Multi-User)
 

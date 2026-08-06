@@ -39,10 +39,10 @@ describe('landing page content', () => {
     expect(workflowSection.title).toBe('Bill against the work you actually did.');
     expect(landingCopy).toContain('Mercury invoices your clients can pay with one click');
     expect(landingCopy).toContain('branded invoices ready to email');
-    expect(landingCopy).toContain('$1/month');
-    expect(landingCopy).toContain('one-time $10 lifetime membership');
+    expect(landingCopy).toContain('$2/month');
+    expect(landingCopy).toContain('$20/year');
     expect(landingCopy).toContain('Self-Host for Free');
-    expect(landingCopy).toContain('free lifetime hosted access');
+    expect(landingCopy).toContain('Mercury reward coming soon');
     expect(features[1]?.id).toBe('invoices');
     expect(features[1]?.body).toContain('branded invoices');
     expect(features[2]?.title).toBe('Keep every billable hour tied to the right client and project.');
@@ -70,15 +70,15 @@ describe('landing page content', () => {
 
     expect(LANDING_SEO_TITLE).toContain('Time Tracking & Invoicing');
     expect(LANDING_SEO_DESCRIPTION).toContain('one-click Mercury payments');
-    expect(LANDING_SEO_DESCRIPTION).toContain('$1/month');
-    expect(LANDING_SEO_DESCRIPTION).toContain('$10 lifetime');
+    expect(LANDING_SEO_DESCRIPTION).toContain('$2/month');
+    expect(LANDING_SEO_DESCRIPTION).toContain('$20/year');
     expect(schema).toMatchObject({
       '@type': 'SoftwareApplication',
       name: 'Time2Pay',
       applicationCategory: 'BusinessApplication',
       offers: {
         '@type': 'Offer',
-        price: '1.00',
+        price: '2.00',
         priceCurrency: 'USD',
       },
     });

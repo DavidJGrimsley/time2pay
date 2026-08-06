@@ -34,13 +34,13 @@ export type LandingSection = {
 
 export const TIME2PAY_GITHUB_URL = 'https://github.com/DavidJGrimsley/time2pay';
 export const DAVID_GRIMSLEY_PORTFOLIO_URL = 'https://DavidJGrimsley.com';
-export const MERCURY_REFERRAL_URL = 'https://mercury.com/partner/time2pay';
+export const MERCURY_REFERRAL_STATUS_PATH = '/referral-status';
 export const TIME2PAY_SOCIAL_IMAGE_PATH = '/images/time2payLogo.png';
 
 export const LANDING_SEO_TITLE =
   'Time2Pay – Time Tracking & Invoicing App for Freelancers and Subcontractors';
 export const LANDING_SEO_DESCRIPTION =
-  'Clock in, track hours by client and project, and send professional invoices in minutes. Time2Pay is a time tracking and invoicing app for freelancers and independent contractors—starting at $1/month or $10 lifetime, with GitHub proof of work and one-click Mercury payments.';
+  'Clock in, track hours by client and project, and send professional invoices in minutes. Time2Pay is a time tracking and invoicing app for freelancers and independent contractors—starting at $2/month or $20/year, with GitHub proof of work and one-click Mercury payments.';
 
 export const heroSection: LandingSection = {
   id: 'hero',
@@ -48,7 +48,7 @@ export const heroSection: LandingSection = {
   title: 'Time2Pay',
   body: [
     'Clock in when work starts, keep hours organized by client and project, and build invoices from your actual time records—not a spreadsheet you reconstructed after the fact.',
-    'Get started for $1/month, or self-host for free. Mercury business customers get lifetime access free.',
+    'Get started for $2/month or $20/year, or self-host for free. The Mercury referral reward is coming soon.',
   ],
 };
 
@@ -122,8 +122,8 @@ export const mercuryCallout: LandingSection = {
     "Mercury contacts, account context, and payment workflows stay visible beside the invoice so you're not switching tabs to see where you stand.",
   ],
   ctas: [
-    { label: 'Sign Up Through Time2Pay', href: MERCURY_REFERRAL_URL, kind: 'primary' },
-    { label: 'Start Hosted for $1/month', href: '/profile', kind: 'primary' },
+    { label: 'Mercury Reward — Coming Soon', href: MERCURY_REFERRAL_STATUS_PATH, kind: 'primary' },
+    { label: 'Start Hosted for $2/month', href: '/profile', kind: 'primary' },
     { label: 'Self-Host for Free', href: TIME2PAY_GITHUB_URL, kind: 'secondary' },
   ],
 };
@@ -154,14 +154,14 @@ export const mercuryBullets: LandingBullet[] = [
 export const pricingSection: LandingSection = {
   id: 'pricing',
   eyebrow: 'Pricing',
-  title: '$1/month, $10 lifetime, or free with Mercury.',
+  title: '$2/month, $20/year, or self-host for free.',
   body: [
-    'Time2Pay keeps the core app self-hostable for operators who want full control. Hosted Time2Pay is simple: pay $1/month for as long or as little as you need it, or pay a one-time $10 lifetime membership.',
-    'Sign up for a Mercury business account through Time2Pay and get free lifetime hosted access after the referral qualifies. If the window closes, you can still choose the $10 membership or the monthly plan.',
+    'Time2Pay keeps the core app self-hostable for operators who want full control. Paid Time2Pay is simple: choose $2/month or the recommended $20 annual plan.',
+    'Mercury referral attribution is being connected. Once verification is reliable, qualified referrals will receive free lifetime access.',
   ],
   ctas: [
-    { label: 'Start Hosted for $1/month', href: '/profile', kind: 'primary' },
-    { label: 'Sign Up Through Time2Pay', href: MERCURY_REFERRAL_URL, kind: 'primary' },
+    { label: 'Start Hosted for $2/month', href: '/profile', kind: 'primary' },
+    { label: 'Mercury Reward — Coming Soon', href: MERCURY_REFERRAL_STATUS_PATH, kind: 'primary' },
     { label: 'Self-Host for Free', href: TIME2PAY_GITHUB_URL, kind: 'secondary' },
   ],
 };
@@ -169,15 +169,15 @@ export const pricingSection: LandingSection = {
 export const pricingBullets: LandingBullet[] = [
   {
     id: 'mercury-lifetime',
-    title: 'Free lifetime with Mercury',
-    body: 'Sign up for Mercury through Time2Pay and get free lifetime hosted access after your referral qualifies.',
-    cta: { label: 'Sign Up Through Time2Pay', href: MERCURY_REFERRAL_URL, kind: 'primary' },
+    title: 'Mercury reward coming soon',
+    body: 'Referral attribution and qualification reporting are being connected with Mercury.',
+    cta: { label: 'See Referral Status', href: MERCURY_REFERRAL_STATUS_PATH, kind: 'primary' },
   },
   {
     id: 'hosted',
-    title: '$1/month',
+    title: '$2/month',
     body: 'Pay month to month, cancel whenever. Includes hosted sign-in, cloud data storage, and Mercury integration.',
-    cta: { label: 'Start Hosted for $1/month', href: '/profile', kind: 'primary' },
+    cta: { label: 'Start Hosted for $2/month', href: '/profile', kind: 'primary' },
   },
   {
     id: 'self-host',
@@ -190,11 +190,11 @@ export const pricingBullets: LandingBullet[] = [
 export const ctaSection: LandingSection = {
   id: 'cta',
   eyebrow: 'Get Started',
-  title: 'Track time and invoice clients starting at $1/month.',
+  title: 'Track time and invoice clients starting at $2/month.',
   body: [],
   ctas: [
-    { label: 'Start Hosted for $1/month', href: '/profile', kind: 'primary' },
-    { label: 'Sign Up Through Time2Pay', href: MERCURY_REFERRAL_URL, kind: 'primary' },
+    { label: 'Start Hosted for $2/month', href: '/profile', kind: 'primary' },
+    { label: 'Mercury Reward — Coming Soon', href: MERCURY_REFERRAL_STATUS_PATH, kind: 'primary' },
     { label: 'Self-Host for Free', href: TIME2PAY_GITHUB_URL, kind: 'secondary' },
   ],
 };

@@ -1,8 +1,8 @@
 # Time2Pay — TODO
 
 ## Current Status
-- Branch: `feat/session-pr-support-and-todo-cleanup`
-- Phase focus: GitHub PR support for sessions + closing out stabilization verification items
+- Branch: `monetization`
+- Phase focus: Post MVP stabilization, hosted auth/tour UX, OSS + hosted SaaS business model
 
 ## Hosted/Tour Stabilization (2026-03-28)
 - [x] Create long-lived stabilization branch from `origin/test` (`bug/hosted-tour-stabilization`)
@@ -153,25 +153,46 @@ Milestone Payments:
 - [ ] Deploy single Node app (Expo Router server output + API routes) on VPS at `https://time2pay.app`
       > Awaiting infra: needs SSH/Plesk access to provision the VPS app and DNS cutover. Currently deployed via Plesk Node hosting per `.github/workflows/ci.yml`.
 
-## Future Roadmap
-
-These are larger feature areas that aren't part of the current stabilization push. Tracked here so they don't get lost; promote into an active section when ready to scope.
-
-- [ ] Accounting integrations (QuickBooks/Xero export, GL category mapping)
-- [ ] Automated invoice reminders (configurable cadence, opt-out per client, audit trail)
-- [ ] Financial dashboards (cash flow, outstanding by client, period comparisons)
-
 ## Business Model: OSS + Hosted SaaS
 
 ### Monetization Direction (Current)
 - [x] Referral-first OSS model (free core app + Mercury referral focus)
 - [x] Keep self-hosted core available for free
-- [ ] Implement $1/month hosted Time2Pay billing and entitlement checks for the default hosted plan
-- [ ] Implement one-time $10 lifetime hosted membership for existing Mercury business customers and users whose Mercury referral does not qualify
-- [ ] Implement/operationalize free lifetime hosted access after a verified and qualified Mercury signup through Time2Pay
-- [ ] Track Mercury referral onboarding status, including the 90-day deposit/onboarding window once requirements are finalized
-- [ ] Add entitlement state for successful referral, failed/expired referral, existing Mercury customer $10 lifetime, $10 fallback lifetime, and $1/month subscription
+- [x] Final pricing direction locked: qualified Mercury referral = free lifetime hosted access, annual = $20/year (default recommendation), monthly = $2/month, existing Mercury customer = $20 lifetime, failed/expired referral = $20 lifetime
+- [x] Implement provider-agnostic entitlement model for hosted access (`hosted_time2pay`) in Postgres-backed hosted mode
+- [ ] Operationalize free lifetime hosted access after a verified and qualified Mercury signup through Time2Pay (server transition exists; needs trusted Mercury verification/admin trigger)
+- [ ] Activate hosted paid access offers: $20/year and $2/month (web first), with annual as default recommendation (Stripe code/UI complete; needs test-mode Stripe configuration)
+- [x] Implement conditional $20 lifetime hosted offer for existing Mercury customers and failed/expired referrals (server-validated eligibility only)
+- [x] Track Mercury referral onboarding state machine and per-user qualification deadline window
+- [x] Keep referral, purchase/subscription, and access-grant states as separate domains (no single merged billing status)
 - [ ] Re-evaluate additional paid hosted tiers only after hosted auth/tour stability and referral conversion data
+
+### Monetization Execution Plan (Phased)
+- [x] Phase 0: Build hosted billing domain tables under `src/database/hosted/billing/` (`billing_customers`, `billing_subscriptions`, `billing_purchases`, `billing_webhook_events`, `access_grants`)
+      > Applied live through Drizzle migration `0005_handy_darwin`; verified via Supabase MCP with FORCE RLS and deny-all browser policies.
+- [x] Phase 0: Add central entitlement service at `src/server/billing/entitlements.ts` with `requireHostedAccess(authUserId)` enforcement for protected hosted API routes
+      > Enforcement is rollout-gated by private `TIME2PAY_ENFORCE_HOSTED_ACCESS=true` so existing users are not locked out before grants and Stripe test configuration exist.
+- [x] Phase 0: Verify non-hosted safety gates (self-hosted and tour mode unaffected; read-only export remains available without paid access)
+      > Shared write enforcement only activates in hosted mode with the private rollout switch. Normal delete mutations are protected writes; future account-deletion routes must explicitly opt out where policy requires access without a subscription.
+- [x] Phase 1: Build server-side Stripe integration and API routes (`/api/billing/status`, `/api/billing/checkout`, `/api/billing/subscription`, `/api/billing/sync`, `/api/webhooks/stripe`)
+- [x] Phase 1: Implement webhook idempotency + ordering safety and enforce raw body signature verification for Stripe webhooks
+- [x] Phase 1: Support hosted lifecycle transitions (active, past_due/grace, canceled-at-period-end, refunded/revoked)
+- [x] Phase 2 (Mercury workflow): implement referral statuses (`not_started`, `clicked`, `application_started`, `pending_qualification`, `qualified`, `failed`, `expired`, `existing_customer`)
+- [x] Phase 2: Add temporary referral grace grants and automatic transition to qualified lifetime or fallback paid offers
+- [x] Phase 3: ship `/pricing`, `/settings/billing`, `/access-required`, `/referral-status` with source/plan/renewal visibility and manage-billing entry
+- [ ] Phase 3: Add billing and referral analytics events for checkout, conversion, renewal, failure, cancellation, and referral milestones
+- [ ] Phase 3: Complete launch gate test matrix (monthly/annual/lifetime eligibility, webhook duplicates/out-of-order, renewal failures, refunds, cross-session login persistence)
+- [ ] Phase 4+ (after web stability): integrate RevenueCat + Apple/Google stores while keeping one internal `access_grants` entitlement source of truth
+
+### Billing Activation Blockers
+- [ ] Create Stripe test products/prices and set the publishable key for embedded Checkout
+- [ ] Set server-only Stripe env vars and register the signed `/api/webhooks/stripe` endpoint in Stripe test mode
+- [ ] Run the complete Stripe test-mode matrix, including duplicates, out-of-order events, failed renewal grace, cancellation, refund, and dispute paths
+- [ ] Add per-user billing API rate limits and request idempotency keys before enabling live billing
+- [ ] Add the trusted Mercury partner/admin verification trigger that calls the server-only referral transition functions
+- [ ] Choose/configure ordinary analytics for billing and referral event collection
+- [ ] Publish pricing, refund, and Mercury qualification terms
+- [ ] Seed/administer initial access grants, then enable `TIME2PAY_ENFORCE_HOSTED_ACCESS=true` on the target hosted environment
 
 ### Mercury API Key Security (Hosted SaaS)
 - [x] Keep hosted Mercury production API keys server-side only for Mercury API calls
@@ -195,12 +216,17 @@ These are larger feature areas that aren't part of the current stabilization pus
 - [ ] Choose OSS license for core (default candidate: MIT) and document what is not included
 - [ ] Add `LICENSE`, `CONTRIBUTING.md`, and `SECURITY.md` before public launch
 
+## Priority Post MVP TODO
+- [x] Clean up stale branches
+- [x] Upgrade to Expo SDK 56
+- [x] (Test MDS local agent)Fix animations throughout the app. They trigger too often, are far too jarring, tacky, and downright ugly. We need to make them smooth and subtle, and not trigger on every single re-render of a component and not trigger the parent component to re render. For instance when I clock in, the parent view shrinks and then grows to the new position but it should just grow to it's new position. They're also delayed. The words shrink and spring and it looks terrible. Let's go with nice fade ins from above. The landing page has much better animations but scan that for improvements as well but let's use that style of animation throughout the rest of the app.
+- [ ] (After MDS is upgraded to use Expo SDK 57) Upgrade to Expo SDK 57.
 
 ## Other Cleanup random TODOs
-- [ ] change all animations from the stupid thing where its popping the whole parent view and changing size. it's re rendering too much and the springy animation is just terrible. Let's do some smooth growing of parent views and fading in and out of components.
 - [ ] Mercury Invoicing should not be visible unless the user has mercury ar api unlocked (by having a plus or greater plan) I thought I implemented this before, we should check the functionality before we show the invoice by checking their api key
-- [ ] often when navigating to a specific page with the top nav bar, the app just forces me to the dashboard instead of the page i clicked. the second click will take me to the page I want to go to. Our navigation bar should live in our tabs _layout file and not individual files!
-- [ ] Add onboarding flow
+- [ ] Our navigation bar should live in our tabs _layout file and not individual files
+- [ ] Add onboarding flow with a paywall/sign up for a subscription at the end of signing up for the app
+      > The real paywall must gate navigation and server/database writes, keep billing/export/sign-out/account deletion reachable, and consistently gate state-changing Mercury actions.
 - [ ] Add user settings page with profile management, billing info, and app preferences
 - [ ] Add analytics tracking for user behavior, feature usage, and conversion funnels (e.g., referral sign-ups, invoice creation)
 - [ ] Add error monitoring and alerting for both client and server (e.g., Sentry)
@@ -208,12 +234,17 @@ These are larger feature areas that aren't part of the current stabilization pus
 - [ ] Add accessibility features and ensure compliance with WCAG guidelines
 - [ ] Add automated testing (unit, integration, end-to-end) and CI/CD pipeline
 - [ ] Fix mercury hosted mode bug (might only effect localhost) see temp md
-- [ ] Fix nav bar white background (replace with other nav bar?) see temp md. consider using vert tab bar from my portfolio which would need to be updated and published to npm first.
-- [ ] Optimize for iOS and Android with responsive design and platform-specific UI patterns
-- [ ] publish to ios and android app stores
+- [ ] Fix nav bar white background (replace with other nav bar?) see temp md. consider using vert tab bar from my portfolio which would need to be updated and published to npm first but would consequentially remove the issue.
+- [ ] Use expo ui, native tab bars, universal components and optimize for general mobile view and responsive design using android emulator and mobile web as testing target. Create separate layout files for mobile and web.
+- [ ] Fix the invoice pdf to total the milestones AND the attached sessions. Currently it only totals the milestones and not the attached sessions. This is a bug that needs to be fixed but there's also some ugliness witht the wording and overlaping and overal layout of the invoice pdf that needs to be cleaned up. The invoice pdf should be clean and professional looking but modern and friendly to read. The invoice building for milestone projects needs to be refined/revisited because currently it can be done in the projects and the invoices screen but I'm wondering if that's necessary and if one is better than the other.
+- [ ] Optimize for iOS using platform-specific UI patterns file extensions where necessary.
+- [ ] Publish to iOS app store
+- [ ] Optimize for Android using platform-specific UI patterns file extensions where necessary.
+- [ ] Publish to Google Play Store
 
-## Priority TODO
-- [x] Clean up stale branches
-- [x] Upgrade to Expo SDK 56
-- [x] (Test MDS local agent)Fix animations throughout the app. They trigger too often, are far too jarring, tacky, and downright ugly. We need to make them smooth and subtle, and not trigger on every single re-render of a component and not trigger the parent component to re render. For instance when I clock in, the parent view shrinks and then grows to the new position but it should just grow to it's new position. They're also delayed. The words shrink and spring and it looks terrible. Let's go with nice fade ins from above. The landing page has much better animations but scan that for improvements as well but let's use that style of animation throughout the rest of the app. 
-- [ ] Upgrade to Expo SDK 57.
+## Future Roadmap
+These are larger feature areas that aren't part of the current stabilization push. Tracked here so they don't get lost; promote into an active section when ready to scope.
+
+- [ ] Accounting integrations (QuickBooks/Xero export, GL category mapping)
+- [ ] Automated invoice reminders (configurable cadence, opt-out per client, audit trail)
+- [ ] Financial dashboards (cash flow, outstanding by client, period comparisons)

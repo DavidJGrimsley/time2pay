@@ -30,10 +30,11 @@ export async function requireAuthUserId(request: Request): Promise<string> {
     },
   });
 
-  const { data, error } = await supabase.auth.getUser(token);
-  if (error || !data.user?.id) {
+  const { data, error } = await supabase.auth.getClaims(token);
+  const authUserId = data?.claims.sub?.trim() ?? '';
+  if (error || !authUserId) {
     throw new Error('Invalid Supabase session token.');
   }
 
-  return data.user.id;
+  return authUserId;
 }

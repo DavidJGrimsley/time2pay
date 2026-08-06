@@ -16,7 +16,7 @@ import Animated, {
 import {
   mercuryBullets,
   mercuryCallout,
-  MERCURY_REFERRAL_URL,
+  MERCURY_REFERRAL_STATUS_PATH,
   type LandingBullet,
 } from '../../content/landing-content';
 import {
@@ -317,13 +317,13 @@ export function MercuryScene({
                             borderWidth: 1,
                             borderColor: isDark ? MERCURY_LINE : MERCURY_NAVY,
                           }}
-                          onPress={() => onOpenLink(MERCURY_REFERRAL_URL)}
+                          onPress={() => onOpenLink(MERCURY_REFERRAL_STATUS_PATH)}
                         >
                           <Text
                             className="text-center text-sm font-semibold"
                             style={{ lineHeight: 20, color: isDark ? MERCURY_NAVY : '#ffffff' }}
                           >
-                            Sign up for a Mercury Business Account through Time2Pay
+                            Mercury reward — Coming soon
                           </Text>
                         </Pressable>
                       </Animated.View>

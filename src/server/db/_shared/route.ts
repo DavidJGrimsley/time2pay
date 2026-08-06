@@ -1,5 +1,9 @@
 import { sql } from 'drizzle-orm';
 import { z, type ZodType } from 'zod';
+import {
+  isHostedAccessEnforcementEnabled,
+  requireHostedAccess,
+} from '@/server/billing/entitlements';
 import { requireAuthUserId } from '@/server/db/_shared/auth';
 import { withWriteDb, type WriteDb } from '@/server/db/_shared/db';
 import {
@@ -42,10 +46,15 @@ async function parseBody<T>(request: Request, schema: ZodType<T>): Promise<T> {
   }
 }
 
+export type DbWriteRouteOptions = {
+  requiresHostedAccess?: boolean;
+};
+
 export async function handleDbWrite<T>(
   request: Request,
   schema: ZodType<T>,
   operation: (db: WriteDb, authUserId: string, payload: T) => Promise<void>,
+  options: DbWriteRouteOptions = {},
 ): Promise<Response> {
   let authUserId: string;
   try {
@@ -54,6 +63,14 @@ export async function handleDbWrite<T>(
     return dbRouteErrorResponse(
       unauthorized(error instanceof Error ? error.message : 'Invalid auth token.'),
     );
+  }
+
+  if (options.requiresHostedAccess !== false && isHostedAccessEnforcementEnabled()) {
+    try {
+      await requireHostedAccess(authUserId);
+    } catch (error) {
+      return dbRouteErrorResponse(toDbRouteError(error));
+    }
   }
 
   let payload: T;

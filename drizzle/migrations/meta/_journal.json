@@ -36,6 +36,13 @@
       "when": 1778245962435,
       "tag": "0004_session_pull_request",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1784052334914,
+      "tag": "0005_handy_darwin",
+      "breakpoints": true
     }
   ]
 }

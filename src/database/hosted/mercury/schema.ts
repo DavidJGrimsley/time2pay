@@ -97,7 +97,15 @@ export const mercuryReferrals = pgTable(
     clickCount: integer('click_count').notNull().default(0),
     firstClickedAt: timestamp('first_clicked_at', { withTimezone: true }),
     lastClickedAt: timestamp('last_clicked_at', { withTimezone: true }),
-    status: text('status').notNull().default('clicked'),
+    applicationStartedAt: timestamp('application_started_at', { withTimezone: true }),
+    qualificationDeadlineAt: timestamp('qualification_deadline_at', { withTimezone: true }),
+    qualifiedAt: timestamp('qualified_at', { withTimezone: true }),
+    failedAt: timestamp('failed_at', { withTimezone: true }),
+    expiredAt: timestamp('expired_at', { withTimezone: true }),
+    verificationSource: text('verification_source'),
+    externalReference: text('external_reference'),
+    verifiedBy: text('verified_by'),
+    status: text('status').notNull().default('not_started'),
     adminNotes: text('admin_notes'),
     premiumAccessGrantedAt: timestamp('premium_access_granted_at', { withTimezone: true }),
     ...lifecycleColumns,
@@ -105,12 +113,15 @@ export const mercuryReferrals = pgTable(
   (table) => ({
     authUserIdIdx: index('idx_mercury_referrals_auth_user_id').on(table.authUserId),
     statusIdx: index('idx_mercury_referrals_status').on(table.status),
+    qualificationDeadlineIdx: index('idx_mercury_referrals_qualification_deadline').on(
+      table.qualificationDeadlineAt,
+    ),
     premiumAccessGrantedAtIdx: index('idx_mercury_referrals_premium_access_granted_at').on(
       table.premiumAccessGrantedAt,
     ),
     statusCheck: check(
       'mercury_referrals_status_check',
-      sql`${table.status} in ('clicked', 'pending_review', 'qualified', 'rejected')`,
+      sql`${table.status} in ('not_started', 'clicked', 'application_started', 'pending_qualification', 'qualified', 'failed', 'expired', 'existing_customer')`,
     ),
     authUserFk: foreignKey({
       columns: [table.authUserId],

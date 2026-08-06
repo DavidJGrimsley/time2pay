@@ -3,6 +3,10 @@ import {
   removeLocalStorageItem,
   writeLocalStorageItem,
 } from '@/services/browser-storage';
+import type {
+  MercuryReferralStatus,
+  MercuryReferralStatusValue,
+} from '@/database/hosted/mercury/types';
 import { getAppAccessMode } from '@/services/runtime-mode';
 import { getSupabaseClient } from '@/services/supabase-client';
 
@@ -10,22 +14,7 @@ export const MERCURY_REFERRAL_URL = 'https://mercury.com/partner/time2pay';
 
 const PENDING_REFERRAL_CLICK_KEY = 'time2pay.mercury.referral.pending-clicked-at';
 
-export type MercuryReferralStatusValue =
-  | 'none'
-  | 'clicked'
-  | 'pending_review'
-  | 'qualified'
-  | 'rejected';
-
-export type MercuryReferralStatus = {
-  referralUrl: string;
-  status: MercuryReferralStatusValue;
-  clickCount: number;
-  firstClickedAt: string | null;
-  lastClickedAt: string | null;
-  premiumAccess: boolean;
-  premiumAccessGrantedAt: string | null;
-};
+export type { MercuryReferralStatus, MercuryReferralStatusValue };
 
 type MercuryReferralAction =
   | { action: 'status' }

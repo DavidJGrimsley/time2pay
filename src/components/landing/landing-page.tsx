@@ -25,11 +25,9 @@ import {
   footerLinks,
   githubBullets,
   heroSection,
-  MERCURY_REFERRAL_URL,
   pricingBullets,
   workflowSection,
   type LandingBullet,
-  type LandingCta,
 } from '../../content/landing-content';
 import { useAuthUiStore } from '@/stores/auth-ui-store';
 import { FeaturesScene } from './features-scene';
@@ -44,7 +42,6 @@ import {
 } from './landing-motion';
 import { useResolvedDataMode } from '@/hooks/use-resolved-data-mode';
 import { logRuntimeDiagnostic } from '@/services/runtime-diagnostics';
-import { trackMercuryReferralClick } from '@/services/mercury-referrals';
 import { useStableWindowDimensions } from '@/hooks/use-stable-window-dimensions';
 import { LandingSection } from './landing-section';
 import { SemanticText } from './semantic-elements';
@@ -318,47 +315,16 @@ function PricingHighlight({ compact }: { compact: boolean }) {
         </SemanticText>
         <View className="flex-row flex-wrap items-end gap-2">
           <SemanticText as="p" className="text-[56px] font-bold leading-none text-heading md:text-[72px]">
-            $1
+            $2
           </SemanticText>
           <SemanticText as="p" className="pb-2 text-lg font-semibold text-muted">
             /month
           </SemanticText>
         </View>
         <SemanticText as="p" className="text-base leading-7 text-foreground">
-          Month-to-month access for contractors who want sign-in, cloud storage, and Mercury integration managed for them. Pay $1/month and cancel whenever. Or pay a one-time $10 for lifetime access—free if you sign up for Mercury through Time2Pay and your referral qualifies.
+          Month-to-month access for contractors who want sign-in, cloud storage, and Mercury integration managed for them. Pay $2/month and cancel whenever, or choose the $20 annual plan. The Mercury referral reward is coming soon while attribution reporting is connected.
         </SemanticText>
       </View>
-    </View>
-  );
-}
-
-function CtaButtons({
-  ctas,
-  onPress,
-  centered = false,
-}: {
-  ctas: LandingCta[] | undefined;
-  onPress: (href: string) => void;
-  centered?: boolean;
-}) {
-  if (!ctas || ctas.length === 0) {
-    return null;
-  }
-
-  return (
-    <View className={`flex-row flex-wrap gap-3 ${centered ? 'md:justify-center' : ''}`}>
-      {ctas.map((cta) => {
-        const className =
-          cta.kind === 'primary'
-            ? 'rounded-full bg-primary px-5 py-3'
-            : 'rounded-full border border-border bg-background px-5 py-3';
-
-        return (
-          <Pressable key={cta.label} className={className} onPress={() => onPress(cta.href)}>
-            <Text className="text-sm font-semibold text-heading">{cta.label}</Text>
-          </Pressable>
-        );
-      })}
     </View>
   );
 }
@@ -460,10 +426,6 @@ export function LandingPage() {
 
   const handleRoute = useCallback(
     (href: string) => {
-      if (href === MERCURY_REFERRAL_URL) {
-        trackMercuryReferralClick().catch(() => undefined);
-      }
-
       if (href.startsWith('http')) {
         Linking.openURL(href).catch(() => undefined);
         return;

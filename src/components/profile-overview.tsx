@@ -1,5 +1,5 @@
 import { Octicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { type Href, Link, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Image, Linking, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import {
@@ -31,8 +31,6 @@ import {
 } from '@/services/mercury-credentials';
 import {
   getMercuryReferralStatus,
-  MERCURY_REFERRAL_URL,
-  trackMercuryReferralClick,
   type MercuryReferralStatus,
 } from '@/services/mercury-referrals';
 import { readTrimmedPublicRuntimeConfigValue } from '@/services/runtime-config';
@@ -234,7 +232,6 @@ export function ProfileOverview() {
   const [isDeletingMercuryKey, setIsDeletingMercuryKey] = useState(false);
   const [mercuryReferralStatus, setMercuryReferralStatus] =
     useState<MercuryReferralStatus | null>(null);
-  const [isOpeningMercuryReferral, setIsOpeningMercuryReferral] = useState(false);
   const [showAdvancedGitHubOptions, setShowAdvancedGitHubOptions] = useState(false);
   const [showPatInfoModal, setShowPatInfoModal] = useState(false);
   const [isSigningInWithGitHub, setIsSigningInWithGitHub] = useState(false);
@@ -680,29 +677,6 @@ export function ProfileOverview() {
       showStatus('integrations', { message, tone: 'error' });
     } finally {
       setIsDeletingMercuryKey(false);
-    }
-  }
-
-  async function handleOpenMercuryReferral(): Promise<void> {
-    clearSectionStatus('integrations');
-    setIsOpeningMercuryReferral(true);
-
-    try {
-      const nextStatus = await trackMercuryReferralClick();
-      if (nextStatus) {
-        setMercuryReferralStatus(nextStatus);
-      }
-      openExternalUrl(MERCURY_REFERRAL_URL);
-      showStatus('integrations', {
-        message: 'Mercury referral visit recorded. Premium access is granted manually after qualification is verified.',
-        tone: 'success',
-      });
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to record Mercury referral visit.';
-      showStatus('integrations', { message, tone: 'error' });
-      openExternalUrl(MERCURY_REFERRAL_URL);
-    } finally {
-      setIsOpeningMercuryReferral(false);
     }
   }
 
@@ -1250,7 +1224,7 @@ export function ProfileOverview() {
                     accessibilityLabel="Mercury"
                   />
                   <Text style={{ fontSize: 13, fontWeight: '600', color: '#272735' }}>
-                    Mercury referral premium
+                    Mercury referral reward
                   </Text>
                   {mercuryReferralStatus?.premiumAccess ? (
                     <View
@@ -1266,33 +1240,77 @@ export function ProfileOverview() {
                         Premium
                       </Text>
                     </View>
-                  ) : null}
+                  ) : (
+                    <View
+                      style={{
+                        marginLeft: 'auto',
+                        borderRadius: 999,
+                        backgroundColor: '#fef3c7',
+                        paddingHorizontal: 8,
+                        paddingVertical: 2,
+                      }}
+                    >
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: '#92400e' }}>
+                        Coming soon
+                      </Text>
+                    </View>
+                  )}
                 </View>
                 <Text className="text-sm text-muted">
                   {mercuryReferralStatus?.premiumAccess
                     ? `Premium access granted${mercuryReferralStatus.premiumAccessGrantedAt ? ` on ${new Date(mercuryReferralStatus.premiumAccessGrantedAt).toLocaleDateString()}` : ''}.`
-                    : mercuryReferralStatus && mercuryReferralStatus.status !== 'none'
-                      ? `Referral status: ${mercuryReferralStatus.status.replace('_', ' ')}.`
-                      : 'No Mercury referral visit recorded for this profile yet.'}
+                    : 'Referral attribution and qualification reporting are being connected with Mercury.'}
                 </Text>
                 <Pressable
                   style={{
                     alignSelf: 'flex-start',
                     borderRadius: 8,
-                    backgroundColor: '#272735',
+                    borderWidth: 1,
+                    borderColor: '#dce2ea',
                     paddingHorizontal: 16,
                     paddingVertical: 8,
-                    opacity: isOpeningMercuryReferral ? 0.6 : 1,
+                    opacity: 0.65,
                   }}
-                  onPress={() => {
-                    handleOpenMercuryReferral().catch(() => undefined);
-                  }}
-                  disabled={isOpeningMercuryReferral}
+                  disabled
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: true }}
                 >
-                  <Text style={{ fontWeight: '600', color: '#ffffff', fontSize: 13 }}>
-                    {isOpeningMercuryReferral ? 'Opening...' : 'Open Mercury Referral'}
+                  <Text style={{ fontWeight: '600', color: '#64748b', fontSize: 13 }}>
+                    Mercury reward — Coming soon
                   </Text>
                 </Pressable>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  <Link href={'/settings/billing' as Href} asChild>
+                    <Pressable
+                      style={{
+                        borderRadius: 8,
+                        borderWidth: 1,
+                        borderColor: '#dce2ea',
+                        paddingHorizontal: 12,
+                        paddingVertical: 7,
+                      }}
+                    >
+                      <Text style={{ fontWeight: '600', color: '#272735', fontSize: 13 }}>
+                        Billing
+                      </Text>
+                    </Pressable>
+                  </Link>
+                  <Link href={'/referral-status' as Href} asChild>
+                    <Pressable
+                      style={{
+                        borderRadius: 8,
+                        borderWidth: 1,
+                        borderColor: '#dce2ea',
+                        paddingHorizontal: 12,
+                        paddingVertical: 7,
+                      }}
+                    >
+                      <Text style={{ fontWeight: '600', color: '#272735', fontSize: 13 }}>
+                        Referral Status
+                      </Text>
+                    </Pressable>
+                  </Link>
+                </View>
               </View>
             ) : null}
             {isHostedMode() && tourModeEnabled ? (
