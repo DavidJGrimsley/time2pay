@@ -677,7 +677,7 @@ export function BillingScreen({ variant }: BillingScreenProps) {
           {referral?.qualifiedAt ? (
             <Text className="text-sm text-success">Qualified on {formatDate(referral.qualifiedAt)}.</Text>
           ) : null}
-          <Link href="/profile" asChild>
+          <Link href="/settings" asChild>
             <Pressable className="self-start rounded-md border border-border px-4 py-2">
               <Text className="font-semibold text-heading">Open Profile</Text>
             </Pressable>
