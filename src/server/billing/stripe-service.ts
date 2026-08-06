@@ -740,17 +740,27 @@ export async function previewStripeSubscriptionPlanSwitch(
     };
   }
 
-  const invoice = await config.client.invoices.createPreview({
-    customer: providerCustomerId,
-    subscription: subscription.id,
-    subscription_details: {
-      billing_cycle_anchor: 'now',
-      cancel_at_period_end: false,
-      items: planSwitchSubscriptionItems(config, subscription, targetPlan),
-      proration_behavior: 'always_invoice',
-      proration_date: prorationDate,
-    },
-  });
+  let invoice: Stripe.Invoice;
+  try {
+    invoice = await config.client.invoices.createPreview({
+      customer: providerCustomerId,
+      subscription: subscription.id,
+      subscription_details: {
+        billing_cycle_anchor: 'now',
+        cancel_at_period_end: false,
+        items: planSwitchSubscriptionItems(config, subscription, targetPlan),
+        proration_behavior: 'always_invoice',
+        proration_date: prorationDate,
+      },
+    });
+  } catch (error) {
+    console.error('Stripe plan-switch preview failed:', error);
+    throw new BillingError(
+      502,
+      'billing_plan_switch_preview_failed',
+      'Stripe could not preview this plan change. Please try again.',
+    );
+  }
 
   return buildPlanSwitchPreview(config, subscription, targetPlan, invoice, prorationDate);
 }

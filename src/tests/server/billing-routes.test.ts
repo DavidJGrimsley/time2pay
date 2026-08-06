@@ -166,9 +166,12 @@ describe('billing API routes', () => {
       amountDueNowCents: 0,
       futureCreditCents: 1600,
     });
-    const { POST } = await import('@/app/api/billing/subscription-preview+api');
+    const { POST } = await import('@/app/api/billing/subscription+api');
     const response = await POST(
-      authenticatedRequest('/api/billing/subscription-preview', { plan: 'monthly' }),
+      authenticatedRequest('/api/billing/subscription', {
+        action: 'preview_switch_plan',
+        plan: 'monthly',
+      }),
     );
 
     expect(response.status).toBe(200);

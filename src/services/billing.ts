@@ -117,10 +117,10 @@ export function updateBillingSubscription(
 export function previewBillingSubscriptionPlanSwitch(
   plan: HostedPlan,
 ): Promise<BillingSubscriptionPlanSwitchPreview> {
-  return billingRequest<BillingSubscriptionPlanSwitchPreview>('/api/billing/subscription-preview', {
+  return billingRequest<BillingSubscriptionPlanSwitchPreview>('/api/billing/subscription', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ plan }),
+    body: JSON.stringify({ action: 'preview_switch_plan', plan }),
   });
 }
 
