@@ -123,7 +123,7 @@ export const mercuryCallout: LandingSection = {
   ],
   ctas: [
     { label: 'Mercury Reward — Coming Soon', href: MERCURY_REFERRAL_STATUS_PATH, kind: 'primary' },
-    { label: 'Start Hosted for $2/month', href: '/profile', kind: 'primary' },
+    { label: 'Start Hosted for $2/month', href: '/settings', kind: 'primary' },
     { label: 'Self-Host for Free', href: TIME2PAY_GITHUB_URL, kind: 'secondary' },
   ],
 };
@@ -160,7 +160,7 @@ export const pricingSection: LandingSection = {
     'Mercury referral attribution is being connected. Once verification is reliable, qualified referrals will receive free lifetime access.',
   ],
   ctas: [
-    { label: 'Start Hosted for $2/month', href: '/profile', kind: 'primary' },
+    { label: 'Start Hosted for $2/month', href: '/settings', kind: 'primary' },
     { label: 'Mercury Reward — Coming Soon', href: MERCURY_REFERRAL_STATUS_PATH, kind: 'primary' },
     { label: 'Self-Host for Free', href: TIME2PAY_GITHUB_URL, kind: 'secondary' },
   ],
@@ -177,7 +177,7 @@ export const pricingBullets: LandingBullet[] = [
     id: 'hosted',
     title: '$2/month',
     body: 'Pay month to month, cancel whenever. Includes hosted sign-in, cloud data storage, and Mercury integration.',
-    cta: { label: 'Start Hosted for $2/month', href: '/profile', kind: 'primary' },
+    cta: { label: 'Start Hosted for $2/month', href: '/settings', kind: 'primary' },
   },
   {
     id: 'self-host',
@@ -193,7 +193,7 @@ export const ctaSection: LandingSection = {
   title: 'Track time and invoice clients starting at $2/month.',
   body: [],
   ctas: [
-    { label: 'Start Hosted for $2/month', href: '/profile', kind: 'primary' },
+    { label: 'Start Hosted for $2/month', href: '/settings', kind: 'primary' },
     { label: 'Mercury Reward — Coming Soon', href: MERCURY_REFERRAL_STATUS_PATH, kind: 'primary' },
     { label: 'Self-Host for Free', href: TIME2PAY_GITHUB_URL, kind: 'secondary' },
   ],

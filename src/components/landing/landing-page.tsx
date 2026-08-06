@@ -431,7 +431,7 @@ export function LandingPage() {
         return;
       }
 
-      if (href === '/profile' && hostedMode && !isAuthenticated) {
+      if (href === '/settings' && hostedMode && !isAuthenticated) {
         logRuntimeDiagnostic('landing.profileCta.redirectToHostedAuth', {
           dataMode,
           destination: '/sign-in',

@@ -17,7 +17,7 @@ const routeLinks: RouteLink[] = [
   { href: '/invoices', label: 'Invoices' },
   { href: '/bank', label: 'Bank' },
   { href: '/payments', label: 'Payments' },
-  { href: '/profile', label: 'Profile' },
+  { href: '/settings', label: 'Settings' },
 ];
 
 export function RouteNav() {

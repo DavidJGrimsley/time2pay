@@ -98,9 +98,9 @@ export function DashboardOverview() {
           {gateStatusMessage ? <InlineNotice tone="error" message={gateStatusMessage} /> : null}
           <Pressable
             className="self-start rounded-md bg-secondary px-3 py-2"
-            onPress={() => router.push('/profile')}
+            onPress={() => router.push('/settings')}
           >
-            <Text className="font-semibold text-white">Go to Profile</Text>
+            <Text className="font-semibold text-white">Go to Settings</Text>
           </Pressable>
         </View>
       ) : null}
