@@ -83,7 +83,12 @@ function stripeConfig(overrides: Record<string, unknown> = {}): unknown {
         list: vi.fn().mockResolvedValue({ data: [] }),
         update: vi.fn(),
       },
-      paymentMethods: { retrieve: vi.fn(), list: vi.fn().mockResolvedValue({ data: [] }) },
+      invoices: { createPreview: vi.fn() },
+      paymentMethods: {
+        detach: vi.fn(),
+        retrieve: vi.fn(),
+        list: vi.fn().mockResolvedValue({ data: [] }),
+      },
       setupIntents: { create: vi.fn() },
       webhooks: { constructEvent: vi.fn() },
       ...overrides,
@@ -348,6 +353,75 @@ describe('Stripe billing service', () => {
         },
       ],
       proration_behavior: 'always_invoice',
+      proration_date: 1_900_000_000,
+    });
+  });
+
+  it('previews the Stripe invoice impact before switching plans', async () => {
+    const config = stripeConfig() as {
+      client: {
+        invoices: { createPreview: ReturnType<typeof vi.fn> };
+        subscriptions: { list: ReturnType<typeof vi.fn> };
+      };
+    };
+    const subscription = stripeSubscription({
+      id: 'sub_annual',
+      status: 'active',
+      priceId: 'price_annual',
+    });
+    Object.assign(subscription.items.data[0] as unknown as Record<string, unknown>, {
+      id: 'si_annual',
+      quantity: 1,
+    });
+    config.client.subscriptions.list.mockResolvedValue({ data: [subscription] });
+    config.client.invoices.createPreview.mockResolvedValue({
+      currency: 'usd',
+      amount_due: 0,
+      total: -1600,
+      lines: {
+        data: [
+          {
+            amount: -1800,
+            parent: { subscription_item_details: { proration: true } },
+          },
+          {
+            amount: 200,
+            parent: { subscription_item_details: { proration: true } },
+          },
+        ],
+      },
+    });
+    mocks.getStripeBillingConfig.mockReturnValue(config);
+    const { previewStripeSubscriptionPlanSwitch } = await import(
+      '@/server/billing/stripe-service'
+    );
+
+    await expect(previewStripeSubscriptionPlanSwitch('user-1', 'monthly')).resolves.toEqual({
+      currentPlan: 'annual',
+      targetPlan: 'monthly',
+      currency: 'usd',
+      prorationDate: 1_900_000_000,
+      proratedCreditCents: 1800,
+      immediateChargeCents: 200,
+      amountDueNowCents: 0,
+      futureCreditCents: 1600,
+    });
+    expect(config.client.invoices.createPreview).toHaveBeenCalledWith({
+      customer: 'cus_123',
+      subscription: 'sub_annual',
+      subscription_details: {
+        billing_cycle_anchor: 'now',
+        cancel_at_period_end: false,
+        items: [
+          {
+            id: 'si_annual',
+            price: 'price_monthly',
+            quantity: 1,
+          },
+        ],
+        proration_behavior: 'always_invoice',
+        proration_date: 1_900_000_000,
+      },
     });
   });
 
@@ -445,6 +519,69 @@ describe('Stripe billing service', () => {
     expect(config.client.subscriptions.update).toHaveBeenCalledWith('sub_annual', {
       default_payment_method: 'pm_card_456',
     });
+  });
+
+  it('refuses to remove the saved card while renewal is still active', async () => {
+    const config = stripeConfig() as {
+      client: {
+        paymentMethods: { detach: ReturnType<typeof vi.fn> };
+        subscriptions: { list: ReturnType<typeof vi.fn> };
+      };
+    };
+    const subscription = stripeSubscription({ id: 'sub_annual', status: 'active' });
+    config.client.subscriptions.list.mockResolvedValue({ data: [subscription] });
+    mocks.getStripeBillingConfig.mockReturnValue(config);
+    const { removeStripePaymentMethod } = await import('@/server/billing/stripe-service');
+
+    await expect(removeStripePaymentMethod('user-1')).rejects.toMatchObject({
+      status: 409,
+      code: 'billing_card_required_for_active_subscription',
+    } satisfies Partial<BillingError>);
+    expect(config.client.paymentMethods.detach).not.toHaveBeenCalled();
+  });
+
+  it('detaches the saved Stripe card after renewal is off', async () => {
+    const config = stripeConfig() as {
+      client: {
+        customers: { update: ReturnType<typeof vi.fn> };
+        paymentMethods: {
+          detach: ReturnType<typeof vi.fn>;
+          retrieve: ReturnType<typeof vi.fn>;
+        };
+        subscriptions: {
+          list: ReturnType<typeof vi.fn>;
+          update: ReturnType<typeof vi.fn>;
+        };
+      };
+    };
+    const subscription = stripeSubscription({
+      id: 'sub_annual',
+      status: 'active',
+      cancelAtPeriodEnd: true,
+    });
+    Object.assign(subscription, { default_payment_method: 'pm_card_456' });
+    config.client.subscriptions.list.mockResolvedValue({ data: [subscription] });
+    config.client.paymentMethods.retrieve.mockResolvedValue({
+      id: 'pm_card_456',
+      customer: 'cus_123',
+      type: 'card',
+      card: { brand: 'visa', last4: '4242', exp_month: 8, exp_year: 2030 },
+    });
+    config.client.subscriptions.update.mockResolvedValue(subscription);
+    config.client.paymentMethods.detach.mockResolvedValue({ id: 'pm_card_456', deleted: false });
+    mocks.getStripeBillingConfig.mockReturnValue(config);
+    const { removeStripePaymentMethod } = await import('@/server/billing/stripe-service');
+
+    await expect(removeStripePaymentMethod('user-1')).resolves.toMatchObject({
+      paymentMethod: null,
+    });
+    expect(config.client.subscriptions.update).toHaveBeenCalledWith('sub_annual', {
+      default_payment_method: '',
+    });
+    expect(config.client.customers.update).toHaveBeenCalledWith('cus_123', {
+      invoice_settings: { default_payment_method: '' },
+    });
+    expect(config.client.paymentMethods.detach).toHaveBeenCalledWith('pm_card_456');
   });
 
   it('turns renewal off through the authenticated subscription manager', async () => {

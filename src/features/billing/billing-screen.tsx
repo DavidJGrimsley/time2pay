@@ -6,6 +6,7 @@ import { InlineNotice } from '@/components/inline-notice';
 import { CosmosLoadingAnimation } from '@/components/UI/Loading';
 import type {
   BillingSubscriptionAction,
+  BillingSubscriptionPlanSwitchPreview,
   BillingSubscriptionSummary,
   HostedAccessResult,
   HostedOffer,
@@ -20,6 +21,8 @@ import {
   createHostedCheckout,
   getBillingSubscription,
   getHostedBillingStatus,
+  previewBillingSubscriptionPlanSwitch,
+  removeBillingPaymentMethod,
   syncHostedBilling,
   updateBillingPaymentMethod,
   updateBillingSubscription,
@@ -181,6 +184,7 @@ export function BillingScreen({ variant }: BillingScreenProps) {
   const [paymentMethodSetupClientSecret, setPaymentMethodSetupClientSecret] = useState<string | null>(null);
   const [isPreparingPaymentMethod, setIsPreparingPaymentMethod] = useState(false);
   const [isSavingPaymentMethod, setIsSavingPaymentMethod] = useState(false);
+  const [isRemovingPaymentMethod, setIsRemovingPaymentMethod] = useState(false);
   const [isPlansPanelVisible, setIsPlansPanelVisible] = useState(true);
   const [isCheckoutPanelVisible, setIsCheckoutPanelVisible] = useState(false);
   const [isPurchaseFlowTransitioning, setIsPurchaseFlowTransitioning] = useState(false);
@@ -188,6 +192,10 @@ export function BillingScreen({ variant }: BillingScreenProps) {
   const [busySubscriptionAction, setBusySubscriptionAction] =
     useState<BillingSubscriptionAction | null>(null);
   const [busySubscriptionPlan, setBusySubscriptionPlan] = useState<HostedPlan | null>(null);
+  const [planSwitchPreview, setPlanSwitchPreview] =
+    useState<BillingSubscriptionPlanSwitchPreview | null>(null);
+  const [previewingSubscriptionPlan, setPreviewingSubscriptionPlan] =
+    useState<HostedPlan | null>(null);
   const [error, setError] = useState<string | null>(null);
   const syncedCheckoutSession = useRef<string | null>(null);
   const activeAccessRequest = useRef<AbortController | null>(null);
@@ -218,6 +226,7 @@ export function BillingScreen({ variant }: BillingScreenProps) {
       setAccess(null);
       setReferral(null);
       setSubscription(null);
+      setPlanSwitchPreview(null);
       setIsLoading(false);
       setIsRefreshing(false);
       return;
@@ -260,6 +269,7 @@ export function BillingScreen({ variant }: BillingScreenProps) {
           setAccess(nextAccess);
           setReferral(nextReferral);
           setSubscription(nextSubscription);
+          setPlanSwitchPreview(null);
         }
       })
       .catch((loadError: unknown) => {
@@ -364,7 +374,9 @@ export function BillingScreen({ variant }: BillingScreenProps) {
     setBusySubscriptionAction(action);
     setError(null);
     try {
-      setSubscription(await updateBillingSubscription(action));
+      const nextSubscription = await updateBillingSubscription(action);
+      setSubscription(nextSubscription);
+      setPlanSwitchPreview(null);
     } catch (subscriptionError) {
       setError(formatError(subscriptionError));
     } finally {
@@ -372,11 +384,26 @@ export function BillingScreen({ variant }: BillingScreenProps) {
     }
   }
 
-  async function changeSubscriptionPlan(plan: HostedPlan): Promise<void> {
+  async function previewSubscriptionPlanChange(plan: HostedPlan): Promise<void> {
+    setPreviewingSubscriptionPlan(plan);
+    setPlanSwitchPreview(null);
+    setError(null);
+    try {
+      setPlanSwitchPreview(await previewBillingSubscriptionPlanSwitch(plan));
+    } catch (subscriptionError) {
+      setError(formatError(subscriptionError));
+    } finally {
+      setPreviewingSubscriptionPlan(null);
+    }
+  }
+
+  async function changeSubscriptionPlan(plan: HostedPlan, prorationDate?: number): Promise<void> {
     setBusySubscriptionPlan(plan);
     setError(null);
     try {
-      setSubscription(await switchBillingSubscriptionPlan(plan));
+      const nextSubscription = await switchBillingSubscriptionPlan(plan, prorationDate);
+      setSubscription(nextSubscription);
+      setPlanSwitchPreview(null);
     } catch (subscriptionError) {
       setError(formatError(subscriptionError));
     } finally {
@@ -413,6 +440,18 @@ export function BillingScreen({ variant }: BillingScreenProps) {
       throw paymentMethodError;
     } finally {
       setIsSavingPaymentMethod(false);
+    }
+  }
+
+  async function removePaymentMethod(): Promise<void> {
+    setIsRemovingPaymentMethod(true);
+    setError(null);
+    try {
+      setSubscription(await removeBillingPaymentMethod());
+    } catch (paymentMethodError) {
+      setError(formatError(paymentMethodError));
+    } finally {
+      setIsRemovingPaymentMethod(false);
     }
   }
 
@@ -495,15 +534,24 @@ export function BillingScreen({ variant }: BillingScreenProps) {
           subscription={subscription}
           busyAction={busySubscriptionAction}
           busyPlan={busySubscriptionPlan}
+          planSwitchPreview={planSwitchPreview}
+          isPreviewingPlanChange={previewingSubscriptionPlan !== null}
           isPaymentMethodBusy={isPreparingPaymentMethod || isSavingPaymentMethod}
+          isRemovingPaymentMethod={isRemovingPaymentMethod}
           onAction={(action) => {
             manageSubscription(action).catch(() => undefined);
           }}
-          onChangePlan={(plan) => {
-            changeSubscriptionPlan(plan).catch(() => undefined);
+          onPreviewPlanChange={(plan) => {
+            previewSubscriptionPlanChange(plan).catch(() => undefined);
+          }}
+          onChangePlan={(plan, prorationDate) => {
+            changeSubscriptionPlan(plan, prorationDate).catch(() => undefined);
           }}
           onChangePaymentMethod={() => {
             startPaymentMethodUpdate().catch(() => undefined);
+          }}
+          onRemovePaymentMethod={() => {
+            removePaymentMethod().catch(() => undefined);
           }}
         />
       ) : null}

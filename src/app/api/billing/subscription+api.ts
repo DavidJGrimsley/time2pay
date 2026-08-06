@@ -14,6 +14,7 @@ const subscriptionActionSchema = z.discriminatedUnion('action', [
     .object({
       action: z.literal('switch_plan'),
       plan: z.enum(HOSTED_PLANS),
+      prorationDate: z.number().int().positive().optional(),
     })
     .strict(),
 ]);

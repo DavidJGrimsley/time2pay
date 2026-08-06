@@ -17,6 +17,7 @@ import {
 import type {
   BillingPaymentMethodSummary,
   BillingSubscriptionManagementRequest,
+  BillingSubscriptionPlanSwitchPreview,
   BillingSubscriptionStatus,
   BillingSubscriptionSummary,
   HostedAccessResult,
@@ -138,6 +139,82 @@ function managedSubscriptionItem(
   }
 
   return item;
+}
+
+function prorationTimestampForSubscriptionItem(item: Stripe.SubscriptionItem): number {
+  const now = Math.floor(Date.now() / 1000);
+  const periodStart = item.current_period_start;
+  const periodEnd = item.current_period_end;
+
+  if (
+    typeof periodStart !== 'number' ||
+    typeof periodEnd !== 'number' ||
+    periodEnd <= periodStart
+  ) {
+    return now;
+  }
+
+  if (now < periodStart) {
+    return periodStart;
+  }
+
+  if (now >= periodEnd) {
+    return periodEnd - 1;
+  }
+
+  return now;
+}
+
+function planSwitchSubscriptionItems(
+  config: StripeBillingConfig,
+  subscription: Stripe.Subscription,
+  targetPlan: HostedPlan,
+): Stripe.SubscriptionUpdateParams.Item[] {
+  const currentItem = managedSubscriptionItem(config, subscription);
+  return [
+    {
+      id: currentItem.id,
+      price: priceIdForHostedPlan(config, targetPlan),
+      quantity: currentItem.quantity ?? 1,
+    },
+  ];
+}
+
+function isInvoiceProrationLine(line: Stripe.InvoiceLineItem): boolean {
+  return (
+    line.parent?.subscription_item_details?.proration === true ||
+    line.parent?.invoice_item_details?.proration === true
+  );
+}
+
+function buildPlanSwitchPreview(
+  config: StripeBillingConfig,
+  subscription: Stripe.Subscription,
+  targetPlan: HostedPlan,
+  invoice: Stripe.Invoice,
+  prorationDate: number,
+): BillingSubscriptionPlanSwitchPreview {
+  const currentPlan = planForStripePrice(config, managedSubscriptionItem(config, subscription).price.id);
+  const prorationLines = invoice.lines.data.filter(isInvoiceProrationLine);
+  const proratedCreditCents = prorationLines.reduce(
+    (total, line) => (line.amount < 0 ? total + Math.abs(line.amount) : total),
+    0,
+  );
+  const immediateChargeCents = invoice.lines.data.reduce(
+    (total, line) => (line.amount > 0 ? total + line.amount : total),
+    0,
+  );
+
+  return {
+    currentPlan,
+    targetPlan,
+    currency: invoice.currency ?? 'usd',
+    prorationDate,
+    proratedCreditCents,
+    immediateChargeCents,
+    amountDueNowCents: Math.max(0, invoice.amount_due ?? 0),
+    futureCreditCents: Math.max(0, -(invoice.total ?? 0)),
+  };
 }
 
 function subscriptionTerms(
@@ -640,6 +717,44 @@ export async function getStripeSubscriptionManagement(
   return subscription ? stripeSubscriptionSummary(config, customer.providerCustomerId, subscription) : null;
 }
 
+export async function previewStripeSubscriptionPlanSwitch(
+  authUserId: string,
+  targetPlan: HostedPlan,
+): Promise<BillingSubscriptionPlanSwitchPreview> {
+  const config = getStripeBillingConfig();
+  const { providerCustomerId, subscription } = await manageableStripeSubscriptionForUser(config, authUserId);
+  const currentItem = managedSubscriptionItem(config, subscription);
+  const currentPlan = planForStripePrice(config, currentItem.price.id);
+  const prorationDate = prorationTimestampForSubscriptionItem(currentItem);
+
+  if (currentPlan === targetPlan) {
+    return {
+      currentPlan,
+      targetPlan,
+      currency: currentItem.price.currency ?? 'usd',
+      prorationDate,
+      proratedCreditCents: 0,
+      immediateChargeCents: 0,
+      amountDueNowCents: 0,
+      futureCreditCents: 0,
+    };
+  }
+
+  const invoice = await config.client.invoices.createPreview({
+    customer: providerCustomerId,
+    subscription: subscription.id,
+    subscription_details: {
+      billing_cycle_anchor: 'now',
+      cancel_at_period_end: false,
+      items: planSwitchSubscriptionItems(config, subscription, targetPlan),
+      proration_behavior: 'always_invoice',
+      proration_date: prorationDate,
+    },
+  });
+
+  return buildPlanSwitchPreview(config, subscription, targetPlan, invoice, prorationDate);
+}
+
 export async function updateStripeSubscriptionManagement(
   authUserId: string,
   request: BillingSubscriptionManagementRequest,
@@ -690,14 +805,9 @@ export async function updateStripeSubscriptionManagement(
     updated = await config.client.subscriptions.update(subscription.id, {
       ...baseUpdate,
       billing_cycle_anchor: 'now',
-      items: [
-        {
-          id: currentItem.id,
-          price: priceIdForHostedPlan(config, request.plan),
-          quantity: currentItem.quantity ?? 1,
-        },
-      ],
+      items: planSwitchSubscriptionItems(config, subscription, request.plan),
       proration_behavior: 'always_invoice',
+      proration_date: request.prorationDate ?? prorationTimestampForSubscriptionItem(currentItem),
     });
   }
 
@@ -776,6 +886,52 @@ export async function updateStripePaymentMethod(
     default_payment_method: paymentMethodId,
   });
   return stripeSubscriptionSummary(config, providerCustomerId, updatedSubscription, paymentMethod);
+}
+
+export async function removeStripePaymentMethod(
+  authUserId: string,
+): Promise<BillingSubscriptionSummary> {
+  const config = getStripeBillingConfig();
+  const { providerCustomerId, subscription } = await manageableStripeSubscriptionForUser(config, authUserId);
+  const requiresRenewalPayment =
+    subscription.status === 'active' ||
+    subscription.status === 'trialing' ||
+    subscription.status === 'past_due';
+
+  if (requiresRenewalPayment && !subscription.cancel_at_period_end) {
+    throw new BillingError(
+      409,
+      'billing_card_required_for_active_subscription',
+      'Turn off renewal before removing the saved payment method.',
+    );
+  }
+
+  const paymentMethod = await defaultPaymentMethodForSubscription(
+    config,
+    providerCustomerId,
+    subscription,
+  );
+  if (!paymentMethod) {
+    return stripeSubscriptionSummary(config, providerCustomerId, subscription, null);
+  }
+
+  const paymentMethodCustomerId = stripeId(paymentMethod.customer);
+  if (paymentMethodCustomerId !== providerCustomerId || paymentMethod.type !== 'card') {
+    throw new BillingError(
+      403,
+      'billing_payment_method_ineligible',
+      'The payment method does not belong to this billing account.',
+    );
+  }
+
+  const updatedSubscription = await config.client.subscriptions.update(subscription.id, {
+    default_payment_method: '',
+  });
+  await config.client.customers.update(providerCustomerId, {
+    invoice_settings: { default_payment_method: '' },
+  });
+  await config.client.paymentMethods.detach(paymentMethod.id);
+  return stripeSubscriptionSummary(config, providerCustomerId, updatedSubscription, null);
 }
 
 async function syncStripeLifetimeCheckout(

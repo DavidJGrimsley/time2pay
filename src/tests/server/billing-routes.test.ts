@@ -6,6 +6,8 @@ const mocks = vi.hoisted(() => ({
   createStripeCheckoutSession: vi.fn(),
   createStripePaymentMethodSetup: vi.fn(),
   getStripeSubscriptionManagement: vi.fn(),
+  previewStripeSubscriptionPlanSwitch: vi.fn(),
+  removeStripePaymentMethod: vi.fn(),
   updateStripePaymentMethod: vi.fn(),
   updateStripeSubscriptionManagement: vi.fn(),
   syncStripeBillingForUser: vi.fn(),
@@ -24,6 +26,8 @@ vi.mock('@/server/billing/stripe-service', () => ({
   createStripeCheckoutSession: mocks.createStripeCheckoutSession,
   createStripePaymentMethodSetup: mocks.createStripePaymentMethodSetup,
   getStripeSubscriptionManagement: mocks.getStripeSubscriptionManagement,
+  previewStripeSubscriptionPlanSwitch: mocks.previewStripeSubscriptionPlanSwitch,
+  removeStripePaymentMethod: mocks.removeStripePaymentMethod,
   updateStripePaymentMethod: mocks.updateStripePaymentMethod,
   updateStripeSubscriptionManagement: mocks.updateStripeSubscriptionManagement,
   syncStripeBillingForUser: mocks.syncStripeBillingForUser,
@@ -151,6 +155,30 @@ describe('billing API routes', () => {
     });
   });
 
+  it('previews a Stripe-prorated plan switch before updating the subscription', async () => {
+    mocks.previewStripeSubscriptionPlanSwitch.mockResolvedValue({
+      currentPlan: 'annual',
+      targetPlan: 'monthly',
+      currency: 'usd',
+      prorationDate: 1_900_000_000,
+      proratedCreditCents: 1800,
+      immediateChargeCents: 200,
+      amountDueNowCents: 0,
+      futureCreditCents: 1600,
+    });
+    const { POST } = await import('@/app/api/billing/subscription-preview+api');
+    const response = await POST(
+      authenticatedRequest('/api/billing/subscription-preview', { plan: 'monthly' }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.previewStripeSubscriptionPlanSwitch).toHaveBeenCalledWith('user-1', 'monthly');
+    await expect(response.json()).resolves.toMatchObject({
+      targetPlan: 'monthly',
+      futureCreditCents: 1600,
+    });
+  });
+
   it('creates an authenticated payment-method SetupIntent', async () => {
     mocks.createStripePaymentMethodSetup.mockResolvedValue({ clientSecret: 'seti_secret_123' });
     const { POST } = await import('@/app/api/billing/payment-method+api');
@@ -183,6 +211,24 @@ describe('billing API routes', () => {
 
     expect(response.status).toBe(200);
     expect(mocks.updateStripePaymentMethod).toHaveBeenCalledWith('user-1', 'pm_card_123');
+  });
+
+  it('routes saved-card removal through the Stripe detach service', async () => {
+    mocks.removeStripePaymentMethod.mockResolvedValue({
+      plan: 'annual',
+      status: 'active',
+      currentPeriodEnd: '2033-05-18T03:33:20.000Z',
+      cancelAtPeriodEnd: true,
+      paymentMethod: null,
+    });
+    const { POST } = await import('@/app/api/billing/payment-method+api');
+
+    const response = await POST(
+      authenticatedRequest('/api/billing/payment-method', { action: 'remove_card' }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.removeStripePaymentMethod).toHaveBeenCalledWith('user-1');
   });
 
   it('passes an unparsed raw body and Stripe signature to webhook verification', async () => {

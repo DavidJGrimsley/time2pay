@@ -1,5 +1,6 @@
 import type {
   BillingSubscriptionAction,
+  BillingSubscriptionPlanSwitchPreview,
   BillingSubscriptionSummary,
   HostedAccessResult,
   HostedOffer,
@@ -113,13 +114,24 @@ export function updateBillingSubscription(
   });
 }
 
+export function previewBillingSubscriptionPlanSwitch(
+  plan: HostedPlan,
+): Promise<BillingSubscriptionPlanSwitchPreview> {
+  return billingRequest<BillingSubscriptionPlanSwitchPreview>('/api/billing/subscription-preview', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ plan }),
+  });
+}
+
 export function switchBillingSubscriptionPlan(
   plan: HostedPlan,
+  prorationDate?: number,
 ): Promise<BillingSubscriptionSummary> {
   return billingRequest<BillingSubscriptionSummary>('/api/billing/subscription', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'switch_plan', plan }),
+    body: JSON.stringify({ action: 'switch_plan', plan, prorationDate }),
   });
 }
 
@@ -136,6 +148,14 @@ export function updateBillingPaymentMethod(paymentMethodId: string): Promise<Bil
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'set_default', paymentMethodId }),
+  });
+}
+
+export function removeBillingPaymentMethod(): Promise<BillingSubscriptionSummary> {
+  return billingRequest<BillingSubscriptionSummary>('/api/billing/payment-method', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'remove_card' }),
   });
 }
 

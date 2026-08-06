@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => ({
   getBillingSubscription: vi.fn(),
   updateBillingPaymentMethod: vi.fn(),
   updateBillingSubscription: vi.fn(),
+  previewBillingSubscriptionPlanSwitch: vi.fn(),
+  removeBillingPaymentMethod: vi.fn(),
   switchBillingSubscriptionPlan: vi.fn(),
   getMercuryReferralStatus: vi.fn(),
 }));
@@ -83,6 +85,8 @@ vi.mock('@/services/billing', () => ({
   createBillingPaymentMethodSetup: mocks.createBillingPaymentMethodSetup,
   getBillingSubscription: mocks.getBillingSubscription,
   getHostedBillingStatus: mocks.getHostedBillingStatus,
+  previewBillingSubscriptionPlanSwitch: mocks.previewBillingSubscriptionPlanSwitch,
+  removeBillingPaymentMethod: mocks.removeBillingPaymentMethod,
   syncHostedBilling: mocks.syncHostedBilling,
   updateBillingPaymentMethod: mocks.updateBillingPaymentMethod,
   updateBillingSubscription: mocks.updateBillingSubscription,
@@ -119,6 +123,23 @@ describe('BillingScreen checkout sync', () => {
     mocks.getHostedBillingStatus.mockResolvedValue(activeAccess);
     mocks.syncHostedBilling.mockResolvedValue(activeAccess);
     mocks.createHostedCheckout.mockResolvedValue({ clientSecret: 'cs_test_secret_123' });
+    mocks.previewBillingSubscriptionPlanSwitch.mockResolvedValue({
+      currentPlan: 'annual',
+      targetPlan: 'monthly',
+      currency: 'usd',
+      prorationDate: 1_900_000_000,
+      proratedCreditCents: 1800,
+      immediateChargeCents: 200,
+      amountDueNowCents: 0,
+      futureCreditCents: 1600,
+    });
+    mocks.removeBillingPaymentMethod.mockResolvedValue({
+      plan: 'annual',
+      status: 'active',
+      currentPeriodEnd: '2033-05-18T03:33:20.000Z',
+      cancelAtPeriodEnd: true,
+      paymentMethod: null,
+    });
     mocks.getBillingSubscription.mockResolvedValue({
       plan: 'annual',
       status: 'active',
@@ -235,6 +256,57 @@ describe('BillingScreen checkout sync', () => {
     expect(mocks.createBillingPaymentMethodSetup).toHaveBeenCalledTimes(1);
   });
 
+  it('lets a canceled-renewal subscriber remove a saved Stripe card', async () => {
+    mocks.getBillingSubscription.mockResolvedValue({
+      plan: 'annual',
+      status: 'active',
+      currentPeriodEnd: '2033-05-18T03:33:20.000Z',
+      cancelAtPeriodEnd: true,
+      paymentMethod: { brand: 'visa', last4: '4242', expMonth: 8, expYear: 2030 },
+    });
+    const { BillingScreen } = await import('@/features/billing/billing-screen');
+    let instance!: renderer.ReactTestRenderer;
+
+    await renderer.act(async () => {
+      instance = renderer.create(<BillingScreen variant="settings" />);
+    });
+
+    const removeButton = instance.root.find(
+      (node: renderer.ReactTestInstance) =>
+        String(node.type) === 'Pressable' &&
+        node.findAll(
+          (child: renderer.ReactTestInstance) =>
+            String(child.type) === 'Text' && child.props.children === 'Remove card',
+        ).length > 0,
+    );
+
+    await renderer.act(async () => {
+      removeButton.props.onPress();
+    });
+
+    expect(
+      instance.root.find(
+        (node: renderer.ReactTestInstance) =>
+          String(node.type) === 'Text' && node.props.children === 'Remove saved card?',
+      ),
+    ).toBeTruthy();
+
+    const confirmRemoveButton = instance.root.find(
+      (node: renderer.ReactTestInstance) =>
+        String(node.type) === 'Pressable' &&
+        node.findAll(
+          (child: renderer.ReactTestInstance) =>
+            String(child.type) === 'Text' && child.props.children === 'Remove card',
+        ).length > 0,
+    );
+
+    await renderer.act(async () => {
+      confirmRemoveButton.props.onPress();
+    });
+
+    expect(mocks.removeBillingPaymentMethod).toHaveBeenCalledTimes(1);
+  });
+
   it('lets the user switch plans inline and hides the billing profile shortcut', async () => {
     mocks.getBillingSubscription.mockResolvedValue({
       plan: 'annual',
@@ -277,6 +349,18 @@ describe('BillingScreen checkout sync', () => {
       changePlanButton.props.onPress();
     });
 
+    expect(mocks.previewBillingSubscriptionPlanSwitch).toHaveBeenCalledWith('monthly');
+    await renderer.act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(
+      instance.root.find(
+        (node: renderer.ReactTestInstance) =>
+          String(node.type) === 'Text' && node.props.children === 'Estimated due today',
+      ),
+    ).toBeTruthy();
+
     const confirmSwitchButton = instance.root.find(
       (node: renderer.ReactTestInstance) =>
         String(node.type) === 'Pressable' &&
@@ -290,7 +374,7 @@ describe('BillingScreen checkout sync', () => {
       confirmSwitchButton.props.onPress();
     });
 
-    expect(mocks.switchBillingSubscriptionPlan).toHaveBeenCalledWith('monthly');
+    expect(mocks.switchBillingSubscriptionPlan).toHaveBeenCalledWith('monthly', 1_900_000_000);
   });
 
   it('starts checkout with the current dark-mode theme after the plans panel fades away', async () => {
