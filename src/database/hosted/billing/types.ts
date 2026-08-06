@@ -67,7 +67,7 @@ export type BillingSubscriptionAction = (typeof BILLING_SUBSCRIPTION_ACTIONS)[nu
 export type BillingSubscriptionManagementRequest =
   | { action: 'cancel_at_period_end' }
   | { action: 'resume' }
-  | { action: 'switch_plan'; plan: HostedPlan; prorationDate?: number };
+  | { action: 'switch_plan'; plan: HostedPlan };
 
 export type BillingSubscriptionPlanSwitchPreview = {
   currentPlan: HostedPlan;

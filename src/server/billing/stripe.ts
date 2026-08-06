@@ -5,7 +5,9 @@ import { BillingError } from '@/server/billing/errors';
 export type StripeBillingConfig = {
   client: Stripe;
   siteOrigin: string;
-  priceIds: Record<HostedOffer, string>;
+  priceIds: Record<Exclude<HostedOffer, 'mercury_lifetime'>, string> & {
+    mercury_lifetime: string | null;
+  };
   gracePeriodDays: number;
 };
 
@@ -75,7 +77,7 @@ export function getStripeBillingConfig(): StripeBillingConfig {
     priceIds: {
       annual: requiredEnvironmentValue('STRIPE_PRICE_HOSTED_ANNUAL'),
       monthly: requiredEnvironmentValue('STRIPE_PRICE_HOSTED_MONTHLY'),
-      mercury_lifetime: requiredEnvironmentValue('STRIPE_PRICE_MERCURY_LIFETIME'),
+      mercury_lifetime: process.env.STRIPE_PRICE_MERCURY_LIFETIME?.trim() || null,
     },
     gracePeriodDays: readGracePeriodDays(),
   };

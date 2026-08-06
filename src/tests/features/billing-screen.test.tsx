@@ -374,7 +374,7 @@ describe('BillingScreen checkout sync', () => {
       confirmSwitchButton.props.onPress();
     });
 
-    expect(mocks.switchBillingSubscriptionPlan).toHaveBeenCalledWith('monthly', 1_900_000_000);
+    expect(mocks.switchBillingSubscriptionPlan).toHaveBeenCalledWith('monthly');
   });
 
   it('starts checkout with the current dark-mode theme after the plans panel fades away', async () => {

@@ -121,6 +121,19 @@ function priceIdForHostedPlan(config: StripeBillingConfig, plan: HostedPlan): st
   return config.priceIds.monthly;
 }
 
+function priceIdForOffer(config: StripeBillingConfig, offer: HostedOffer): string {
+  const priceId = config.priceIds[offer];
+  if (priceId) {
+    return priceId;
+  }
+
+  throw new BillingError(
+    501,
+    'billing_offer_not_configured',
+    'This billing offer is not configured yet.',
+  );
+}
+
 function managedSubscriptionItem(
   config: StripeBillingConfig,
   subscription: Stripe.Subscription,
@@ -375,7 +388,8 @@ export async function createStripeCheckoutSession(
     return_url: embeddedCheckoutReturnUrl(config, requestUrl),
     customer: customerId,
     client_reference_id: authUserId,
-    line_items: [{ price: config.priceIds[offer], quantity: 1 }],
+    line_items: [{ price: priceIdForOffer(config, offer), quantity: 1 }],
+    payment_method_types: ['card'],
     branding_settings: TIME2PAY_CHECKOUT_BRANDING_BY_THEME[theme],
     metadata,
     ...(isLifetimePurchase
@@ -612,6 +626,18 @@ function subscriptionManagementRank(subscription: Stripe.Subscription): number {
   return 0;
 }
 
+function assertStripePlanSwitchEligible(subscription: Stripe.Subscription): void {
+  if (subscription.status === 'active' || subscription.status === 'trialing') {
+    return;
+  }
+
+  throw new BillingError(
+    409,
+    'billing_plan_switch_unavailable',
+    'Resolve the current subscription payment status before changing plans.',
+  );
+}
+
 function manageableStripeSubscription(
   config: StripeBillingConfig,
   subscriptions: Stripe.Subscription[],
@@ -723,6 +749,7 @@ export async function previewStripeSubscriptionPlanSwitch(
 ): Promise<BillingSubscriptionPlanSwitchPreview> {
   const config = getStripeBillingConfig();
   const { providerCustomerId, subscription } = await manageableStripeSubscriptionForUser(config, authUserId);
+  assertStripePlanSwitchEligible(subscription);
   const currentItem = managedSubscriptionItem(config, subscription);
   const currentPlan = planForStripePrice(config, currentItem.price.id);
   const prorationDate = prorationTimestampForSubscriptionItem(currentItem);
@@ -769,29 +796,10 @@ export async function updateStripeSubscriptionManagement(
   request: BillingSubscriptionManagementRequest,
 ): Promise<BillingSubscriptionSummary> {
   const config = getStripeBillingConfig();
-  const customer = await withWriteDb((db) =>
-    getBillingCustomerForUser(db, authUserId, 'stripe'),
-  );
-  if (!customer) {
-    throw new BillingError(
-      404,
-      'billing_subscription_missing',
-      'No Stripe subscription exists for this account.',
-    );
-  }
-
-  const subscriptions = await listStripeSubscriptionsForCustomer(
+  const { providerCustomerId, subscription } = await manageableStripeSubscriptionForUser(
     config,
-    customer.providerCustomerId,
+    authUserId,
   );
-  const subscription = manageableStripeSubscription(config, subscriptions);
-  if (!subscription || subscriptionManagementRank(subscription) === 0) {
-    throw new BillingError(
-      404,
-      'billing_subscription_missing',
-      'No manageable Stripe subscription exists for this account.',
-    );
-  }
 
   const baseUpdate = {
     cancel_at_period_end: false,
@@ -805,22 +813,43 @@ export async function updateStripeSubscriptionManagement(
   } else if (request.action === 'resume') {
     updated = await config.client.subscriptions.update(subscription.id, baseUpdate);
   } else {
+    assertStripePlanSwitchEligible(subscription);
     const currentItem = managedSubscriptionItem(config, subscription);
     const currentPlan = planForStripePrice(config, currentItem.price.id);
     if (currentPlan === request.plan) {
-      return stripeSubscriptionSummary(config, customer.providerCustomerId, subscription);
+      return stripeSubscriptionSummary(config, providerCustomerId, subscription);
     }
 
-    updated = await config.client.subscriptions.update(subscription.id, {
-      ...baseUpdate,
-      items: planSwitchSubscriptionItems(config, subscription, request.plan),
-      proration_behavior: 'always_invoice',
-      proration_date: request.prorationDate ?? prorationTimestampForSubscriptionItem(currentItem),
-    });
+    try {
+      updated = await config.client.subscriptions.update(subscription.id, {
+        ...baseUpdate,
+        items: planSwitchSubscriptionItems(config, subscription, request.plan),
+        payment_behavior: 'error_if_incomplete',
+        proration_behavior: 'always_invoice',
+        proration_date: prorationTimestampForSubscriptionItem(currentItem),
+      });
+    } catch (error) {
+      const statusCode =
+        error && typeof error === 'object' && 'statusCode' in error
+          ? Number((error as { statusCode?: unknown }).statusCode)
+          : null;
+      if (statusCode === 402) {
+        throw new BillingError(
+          402,
+          'billing_plan_switch_payment_failed',
+          'Stripe could not collect the prorated amount. Update the payment method and try again.',
+        );
+      }
+      throw new BillingError(
+        502,
+        'billing_plan_switch_failed',
+        'Stripe could not change this subscription plan. Please try again.',
+      );
+    }
   }
 
   await syncStripeSubscriptionFamily(config, updated, authUserId);
-  return stripeSubscriptionSummary(config, customer.providerCustomerId, updated);
+  return stripeSubscriptionSummary(config, providerCustomerId, updated);
 }
 
 async function manageableStripeSubscriptionForUser(
@@ -942,6 +971,33 @@ export async function removeStripePaymentMethod(
   return stripeSubscriptionSummary(config, providerCustomerId, updatedSubscription, null);
 }
 
+type StripeLifetimePaymentState = 'paid' | 'unpaid' | 'refunded' | 'disputed';
+
+async function stripeLifetimePaymentState(
+  config: StripeBillingConfig,
+  paymentIntentId: string,
+): Promise<StripeLifetimePaymentState> {
+  const paymentIntent = await config.client.paymentIntents.retrieve(paymentIntentId, {
+    expand: ['latest_charge'],
+  });
+  const latestCharge = paymentIntent.latest_charge;
+  const charge =
+    typeof latestCharge === 'string'
+      ? await config.client.charges.retrieve(latestCharge)
+      : latestCharge;
+
+  if (charge?.disputed) {
+    return 'disputed';
+  }
+  if (charge?.refunded || (charge?.amount_refunded ?? 0) > 0) {
+    return 'refunded';
+  }
+  if (paymentIntent.status !== 'succeeded' || !charge || charge.paid !== true) {
+    return 'unpaid';
+  }
+  return 'paid';
+}
+
 async function syncStripeLifetimeCheckout(
   config: StripeBillingConfig,
   session: Stripe.Checkout.Session,
@@ -962,7 +1018,7 @@ async function syncStripeLifetimeCheckout(
 
   const lineItems = await config.client.checkout.sessions.listLineItems(session.id, { limit: 1 });
   const priceId = lineItems.data[0]?.price?.id;
-  if (priceId !== config.priceIds.mercury_lifetime) {
+  if (priceId !== priceIdForOffer(config, 'mercury_lifetime')) {
     throw new BillingError(
       400,
       'unsupported_billing_price',
@@ -970,25 +1026,44 @@ async function syncStripeLifetimeCheckout(
     );
   }
 
+  const paymentState = await stripeLifetimePaymentState(config, transactionId);
+  if (paymentState === 'refunded' || paymentState === 'disputed') {
+    await updateStripeLifetimePurchaseStatus(
+      { payment_intent: transactionId },
+      paymentState,
+    );
+    return;
+  }
+  if (paymentState !== 'paid') {
+    return;
+  }
+
   await withWriteDb(async (db) => {
-    await upsertBillingPurchase(db, {
-      authUserId,
-      provider: 'stripe',
-      providerTransactionId: transactionId,
-      providerProductId: priceId,
-      purchaseType: 'lifetime',
-      amountCents: session.amount_total ?? 0,
-      currency: session.currency ?? 'usd',
-      status: 'completed',
-      purchasedAt: new Date(session.created * 1000),
-    });
-    await upsertAccessGrant(db, {
-      authUserId,
-      source: 'stripe_lifetime',
-      grantType: 'lifetime',
-      expiresAt: null,
-      sourceReferenceId: transactionId,
-      metadata: { offer: 'mercury_lifetime' },
+    await db.transaction(async (transaction) => {
+      const billingDb = transaction as unknown as typeof db;
+      const purchaseStatus = await upsertBillingPurchase(billingDb, {
+        authUserId,
+        provider: 'stripe',
+        providerTransactionId: transactionId,
+        providerProductId: priceId,
+        purchaseType: 'lifetime',
+        amountCents: session.amount_total ?? 0,
+        currency: session.currency ?? 'usd',
+        status: 'completed',
+        purchasedAt: new Date(session.created * 1000),
+      });
+      if (purchaseStatus !== 'completed') {
+        await revokeAccessGrant(billingDb, authUserId, 'stripe_lifetime', transactionId);
+        return;
+      }
+      await upsertAccessGrant(billingDb, {
+        authUserId,
+        source: 'stripe_lifetime',
+        grantType: 'lifetime',
+        expiresAt: null,
+        sourceReferenceId: transactionId,
+        metadata: { offer: 'mercury_lifetime' },
+      });
     });
   });
 }
@@ -1075,10 +1150,23 @@ async function updateStripeLifetimePurchaseStatus(
   }
 
   await withWriteDb(async (db) => {
-    const purchase = await updateBillingPurchaseStatus(db, 'stripe', transactionId, status);
-    if (purchase) {
-      await revokeAccessGrant(db, purchase.authUserId, 'stripe_lifetime');
-    }
+    await db.transaction(async (transaction) => {
+      const billingDb = transaction as unknown as typeof db;
+      const purchase = await updateBillingPurchaseStatus(
+        billingDb,
+        'stripe',
+        transactionId,
+        status,
+      );
+      if (purchase) {
+        await revokeAccessGrant(
+          billingDb,
+          purchase.authUserId,
+          'stripe_lifetime',
+          transactionId,
+        );
+      }
+    });
   });
 }
 

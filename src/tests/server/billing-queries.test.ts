@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   claimBillingWebhookEvent,
+  upsertBillingPurchase,
   upsertBillingCustomer,
 } from '@/database/hosted/billing/queries';
 
@@ -39,7 +40,7 @@ function sqlParameterValues(query: unknown): unknown[] {
 }
 
 describe('billing webhook event claims', () => {
-  it('reclaims failed events but leaves processed and in-flight duplicates untouched', async () => {
+  it('reclaims failed or stale events but leaves processed and fresh in-flight duplicates untouched', async () => {
     const execute = vi.fn().mockResolvedValue({ rows: [{ id: 'event-row' }] });
     const claimed = await claimBillingWebhookEvent(
       { execute } as never,
@@ -54,6 +55,8 @@ describe('billing webhook event claims', () => {
     const statement = sqlText(execute.mock.calls[0]?.[0]).replace(/\s+/g, ' ').toLowerCase();
     expect(statement).toContain('on conflict (provider, provider_event_id) do update');
     expect(statement).toContain("where billing_webhook_events.status = 'failed'");
+    expect(statement).toContain("billing_webhook_events.status = 'received'");
+    expect(statement).toContain('billing_webhook_events.updated_at <');
     expect(statement).toContain("status = 'received'");
   });
 });
@@ -88,5 +91,32 @@ describe('billing customer persistence', () => {
     expect(customerParams.filter((value) => typeof value === 'string')).toEqual(
       expect.arrayContaining([expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/)]),
     );
+  });
+});
+
+describe('billing purchase persistence', () => {
+  it('preserves terminal refund and dispute statuses during checkout replay', async () => {
+    const execute = vi.fn().mockResolvedValue({ rows: [{ status: 'refunded' }] });
+
+    await expect(
+      upsertBillingPurchase(
+        { execute } as never,
+        {
+          authUserId: '7f5c2be8-6963-432f-b84d-b81635cf0477',
+          provider: 'stripe',
+          providerTransactionId: 'pi_refunded',
+          providerProductId: 'price_lifetime',
+          purchaseType: 'lifetime',
+          amountCents: 2_000,
+          currency: 'usd',
+          status: 'completed',
+          purchasedAt: new Date('2026-01-01T00:00:00.000Z'),
+        },
+      ),
+    ).resolves.toBe('refunded');
+
+    const statement = sqlText(execute.mock.calls[0]?.[0]).replace(/\s+/g, ' ').toLowerCase();
+    expect(statement).toContain("billing_purchases.status in ('refunded', 'disputed')");
+    expect(statement).toContain('returning status');
   });
 });

@@ -268,9 +268,9 @@ export async function getBillingSubscriptionByProviderSubscription(
 export async function upsertBillingPurchase(
   db: HostedBillingDb,
   input: UpsertBillingPurchaseInput,
-): Promise<void> {
+): Promise<BillingPurchaseStatus> {
   const timestamp = new Date().toISOString();
-  await db.execute(sql`
+  const result = await db.execute(sql`
     insert into billing_purchases (
       auth_user_id,
       provider,
@@ -304,11 +304,26 @@ export async function upsertBillingPurchase(
       purchase_type = excluded.purchase_type,
       amount_cents = excluded.amount_cents,
       currency = excluded.currency,
-      status = excluded.status,
+      status = case
+        when billing_purchases.status in ('refunded', 'disputed')
+          then billing_purchases.status
+        else excluded.status
+      end,
       purchased_at = excluded.purchased_at,
-      refunded_at = excluded.refunded_at,
+      refunded_at = case
+        when billing_purchases.status in ('refunded', 'disputed')
+          then billing_purchases.refunded_at
+        else excluded.refunded_at
+      end,
       updated_at = excluded.updated_at
+    returning status
   `);
+
+  const status = rowsFromResult(result)[0]?.status;
+  if (typeof status !== 'string' || !['completed', 'pending', 'refunded', 'disputed'].includes(status)) {
+    throw new Error('Billing purchase upsert did not return a valid status.');
+  }
+  return status as BillingPurchaseStatus;
 }
 
 export async function getBillingPurchaseByProviderTransaction(
@@ -361,6 +376,7 @@ export async function claimBillingWebhookEvent(
   },
 ): Promise<boolean> {
   const timestamp = new Date().toISOString();
+  const staleLeaseCutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString();
   const result = await db.execute(sql`
     insert into billing_webhook_events (
       provider,
@@ -386,6 +402,10 @@ export async function claimBillingWebhookEvent(
       error_message = null,
       updated_at = excluded.updated_at
     where billing_webhook_events.status = 'failed'
+       or (
+         billing_webhook_events.status = 'received'
+         and billing_webhook_events.updated_at < ${staleLeaseCutoff}
+       )
     returning id
   `);
 
@@ -499,6 +519,7 @@ export async function revokeAccessGrant(
   db: HostedBillingDb,
   authUserId: string,
   source: AccessGrantSource,
+  sourceReferenceId?: string,
 ): Promise<void> {
   const timestamp = new Date().toISOString();
   await db.execute(sql`
@@ -511,6 +532,7 @@ export async function revokeAccessGrant(
       and entitlement_key = ${HOSTED_ENTITLEMENT_KEY}
       and status = 'active'
       and source = ${source}
+      and (${sourceReferenceId ?? null} is null or source_reference_id = ${sourceReferenceId ?? null})
   `);
 }
 

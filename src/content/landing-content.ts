@@ -34,7 +34,7 @@ export type LandingSection = {
 
 export const TIME2PAY_GITHUB_URL = 'https://github.com/DavidJGrimsley/time2pay';
 export const DAVID_GRIMSLEY_PORTFOLIO_URL = 'https://DavidJGrimsley.com';
-export const MERCURY_REFERRAL_URL = '/referral-status';
+export const MERCURY_REFERRAL_STATUS_PATH = '/referral-status';
 export const TIME2PAY_SOCIAL_IMAGE_PATH = '/images/time2payLogo.png';
 
 export const LANDING_SEO_TITLE =
@@ -122,7 +122,7 @@ export const mercuryCallout: LandingSection = {
     "Mercury contacts, account context, and payment workflows stay visible beside the invoice so you're not switching tabs to see where you stand.",
   ],
   ctas: [
-    { label: 'Mercury Reward — Coming Soon', href: MERCURY_REFERRAL_URL, kind: 'primary' },
+    { label: 'Mercury Reward — Coming Soon', href: MERCURY_REFERRAL_STATUS_PATH, kind: 'primary' },
     { label: 'Start Hosted for $2/month', href: '/profile', kind: 'primary' },
     { label: 'Self-Host for Free', href: TIME2PAY_GITHUB_URL, kind: 'secondary' },
   ],
@@ -161,7 +161,7 @@ export const pricingSection: LandingSection = {
   ],
   ctas: [
     { label: 'Start Hosted for $2/month', href: '/profile', kind: 'primary' },
-    { label: 'Mercury Reward — Coming Soon', href: MERCURY_REFERRAL_URL, kind: 'primary' },
+    { label: 'Mercury Reward — Coming Soon', href: MERCURY_REFERRAL_STATUS_PATH, kind: 'primary' },
     { label: 'Self-Host for Free', href: TIME2PAY_GITHUB_URL, kind: 'secondary' },
   ],
 };
@@ -171,7 +171,7 @@ export const pricingBullets: LandingBullet[] = [
     id: 'mercury-lifetime',
     title: 'Mercury reward coming soon',
     body: 'Referral attribution and qualification reporting are being connected with Mercury.',
-    cta: { label: 'See Referral Status', href: MERCURY_REFERRAL_URL, kind: 'primary' },
+    cta: { label: 'See Referral Status', href: MERCURY_REFERRAL_STATUS_PATH, kind: 'primary' },
   },
   {
     id: 'hosted',
@@ -194,7 +194,7 @@ export const ctaSection: LandingSection = {
   body: [],
   ctas: [
     { label: 'Start Hosted for $2/month', href: '/profile', kind: 'primary' },
-    { label: 'Mercury Reward — Coming Soon', href: MERCURY_REFERRAL_URL, kind: 'primary' },
+    { label: 'Mercury Reward — Coming Soon', href: MERCURY_REFERRAL_STATUS_PATH, kind: 'primary' },
     { label: 'Self-Host for Free', href: TIME2PAY_GITHUB_URL, kind: 'secondary' },
   ],
 };

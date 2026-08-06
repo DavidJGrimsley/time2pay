@@ -7,7 +7,7 @@ import type {
   HostedPlan,
 } from '@/database/hosted/billing/types';
 
-function titleCase(value: string): string {
+function formatWords(value: string): string {
   return value
     .split('_')
     .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
@@ -24,13 +24,6 @@ function formatDate(value: string): string {
     day: 'numeric',
     year: 'numeric',
   }).format(date);
-}
-
-function formatCardBrand(value: string): string {
-  return value
-    .split('_')
-    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
-    .join(' ');
 }
 
 function formatMoney(cents: number, currency: string): string {
@@ -74,7 +67,7 @@ export function SubscriptionManager({
   planSwitchPreview?: BillingSubscriptionPlanSwitchPreview | null;
   isPreviewingPlanChange?: boolean;
   onPreviewPlanChange?: (plan: HostedPlan) => void;
-  onChangePlan: (plan: HostedPlan, prorationDate?: number) => void;
+  onChangePlan: (plan: HostedPlan) => void;
   isPaymentMethodBusy?: boolean;
   isRemovingPaymentMethod?: boolean;
   onChangePaymentMethod?: () => void;
@@ -88,6 +81,7 @@ export function SubscriptionManager({
   const targetPlanLabel = targetPlan === 'annual' ? 'Annual - $20/year' : 'Monthly - $2/month';
   const activePreview =
     planSwitchPreview?.targetPlan === targetPlan ? planSwitchPreview : null;
+  const canSwitchPlan = subscription.status === 'active' || subscription.status === 'trialing';
   const canConfirmPlanSwitch = Boolean(activePreview) && !isPreviewingPlanChange;
   const canRemovePaymentMethod =
     Boolean(subscription.paymentMethod && onRemovePaymentMethod) && !isRenewingSubscription(subscription);
@@ -112,7 +106,7 @@ export function SubscriptionManager({
           <Text className="text-2xl font-bold text-heading">{currentPlanLabel}</Text>
         </View>
         <View className="rounded-full bg-success/15 px-3 py-1">
-          <Text className="text-xs font-bold text-success">{titleCase(subscription.status)}</Text>
+          <Text className="text-xs font-bold text-success">{formatWords(subscription.status)}</Text>
         </View>
       </View>
 
@@ -123,6 +117,7 @@ export function SubscriptionManager({
         <Text className="text-sm text-muted">{formatDate(subscription.currentPeriodEnd)}</Text>
       </View>
 
+      {canSwitchPlan ? (
       <View className="gap-3 rounded-lg border border-border bg-background p-3">
         <View className="gap-1">
           <Text className="text-sm font-semibold text-heading">Change plan</Text>
@@ -135,7 +130,8 @@ export function SubscriptionManager({
           <View className="gap-3 rounded-lg border border-secondary/30 bg-secondary/10 p-3">
             <Text className="font-semibold text-heading">Switch to {targetPlanLabel}?</Text>
             <Text className="text-sm text-muted">
-              Stripe will prorate this change immediately. Your renewal date will stay the same.
+              Stripe will prorate this change immediately. Because the billing interval changes,
+              your new renewal period starts when the switch succeeds.
             </Text>
             {isPreviewingPlanChange ? (
               <Text className="text-sm font-semibold text-heading">Calculating Stripe estimate...</Text>
@@ -190,7 +186,7 @@ export function SubscriptionManager({
               </Pressable>
               <Pressable
                 className="rounded-md bg-secondary px-4 py-2"
-                onPress={() => onChangePlan(targetPlan, activePreview?.prorationDate)}
+                onPress={() => onChangePlan(targetPlan)}
                 disabled={isBusy || !canConfirmPlanSwitch}
                 accessibilityRole="button"
               >
@@ -216,13 +212,14 @@ export function SubscriptionManager({
           </Pressable>
         )}
       </View>
+      ) : null}
 
       {subscription.paymentMethod ? (
         <View className="gap-3 rounded-lg border border-border bg-background p-3">
           <View className="gap-1">
             <Text className="text-sm font-semibold text-heading">Payment method</Text>
             <Text className="text-base font-bold text-heading">
-              {formatCardBrand(subscription.paymentMethod.brand)} ending in {subscription.paymentMethod.last4}
+              {formatWords(subscription.paymentMethod.brand)} ending in {subscription.paymentMethod.last4}
             </Text>
             <Text className="text-sm text-muted">
               Expires {String(subscription.paymentMethod.expMonth).padStart(2, '0')}/

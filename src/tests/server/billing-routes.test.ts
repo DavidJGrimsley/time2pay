@@ -155,6 +155,20 @@ describe('billing API routes', () => {
     });
   });
 
+  it('rejects a client-supplied proration timestamp', async () => {
+    const { POST } = await import('@/app/api/billing/subscription+api');
+    const response = await POST(
+      authenticatedRequest('/api/billing/subscription', {
+        action: 'switch_plan',
+        plan: 'monthly',
+        prorationDate: 1,
+      }),
+    );
+
+    expect(response.status).toBe(422);
+    expect(mocks.updateStripeSubscriptionManagement).not.toHaveBeenCalled();
+  });
+
   it('previews a Stripe-prorated plan switch before updating the subscription', async () => {
     mocks.previewStripeSubscriptionPlanSwitch.mockResolvedValue({
       currentPlan: 'annual',

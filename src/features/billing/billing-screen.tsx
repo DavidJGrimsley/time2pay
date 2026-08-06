@@ -397,11 +397,11 @@ export function BillingScreen({ variant }: BillingScreenProps) {
     }
   }
 
-  async function changeSubscriptionPlan(plan: HostedPlan, prorationDate?: number): Promise<void> {
+  async function changeSubscriptionPlan(plan: HostedPlan): Promise<void> {
     setBusySubscriptionPlan(plan);
     setError(null);
     try {
-      const nextSubscription = await switchBillingSubscriptionPlan(plan, prorationDate);
+      const nextSubscription = await switchBillingSubscriptionPlan(plan);
       setSubscription(nextSubscription);
       setPlanSwitchPreview(null);
     } catch (subscriptionError) {
@@ -544,8 +544,8 @@ export function BillingScreen({ variant }: BillingScreenProps) {
           onPreviewPlanChange={(plan) => {
             previewSubscriptionPlanChange(plan).catch(() => undefined);
           }}
-          onChangePlan={(plan, prorationDate) => {
-            changeSubscriptionPlan(plan, prorationDate).catch(() => undefined);
+          onChangePlan={(plan) => {
+            changeSubscriptionPlan(plan).catch(() => undefined);
           }}
           onChangePaymentMethod={() => {
             startPaymentMethodUpdate().catch(() => undefined);

@@ -13,7 +13,7 @@
 - [x] Harden Projects split layout so Milestones stays separated from Project Pricing controls even without error banners
 - [x] Deploy stabilization branch to temp domain and run hosted tour smoke pass
       > Verified: temp domain `lucid-lewin.108-175-12-95.plesk.page` and `time2pay.app` both serve build artifacts (`/__time2pay_build.json` returns 200 with valid JSON). Full in-browser tour walkthrough still requires manual confirmation.
-- [x] Confirm no `Invalid VFS state` / `createSyncAccessHandle` errors while navigating Dashboard/Sessions/Projects/Invoices/Profile in tour mode
+- [ ] Confirm no `Invalid VFS state` / `createSyncAccessHandle` errors while navigating Dashboard/Sessions/Projects/Invoices/Profile in tour mode
       > Awaiting browser session: code review confirms tour mode routes through in-memory provider (`src/database/tour/provider.ts`) — no SQLite handle path. Needs DevTools console check during a real tour walkthrough.
 
 ## Strict Env Contract + Tour/Auth UX Cleanup (2026-03-28)
@@ -36,7 +36,7 @@
 - [x] Bypass profile lock UI while user is in hosted tour mode
 - [x] Ensure landing profile CTAs route unauthenticated hosted users to `/sign-in` first
 - [x] Add startup diagnostics for hosted env mismatches (client + server logs)
-- [x] Run hosted smoke checks on staging domain after deploy (landing, sign-in, tour-first-click, profile gate)
+- [ ] Run hosted smoke checks on staging domain after deploy (landing, sign-in, tour-first-click, profile gate)
       > Awaiting browser session: HTTP smoke confirms both domains serve correctly. Interactive flows (tour-first-click, profile gate redirects) need a real browser session to verify end-to-end.
 
 ## Immediate Next Actions
@@ -141,16 +141,16 @@ Milestone Payments:
   - [x] Migration ledger baseline aligned and verified (`drizzle.__drizzle_migrations` count: `1`)
 - [x] Apply/verify RLS policies in Supabase SQL editor for all hosted tables (`auth_user_id = auth.uid()`)
       > Code-verified: all 10 hosted tables enforce `FORCE ROW LEVEL SECURITY` with `auth.uid() = auth_user_id` policies in `drizzle/migrations/0000_kind_black_tom.sql` (lines 247-405); hardening in `0003_security_lints.sql`. Live Supabase verification via MCP still pending user OAuth.
-- [x] Finalize Supabase dashboard callback URLs for localhost + `https://time2pay.app/dashboard`
+- [ ] Finalize Supabase dashboard callback URLs for localhost + `https://time2pay.app/dashboard`
       > Awaiting Supabase dashboard access: README documents required URLs but final dashboard configuration must be applied by user.
-- [x] Verify GitHub OAuth sign-in flow end-to-end post-migration (no loading loop, profile gate works)
+- [ ] Verify GitHub OAuth sign-in flow end-to-end post-migration (no loading loop, profile gate works)
       > Awaiting browser session: code paths verified in `src/services/supabase-client.ts` and `src/components/hosted-auth-gate.tsx`. End-to-end OAuth round-trip needs a real sign-in.
-- [x] Run two-user hosted smoke test to confirm row isolation across reads and writes
+- [ ] Run two-user hosted smoke test to confirm row isolation across reads and writes
       > Awaiting two test accounts: requires provisioning two distinct Supabase users and exercising read/write isolation manually (or scripting against the `/api/db/*` routes with two access tokens).
 - [x] Split local `legacy.ts` internals into domain `queries.ts` implementations (keep `db.ts` facade unchanged)
       > Already done: no `legacy.ts` exists; local DB is split into `src/database/local/{core,clients-projects,invoices,milestones,profile,sessions}/queries.ts` with `src/database/local/index.ts` as the facade.
 - [x] Removed deprecated `src/database/hosted/repository.ts` after route and query split validated
-- [x] Deploy single Node app (Expo Router server output + API routes) on VPS at `https://time2pay.app`
+- [ ] Deploy single Node app (Expo Router server output + API routes) on VPS at `https://time2pay.app`
       > Awaiting infra: needs SSH/Plesk access to provision the VPS app and DNS cutover. Currently deployed via Plesk Node hosting per `.github/workflows/ci.yml`.
 
 ## Business Model: OSS + Hosted SaaS
@@ -172,8 +172,8 @@ Milestone Payments:
       > Applied live through Drizzle migration `0005_handy_darwin`; verified via Supabase MCP with FORCE RLS and deny-all browser policies.
 - [x] Phase 0: Add central entitlement service at `src/server/billing/entitlements.ts` with `requireHostedAccess(authUserId)` enforcement for protected hosted API routes
       > Enforcement is rollout-gated by private `TIME2PAY_ENFORCE_HOSTED_ACCESS=true` so existing users are not locked out before grants and Stripe test configuration exist.
-- [x] Phase 0: Verify non-hosted safety gates (self-hosted unaffected, tour mode unaffected, export/delete still available without paid access)
-      > Shared write enforcement only activates in hosted mode with the private rollout switch; future export/delete routes can explicitly opt out of paid access enforcement.
+- [x] Phase 0: Verify non-hosted safety gates (self-hosted and tour mode unaffected; read-only export remains available without paid access)
+      > Shared write enforcement only activates in hosted mode with the private rollout switch. Normal delete mutations are protected writes; future account-deletion routes must explicitly opt out where policy requires access without a subscription.
 - [x] Phase 1: Build server-side Stripe integration and API routes (`/api/billing/status`, `/api/billing/checkout`, `/api/billing/subscription`, `/api/billing/sync`, `/api/webhooks/stripe`)
 - [x] Phase 1: Implement webhook idempotency + ordering safety and enforce raw body signature verification for Stripe webhooks
 - [x] Phase 1: Support hosted lifecycle transitions (active, past_due/grace, canceled-at-period-end, refunded/revoked)
@@ -188,6 +188,7 @@ Milestone Payments:
 - [ ] Create Stripe test products/prices and set the publishable key for embedded Checkout
 - [ ] Set server-only Stripe env vars and register the signed `/api/webhooks/stripe` endpoint in Stripe test mode
 - [ ] Run the complete Stripe test-mode matrix, including duplicates, out-of-order events, failed renewal grace, cancellation, refund, and dispute paths
+- [ ] Add per-user billing API rate limits and request idempotency keys before enabling live billing
 - [ ] Add the trusted Mercury partner/admin verification trigger that calls the server-only referral transition functions
 - [ ] Choose/configure ordinary analytics for billing and referral event collection
 - [ ] Publish pricing, refund, and Mercury qualification terms
@@ -224,7 +225,8 @@ Milestone Payments:
 ## Other Cleanup random TODOs
 - [ ] Mercury Invoicing should not be visible unless the user has mercury ar api unlocked (by having a plus or greater plan) I thought I implemented this before, we should check the functionality before we show the invoice by checking their api key
 - [ ] Our navigation bar should live in our tabs _layout file and not individual files
-- [ ] Add onboarding flow
+- [ ] Add onboarding flow with a paywall/sign up for a subscription at the end of signing up for the app
+      > The real paywall must gate navigation and server/database writes, keep billing/export/sign-out/account deletion reachable, and consistently gate state-changing Mercury actions.
 - [ ] Add user settings page with profile management, billing info, and app preferences
 - [ ] Add analytics tracking for user behavior, feature usage, and conversion funnels (e.g., referral sign-ups, invoice creation)
 - [ ] Add error monitoring and alerting for both client and server (e.g., Sentry)
@@ -234,6 +236,7 @@ Milestone Payments:
 - [ ] Fix mercury hosted mode bug (might only effect localhost) see temp md
 - [ ] Fix nav bar white background (replace with other nav bar?) see temp md. consider using vert tab bar from my portfolio which would need to be updated and published to npm first but would consequentially remove the issue.
 - [ ] Use expo ui, native tab bars, universal components and optimize for general mobile view and responsive design using android emulator and mobile web as testing target. Create separate layout files for mobile and web.
+- [ ] Fix the invoice pdf to total the milestones AND the attached sessions. Currently it only totals the milestones and not the attached sessions. This is a bug that needs to be fixed but there's also some ugliness witht the wording and overlaping and overal layout of the invoice pdf that needs to be cleaned up. The invoice pdf should be clean and professional looking but modern and friendly to read. The invoice building for milestone projects needs to be refined/revisited because currently it can be done in the projects and the invoices screen but I'm wondering if that's necessary and if one is better than the other.
 - [ ] Optimize for iOS using platform-specific UI patterns file extensions where necessary.
 - [ ] Publish to iOS app store
 - [ ] Optimize for Android using platform-specific UI patterns file extensions where necessary.

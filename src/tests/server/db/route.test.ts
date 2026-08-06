@@ -1,4 +1,5 @@
 import type { AddressInfo } from 'node:net';
+import express from 'express';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { handleDbWrite } from '@/server/db/_shared/route';
@@ -9,8 +10,6 @@ import {
 import { conflict, forbidden, notFound } from '@/server/db/_shared/errors';
 import { requireAuthUserId } from '@/server/db/_shared/auth';
 import { withWriteDb } from '@/server/db/_shared/db';
-
-const express = require('express') as any;
 
 vi.mock('@/server/db/_shared/auth', () => ({
   requireAuthUserId: vi.fn(),

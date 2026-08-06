@@ -47,7 +47,7 @@ Open `http://localhost:3000`.
 
 Set these in `.env`:
 
-- `MERCURY_API_KEY_ENCRYPTION_SECRET` (legacy backfill only): decrypts pre-Vault Mercury credential rows during `npm run mercury:backfill-vault`
+- `MERCURY_API_KEY_ENCRYPTION_SECRET` (legacy credential compatibility): decrypts pre-Vault Mercury credential rows at runtime and during `npm run mercury:backfill-vault`; remove it only after those rows are migrated
 - `MERCURY_SANDBOX_API_KEY` (required for tour mode Mercury flows): Mercury sandbox API key
 - `MERCURY_SANDBOX_BASE_URL` (required for tour mode Mercury flows): defaults to `https://api-sandbox.mercury.com/api/v1`
 - `GITHUB_CLIENT_SECRET` (optional): server-side GitHub OAuth app client secret
@@ -56,7 +56,7 @@ Set these in `.env`:
 - `STRIPE_SECRET_KEY` (required to enable Stripe billing): server-only Stripe secret key
 - `STRIPE_PRICE_HOSTED_ANNUAL` (required to enable Stripe billing): Stripe Price ID for the $20/year hosted plan
 - `STRIPE_PRICE_HOSTED_MONTHLY` (required to enable Stripe billing): Stripe Price ID for the $2/month hosted plan
-- `STRIPE_PRICE_MERCURY_LIFETIME` (required to enable Stripe billing): Stripe Price ID for the conditional $20 Mercury lifetime offer
+- `STRIPE_PRICE_MERCURY_LIFETIME` (optional until the Mercury offer launches): Stripe Price ID for the conditional $20 Mercury lifetime offer
 - `STRIPE_WEBHOOK_SECRET` (required for `/api/webhooks/stripe`): server-only signing secret for the configured Stripe webhook endpoint
 - `TIME2PAY_BILLING_GRACE_DAYS` (optional): server-only failed-payment grace period, `7` by default and limited to `0` through `31`
 - `TIME2PAY_ENFORCE_HOSTED_ACCESS` (optional): server-only `true` switch that enforces hosted write access after grants and billing configuration are ready; leave unset during rollout
@@ -99,8 +99,8 @@ Checkout is embedded directly on the Time2Pay billing page. Stripe still owns th
 
 Before turning on Stripe test mode:
 
-1. Create three Stripe prices: annual recurring ($20/year), monthly recurring ($2/month), and one-time Mercury lifetime ($20).
-2. Set `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `STRIPE_SECRET_KEY`, and the three corresponding `STRIPE_PRICE_*` IDs in the environment for the target deployment. The publishable and secret keys must both be from the same Stripe sandbox or live mode.
+1. Create the annual recurring ($20/year) and monthly recurring ($2/month) Stripe prices. Create the one-time Mercury lifetime ($20) price only when that coming-soon offer is ready to launch.
+2. Set `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `STRIPE_SECRET_KEY`, and the two recurring `STRIPE_PRICE_*` IDs in the environment for the target deployment. Add `STRIPE_PRICE_MERCURY_LIFETIME` only when enabling that offer. The publishable and secret keys must both be from the same Stripe sandbox or live mode.
 3. Register `https://<host>/api/webhooks/stripe`, copy its signing secret to `STRIPE_WEBHOOK_SECRET`, and subscribe to `checkout.session.completed`, `invoice.paid`, `invoice.payment_failed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `charge.refunded`, and `charge.dispute.created`.
 4. Run Stripe test-mode embedded checkout, renewal, failed-payment, on-page cancellation/resume, refund, duplicate-event, and out-of-order-event checks before enabling `TIME2PAY_ENFORCE_HOSTED_ACCESS=true`.
 

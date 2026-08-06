@@ -126,12 +126,11 @@ export function previewBillingSubscriptionPlanSwitch(
 
 export function switchBillingSubscriptionPlan(
   plan: HostedPlan,
-  prorationDate?: number,
 ): Promise<BillingSubscriptionSummary> {
   return billingRequest<BillingSubscriptionSummary>('/api/billing/subscription', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'switch_plan', plan, prorationDate }),
+    body: JSON.stringify({ action: 'switch_plan', plan }),
   });
 }
 

@@ -51,7 +51,9 @@ vi.mock('@/database/hosted/billing/queries', () => ({
   upsertBillingSubscription: mocks.upsertBillingSubscription,
 }));
 
-const fakeDb = {};
+const fakeDb = {
+  transaction: vi.fn(async (work: (transaction: unknown) => unknown) => work(fakeDb)),
+};
 
 function stripeConfig(overrides: Record<string, unknown> = {}): unknown {
   return {
@@ -84,6 +86,8 @@ function stripeConfig(overrides: Record<string, unknown> = {}): unknown {
         update: vi.fn(),
       },
       invoices: { createPreview: vi.fn() },
+      paymentIntents: { retrieve: vi.fn() },
+      charges: { retrieve: vi.fn() },
       paymentMethods: {
         detach: vi.fn(),
         retrieve: vi.fn(),
@@ -138,6 +142,7 @@ describe('Stripe billing service', () => {
       eligibleOffers: ['annual', 'monthly'],
     });
     mocks.getBillingSubscriptionByProviderSubscription.mockResolvedValue(null);
+    mocks.upsertBillingPurchase.mockResolvedValue('completed');
   });
 
   it('creates an annual Checkout Session only from the configured server price', async () => {
@@ -351,9 +356,39 @@ describe('Stripe billing service', () => {
           quantity: 1,
         },
       ],
+      payment_behavior: 'error_if_incomplete',
       proration_behavior: 'always_invoice',
       proration_date: 1_900_000_000,
     });
+  });
+
+  it('refuses to prorate a delinquent subscription plan', async () => {
+    const config = stripeConfig() as {
+      client: {
+        subscriptions: {
+          list: ReturnType<typeof vi.fn>;
+          update: ReturnType<typeof vi.fn>;
+        };
+      };
+    };
+    config.client.subscriptions.list.mockResolvedValue({
+      data: [stripeSubscription({ id: 'sub_past_due', status: 'past_due' })],
+    });
+    mocks.getStripeBillingConfig.mockReturnValue(config);
+    const { updateStripeSubscriptionManagement } = await import(
+      '@/server/billing/stripe-service'
+    );
+
+    await expect(
+      updateStripeSubscriptionManagement('user-1', {
+        action: 'switch_plan',
+        plan: 'monthly',
+      }),
+    ).rejects.toMatchObject({
+      status: 409,
+      code: 'billing_plan_switch_unavailable',
+    } satisfies Partial<BillingError>);
+    expect(config.client.subscriptions.update).not.toHaveBeenCalled();
   });
 
   it('previews the Stripe invoice impact before switching plans', async () => {
@@ -620,6 +655,117 @@ describe('Stripe billing service', () => {
     expect(config.client.subscriptions.update).toHaveBeenCalledWith('sub_annual', {
       cancel_at_period_end: true,
     });
+  });
+
+  it('does not restore lifetime access from a refunded Checkout Session', async () => {
+    const config = stripeConfig() as {
+      client: {
+        checkout: {
+          sessions: {
+            retrieve: ReturnType<typeof vi.fn>;
+            listLineItems: ReturnType<typeof vi.fn>;
+          };
+        };
+        paymentIntents: { retrieve: ReturnType<typeof vi.fn> };
+      };
+    };
+    config.client.checkout.sessions.retrieve.mockResolvedValue({
+      id: 'cs_lifetime_refunded',
+      mode: 'payment',
+      payment_status: 'paid',
+      payment_intent: 'pi_refunded',
+      customer: 'cus_123',
+      metadata: { authUserId: 'user-1', offer: 'mercury_lifetime' },
+      created: 1_900_000_000,
+    });
+    config.client.checkout.sessions.listLineItems.mockResolvedValue({
+      data: [{ price: { id: 'price_mercury_lifetime' } }],
+    });
+    config.client.paymentIntents.retrieve.mockResolvedValue({
+      id: 'pi_refunded',
+      status: 'succeeded',
+      latest_charge: {
+        id: 'ch_refunded',
+        paid: true,
+        refunded: true,
+        disputed: false,
+        amount_refunded: 2_000,
+      },
+    });
+    mocks.getBillingCustomerByProviderCustomer.mockResolvedValue({ authUserId: 'user-1' });
+    mocks.updateBillingPurchaseStatus.mockResolvedValue({ authUserId: 'user-1' });
+    mocks.getStripeBillingConfig.mockReturnValue(config);
+    const { syncStripeBillingForUser } = await import('@/server/billing/stripe-service');
+
+    await syncStripeBillingForUser('user-1', 'cs_lifetime_refunded');
+
+    expect(mocks.upsertBillingPurchase).not.toHaveBeenCalled();
+    expect(mocks.upsertAccessGrant).not.toHaveBeenCalled();
+    expect(mocks.updateBillingPurchaseStatus).toHaveBeenCalledWith(
+      fakeDb,
+      'stripe',
+      'pi_refunded',
+      'refunded',
+    );
+    expect(mocks.revokeAccessGrant).toHaveBeenCalledWith(
+      fakeDb,
+      'user-1',
+      'stripe_lifetime',
+      'pi_refunded',
+    );
+  });
+
+  it('does not overwrite a terminal lifetime purchase status during replay', async () => {
+    const config = stripeConfig() as {
+      client: {
+        checkout: {
+          sessions: {
+            retrieve: ReturnType<typeof vi.fn>;
+            listLineItems: ReturnType<typeof vi.fn>;
+          };
+        };
+        paymentIntents: { retrieve: ReturnType<typeof vi.fn> };
+      };
+    };
+    config.client.checkout.sessions.retrieve.mockResolvedValue({
+      id: 'cs_lifetime_paid',
+      mode: 'payment',
+      payment_status: 'paid',
+      payment_intent: 'pi_paid',
+      customer: 'cus_123',
+      metadata: { authUserId: 'user-1', offer: 'mercury_lifetime' },
+      created: 1_900_000_000,
+      amount_total: 2_000,
+      currency: 'usd',
+    });
+    config.client.checkout.sessions.listLineItems.mockResolvedValue({
+      data: [{ price: { id: 'price_mercury_lifetime' } }],
+    });
+    config.client.paymentIntents.retrieve.mockResolvedValue({
+      id: 'pi_paid',
+      status: 'succeeded',
+      latest_charge: {
+        id: 'ch_paid',
+        paid: true,
+        refunded: false,
+        disputed: false,
+        amount_refunded: 0,
+      },
+    });
+    mocks.getBillingCustomerByProviderCustomer.mockResolvedValue({ authUserId: 'user-1' });
+    mocks.upsertBillingPurchase.mockResolvedValue('disputed');
+    mocks.getStripeBillingConfig.mockReturnValue(config);
+    const { syncStripeBillingForUser } = await import('@/server/billing/stripe-service');
+
+    await syncStripeBillingForUser('user-1', 'cs_lifetime_paid');
+
+    expect(mocks.upsertAccessGrant).not.toHaveBeenCalled();
+    expect(mocks.revokeAccessGrant).toHaveBeenCalledWith(
+      fakeDb,
+      'user-1',
+      'stripe_lifetime',
+      'pi_paid',
+    );
   });
 
   it('acknowledges duplicate verified Stripe events without replaying billing work', async () => {

@@ -56,7 +56,7 @@ Core principles:
 - Hosted access is provider-neutral: Stripe, future Apple/Google purchases, Mercury qualification, and administrative grants resolve through `access_grants`.
 - Drizzle migration `0005_handy_darwin` adds the billing tables and expanded Mercury referral state model. The live Drizzle ledger is at six applied migrations.
 - Protected hosted writes support the private `TIME2PAY_ENFORCE_HOSTED_ACCESS=true` rollout switch. Keep it disabled until Stripe test products, a trusted Mercury verification workflow, and initial grants are ready.
-- Stripe Checkout/Portal/webhook code exists for web test mode; external Stripe products, secrets, webhook configuration, and provider acceptance testing remain required before activation.
+- Stripe Checkout, in-app subscription management, and webhook code exist for web test mode; external Stripe products, secrets, webhook configuration, and provider acceptance testing remain required before activation.
 
 ## Integrations
 - Mercury API (server-side only): invoice generation, payment links, bank info, transaction monitoring
