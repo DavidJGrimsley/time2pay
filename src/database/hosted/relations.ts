@@ -4,6 +4,11 @@ import { invoiceSessionLinks } from '@/database/hosted/invoice-session-links/sch
 import { invoices } from '@/database/hosted/invoices/schema';
 import { milestoneChecklistItems, projectMilestones } from '@/database/hosted/milestones/schema';
 import { mercuryCredentials, mercuryReferrals } from '@/database/hosted/mercury/schema';
+import {
+  userLegalAcceptances,
+  userOnboardingEvents,
+  userOnboardingState,
+} from '@/database/hosted/onboarding/schema';
 import { userProfiles } from '@/database/hosted/profile/schema';
 import { sessionBreaks, sessions } from '@/database/hosted/sessions/schema';
 
@@ -19,6 +24,30 @@ export const userProfilesRelations = relations(userProfiles, ({ many }) => ({
   invoiceSessionLinks: many(invoiceSessionLinks),
   mercuryCredentials: many(mercuryCredentials),
   mercuryReferrals: many(mercuryReferrals),
+  onboardingState: many(userOnboardingState),
+  onboardingEvents: many(userOnboardingEvents),
+  legalAcceptances: many(userLegalAcceptances),
+}));
+
+export const userOnboardingStateRelations = relations(userOnboardingState, ({ one }) => ({
+  userProfile: one(userProfiles, {
+    fields: [userOnboardingState.authUserId],
+    references: [userProfiles.authUserId],
+  }),
+}));
+
+export const userOnboardingEventsRelations = relations(userOnboardingEvents, ({ one }) => ({
+  userProfile: one(userProfiles, {
+    fields: [userOnboardingEvents.authUserId],
+    references: [userProfiles.authUserId],
+  }),
+}));
+
+export const userLegalAcceptancesRelations = relations(userLegalAcceptances, ({ one }) => ({
+  userProfile: one(userProfiles, {
+    fields: [userLegalAcceptances.authUserId],
+    references: [userProfiles.authUserId],
+  }),
 }));
 
 export const mercuryCredentialsRelations = relations(mercuryCredentials, ({ one }) => ({

@@ -4,6 +4,7 @@ import {
   removeLocalStorageItem,
   writeLocalStorageItem,
 } from '@/services/browser-storage';
+import type { HostedOnboardingGateStatus } from '@/database/hosted/onboarding';
 
 const TOUR_MODE_STORAGE_KEY = 'time2pay.auth.tour-mode-enabled';
 
@@ -25,15 +26,30 @@ type HostedAuthSnapshot = {
   authenticated: boolean;
 };
 
+type HostedOnboardingSnapshot = {
+  status: HostedOnboardingGateStatus;
+  completedStepIds: string[];
+  missingLegalDocumentIds: string[];
+};
+
 type AuthUiState = {
   authReady: boolean;
   isAuthenticated: boolean;
+  onboardingGateReady: boolean;
+  onboardingGateStatus: HostedOnboardingGateStatus | 'checking' | 'error';
+  completedOnboardingStepIds: string[];
+  missingLegalDocumentIds: string[];
+  onboardingGateError: string | null;
   tourModeEnabled: boolean;
   tourModeHydrated: boolean;
   tourInitError: string | null;
   hydrateTourMode: () => void;
   setAuthReady: (ready: boolean) => void;
   setAuthenticated: (authenticated: boolean) => void;
+  setOnboardingGateChecking: () => void;
+  syncOnboardingGate: (snapshot: HostedOnboardingSnapshot) => void;
+  setOnboardingGateError: (message: string) => void;
+  resetOnboardingGate: () => void;
   setTourModeEnabled: (enabled: boolean) => void;
   setTourInitError: (message: string | null) => void;
   startTour: () => void;
@@ -45,6 +61,11 @@ type AuthUiState = {
 export const useAuthUiStore = create<AuthUiState>((set) => ({
   authReady: false,
   isAuthenticated: false,
+  onboardingGateReady: false,
+  onboardingGateStatus: 'checking',
+  completedOnboardingStepIds: [],
+  missingLegalDocumentIds: [],
+  onboardingGateError: null,
   tourModeEnabled: false,
   tourModeHydrated: false,
   tourInitError: null,
@@ -68,7 +89,40 @@ export const useAuthUiStore = create<AuthUiState>((set) => ({
       return {
         isAuthenticated: authenticated,
         tourModeEnabled: nextTourModeEnabled,
+        onboardingGateReady: authenticated ? state.onboardingGateReady : false,
+        onboardingGateStatus: authenticated ? state.onboardingGateStatus : 'checking',
+        completedOnboardingStepIds: authenticated ? state.completedOnboardingStepIds : [],
+        missingLegalDocumentIds: authenticated ? state.missingLegalDocumentIds : [],
+        onboardingGateError: authenticated ? state.onboardingGateError : null,
       };
+    }),
+  setOnboardingGateChecking: () =>
+    set({
+      onboardingGateReady: false,
+      onboardingGateStatus: 'checking',
+      onboardingGateError: null,
+    }),
+  syncOnboardingGate: (snapshot) =>
+    set({
+      onboardingGateReady: true,
+      onboardingGateStatus: snapshot.status,
+      completedOnboardingStepIds: snapshot.completedStepIds,
+      missingLegalDocumentIds: snapshot.missingLegalDocumentIds,
+      onboardingGateError: null,
+    }),
+  setOnboardingGateError: (message) =>
+    set({
+      onboardingGateReady: true,
+      onboardingGateStatus: 'error',
+      onboardingGateError: message,
+    }),
+  resetOnboardingGate: () =>
+    set({
+      onboardingGateReady: false,
+      onboardingGateStatus: 'checking',
+      completedOnboardingStepIds: [],
+      missingLegalDocumentIds: [],
+      onboardingGateError: null,
     }),
   setTourModeEnabled: (enabled) =>
     set(() => {
@@ -83,6 +137,9 @@ export const useAuthUiStore = create<AuthUiState>((set) => ({
         tourModeEnabled: true,
         tourModeHydrated: true,
         tourInitError: null,
+        onboardingGateReady: false,
+        onboardingGateStatus: 'checking',
+        onboardingGateError: null,
         authReady: true,
         isAuthenticated: false,
       };
@@ -103,6 +160,11 @@ export const useAuthUiStore = create<AuthUiState>((set) => ({
         tourModeEnabled: nextTourModeEnabled,
         tourModeHydrated: true,
         tourInitError: authenticated ? null : state.tourInitError,
+        onboardingGateReady: authenticated ? state.onboardingGateReady : false,
+        onboardingGateStatus: authenticated ? state.onboardingGateStatus : 'checking',
+        completedOnboardingStepIds: authenticated ? state.completedOnboardingStepIds : [],
+        missingLegalDocumentIds: authenticated ? state.missingLegalDocumentIds : [],
+        onboardingGateError: authenticated ? state.onboardingGateError : null,
       };
     }),
   resetForLocalMode: () =>
@@ -111,6 +173,11 @@ export const useAuthUiStore = create<AuthUiState>((set) => ({
       return {
         authReady: true,
         isAuthenticated: true,
+        onboardingGateReady: true,
+        onboardingGateStatus: 'complete',
+        completedOnboardingStepIds: [],
+        missingLegalDocumentIds: [],
+        onboardingGateError: null,
         tourModeEnabled: false,
         tourModeHydrated: true,
         tourInitError: null,

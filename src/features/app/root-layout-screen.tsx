@@ -18,6 +18,12 @@ import { syncPendingMercuryReferralClick } from '@/services/mercury-referrals';
 import { getSupabaseSession, onSupabaseAuthStateChange } from '@/services/supabase-client';
 import { ensureTourDemoData } from '@/services/tour-demo';
 import { useAuthUiStore } from '@/stores/auth-ui-store';
+import { AppThemeProvider } from '@/theme/provider';
+import {
+  loadTime2PayOnboardingGateSnapshot,
+  syncPendingTime2PayOnboardingProgress,
+} from '@/features/onboarding/onboarding-state';
+import { resolveHostedOnboardingRedirect } from '@/features/onboarding/onboarding-route-gate';
 export const unstable_settings = {
   anchor: 'index',
 };
@@ -52,9 +58,16 @@ export default function RootLayout() {
 
   const authReady = useAuthUiStore((state) => state.authReady);
   const isAuthenticated = useAuthUiStore((state) => state.isAuthenticated);
+  const onboardingGateReady = useAuthUiStore((state) => state.onboardingGateReady);
+  const onboardingGateStatus = useAuthUiStore((state) => state.onboardingGateStatus);
+  const onboardingGateError = useAuthUiStore((state) => state.onboardingGateError);
   const tourModeEnabled = useAuthUiStore((state) => state.tourModeEnabled);
   const tourModeHydrated = useAuthUiStore((state) => state.tourModeHydrated);
   const setTourInitError = useAuthUiStore((state) => state.setTourInitError);
+  const setOnboardingGateChecking = useAuthUiStore((state) => state.setOnboardingGateChecking);
+  const syncOnboardingGate = useAuthUiStore((state) => state.syncOnboardingGate);
+  const setOnboardingGateError = useAuthUiStore((state) => state.setOnboardingGateError);
+  const resetOnboardingGate = useAuthUiStore((state) => state.resetOnboardingGate);
   const hydrateTourMode = useAuthUiStore((state) => state.hydrateTourMode);
   const syncHostedAuth = useAuthUiStore((state) => state.syncHostedAuth);
   const resetForLocalMode = useAuthUiStore((state) => state.resetForLocalMode);
@@ -271,6 +284,73 @@ export default function RootLayout() {
   }, [authReady, hostedMode, isAuthenticated]);
 
   useEffect(() => {
+    if (!hostedMode || tourModeEnabled) {
+      resetOnboardingGate();
+      return;
+    }
+
+    if (!authReady) {
+      return;
+    }
+
+    if (!isAuthenticated) {
+      resetOnboardingGate();
+      return;
+    }
+
+    let isActive = true;
+    setOnboardingGateChecking();
+    logRuntimeDiagnostic('onboarding.gate.load.start');
+
+    syncPendingTime2PayOnboardingProgress()
+      .then(() => loadTime2PayOnboardingGateSnapshot())
+      .then((snapshot) => {
+        if (!isActive) {
+          return;
+        }
+
+        logRuntimeDiagnostic('onboarding.gate.load.success', {
+          status: snapshot.status,
+          completedStepIds: snapshot.completedStepIds,
+          missingDocumentIds: snapshot.missingDocumentIds,
+        });
+        syncOnboardingGate({
+          status: snapshot.status,
+          completedStepIds: snapshot.completedStepIds,
+          missingLegalDocumentIds: snapshot.missingDocumentIds,
+        });
+      })
+      .catch((error) => {
+        if (!isActive) {
+          return;
+        }
+
+        const message = errorMessage(error);
+        logRuntimeDiagnostic(
+          'onboarding.gate.load.error',
+          {
+            message,
+          },
+          { level: 'error' },
+        );
+        setOnboardingGateError(message);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [
+    authReady,
+    hostedMode,
+    isAuthenticated,
+    resetOnboardingGate,
+    setOnboardingGateChecking,
+    setOnboardingGateError,
+    syncOnboardingGate,
+    tourModeEnabled,
+  ]);
+
+  useEffect(() => {
     let isActive = true;
 
     if (!hostedMode || appAccessMode !== 'tour') {
@@ -326,14 +406,22 @@ export default function RootLayout() {
         ? 'allowed'
         : 'blocked';
   const hostedAccessResolved = hostedAccessState !== 'checking';
-  const canAccessTabs = hostedAccessState !== 'blocked';
+  const onboardingGateRequired = hostedMode && isAuthenticated && !tourModeEnabled;
+  const onboardingGateAllowsTabs =
+    !onboardingGateRequired || !onboardingGateReady || onboardingGateStatus === 'complete';
+  const canAccessTabs = hostedAccessState !== 'blocked' && onboardingGateAllowsTabs;
   const normalizedPathname = pathname !== '/' ? pathname.replace(/\/+$/, '') : pathname;
+  const isOnboardingRoute =
+    normalizedPathname === '/onboarding' || normalizedPathname.startsWith('/onboarding/');
+  const isLegalUpdateRoute = normalizedPathname === '/legal/updates';
   const isPublicRoute =
     normalizedPathname === '/' ||
     normalizedPathname === '/sign-in' ||
     normalizedPathname === '/pricing' ||
     normalizedPathname === '/privacy' ||
-    normalizedPathname === '/terms';
+    normalizedPathname === '/terms' ||
+    isLegalUpdateRoute ||
+    isOnboardingRoute;
   const isInsideTabsGroup = !isPublicRoute;
 
   useEffect(() => {
@@ -346,33 +434,42 @@ export default function RootLayout() {
       return;
     }
 
+    const redirectTarget = resolveHostedOnboardingRedirect({
+      authReady,
+      hostedMode,
+      isAuthenticated,
+      isInsideTabsGroup,
+      onboardingGateReady,
+      onboardingGateStatus,
+      pathname,
+      tourModeEnabled,
+      tourModeHydrated,
+    });
+
     logRuntimeDiagnostic('auth.redirect.check', {
       canAccessTabs,
       hostedAccessState,
       hostedAccessResolved,
       isInsideTabsGroup,
       isAuthenticated,
+      onboardingGateError,
+      onboardingGateReady,
+      onboardingGateStatus,
       pathname,
+      redirectTarget,
       tourModeEnabled,
     });
 
-    if (!canAccessTabs && isInsideTabsGroup) {
+    if (redirectTarget) {
       logRuntimeDiagnostic(
-        'auth.redirect.to.signIn',
+        'auth.redirect.toOnboardingGateTarget',
         {
-          reason: 'tabs-guard-blocked',
+          redirectTarget,
         },
         { level: 'warn' },
       );
-      router.replace('/sign-in' as never);
+      router.replace(redirectTarget as never);
       return;
-    }
-
-    if (isAuthenticated && (pathname === '/sign-in' || pathname === '/')) {
-      logRuntimeDiagnostic('auth.redirect.to.dashboard', {
-        reason: pathname === '/' ? 'authenticated-public-root' : 'already-authenticated',
-      });
-      router.replace('/dashboard');
     }
   }, [
     authReady,
@@ -382,6 +479,9 @@ export default function RootLayout() {
     hostedMode,
     isAuthenticated,
     isInsideTabsGroup,
+    onboardingGateError,
+    onboardingGateReady,
+    onboardingGateStatus,
     pathname,
     router,
     tourModeEnabled,
@@ -390,7 +490,9 @@ export default function RootLayout() {
 
   const isLoadingShellVisible =
     hostedMode &&
-    (hostedAccessState === 'checking' || (appAccessMode === 'tour' && !isTourSeedReady));
+    (hostedAccessState === 'checking' ||
+      (appAccessMode === 'tour' && !isTourSeedReady) ||
+      (onboardingGateRequired && !onboardingGateReady));
 
   useEffect(() => {
     if (isLoadingShellVisible) {
@@ -402,6 +504,9 @@ export default function RootLayout() {
         authReady,
         appAccessMode,
         isTourSeedReady,
+        onboardingGateReady,
+        onboardingGateRequired,
+        onboardingGateStatus,
       });
     }
   }, [
@@ -413,10 +518,13 @@ export default function RootLayout() {
     authReady,
     appAccessMode,
     isTourSeedReady,
+    onboardingGateReady,
+    onboardingGateRequired,
+    onboardingGateStatus,
   ]);
 
   return (
-    <>
+    <AppThemeProvider>
       {isLandingEntry ? <LandingSeoHead /> : <NoIndexSeoHead />}
       <Stack
         screenOptions={{
@@ -429,8 +537,13 @@ export default function RootLayout() {
         <Stack.Screen name="index" options={{ title: 'Time2Pay' }} />
         <Stack.Screen name="privacy" options={{ title: 'Privacy Policy' }} />
         <Stack.Screen name="terms" options={{ title: 'Terms of Service' }} />
+        <Stack.Screen name="legal/updates" options={{ title: 'Legal Updates' }} />
         <Stack.Screen name="sign-in" options={{ title: 'Sign In' }} />
         <Stack.Screen name="pricing" options={{ title: 'Hosted Pricing' }} />
+        <Stack.Screen name="onboarding" options={{ title: 'Time2Pay Onboarding' }} />
+        <Stack.Screen name="onboarding/features" options={{ title: 'Time2Pay Features' }} />
+        <Stack.Screen name="onboarding/auth" options={{ title: 'Time2Pay Account' }} />
+        <Stack.Screen name="onboarding/legal" options={{ title: 'Time2Pay Legal' }} />
         <Stack.Protected guard={canAccessTabs}>
           <Stack.Screen name="(tabs)" options={{ title: 'Time2Pay' }} />
           <Stack.Screen name="access-required" options={{ title: 'Hosted Access' }} />
@@ -446,6 +559,6 @@ export default function RootLayout() {
           <AppLoadingShell />
         </View>
       ) : null}
-    </>
+    </AppThemeProvider>
   );
 }

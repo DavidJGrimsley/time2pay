@@ -222,6 +222,8 @@ Milestone Payments:
 - [x] (Test MDS local agent)Fix animations throughout the app. They trigger too often, are far too jarring, tacky, and downright ugly. We need to make them smooth and subtle, and not trigger on every single re-render of a component and not trigger the parent component to re render. For instance when I clock in, the parent view shrinks and then grows to the new position but it should just grow to it's new position. They're also delayed. The words shrink and spring and it looks terrible. Let's go with nice fade ins from above. The landing page has much better animations but scan that for improvements as well but let's use that style of animation throughout the rest of the app.
 - [ ] (After MDS is upgraded to use Expo SDK 57) Upgrade to Expo SDK 57.
 
+
+
 ## Other Cleanup random TODOs
 - [ ] Mercury Invoicing should not be visible unless the user has mercury ar api unlocked (by having a plus or greater plan) I thought I implemented this before, we should check the functionality before we show the invoice by checking their api key
 - [x] often when navigating to a specific page with the top nav bar, the app just forces me to the dashboard instead of the page i clicked. the second click will take me to the page I want to go to. Our navigation bar should live in our tabs _layout file and not individual files!
@@ -238,7 +240,12 @@ Milestone Payments:
 - [ ] Fix mercury hosted mode bug (might only effect localhost) see temp md
 - [ ] Fix nav bar white background (replace with other nav bar?) see temp md. consider using vert tab bar from my portfolio which would need to be updated and published to npm first.
 - [ ] Fix the invoice pdf to total the milestones AND the attached sessions. Currently it only totals the milestones and not the attached sessions. This is a bug that needs to be fixed but there's also some ugliness witht the wording and overlaping and overal layout of the invoice pdf that needs to be cleaned up. The invoice pdf should be clean and professional looking but modern and friendly to read. The invoice building for milestone projects needs to be refined/revisited because currently it can be done in the projects and the invoices screen but I'm wondering if that's necessary and if one is better than the other. The invoice pdf name is terrible as well. let's think of a good format that is readable and professional.
-- [ ] Add a 'customers' section/screen in settings that allows the editing of customer info.
+- [ ] Add the ability to add pictures to a clock-in session. This is a feature that would be useful for construction workers and other tradesmen who need to take pictures of their work for proof of work. The pictures should be stored in the database and associated with the session. The pictures should be viewable in the session details and in the invoice pdf. The pictures should be optional and not required for clocking in or out.
+### Redesign UI 
+- [ ] The dashboard should have a collapsible section for the customer, project, and task instead of it always being open. Should make more room for the animation style within the timer. The dashboard should auto collapse said collapsible section when the user clocks in.
+- [ ] Add a 'customers' section/screen in settings that allows the editing of customer info. There is a mercury section elsewhere in the app. 
+
+## Mobile Release
 - [ ] Optimize for iOS and Android with responsive design and platform-specific UI patterns
 - [ ] Run a dedicated native validation session for layout restructure (Android/iOS): verify new native tabs, settings route behavior, and Android-specific errors; include test evidence in draft PR Files/Testing notes.
 - [ ] publish to ios and android app stores

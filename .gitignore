@@ -27,5 +27,6 @@ packages/*/coverage/
 
 # Local editor/agent config
 .claude/
+.mds/
 .mcp.json
 .vscode/mcp.json
