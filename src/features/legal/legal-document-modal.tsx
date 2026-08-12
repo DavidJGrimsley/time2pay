@@ -1,7 +1,8 @@
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { getReadableTextColor } from '@/theme/color-utils';
+
 import { useAppTheme } from '../../theme/provider';
-import { getReadableTextColor } from '../onboarding/onboarding-colors';
 import { LegalDocumentView } from './legal-document-view';
 import { getLegalDocument, type LegalDocumentId } from './legal-documents';
 

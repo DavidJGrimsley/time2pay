@@ -5,10 +5,10 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-n
 import { AppLoadingShell } from '@/components/app-loading-shell';
 import { InlineNotice, type NoticeTone } from '@/components/inline-notice';
 import { useAuthUiStore } from '@/stores/auth-ui-store';
+import { getReadableTextColor } from '@/theme/color-utils';
 import { LegalDocumentModal } from '../legal/legal-document-modal';
 import { getLegalDocument, type LegalDocumentId } from '../legal/legal-documents';
 import { useAppTheme } from '../../theme/provider';
-import { getReadableTextColor } from './onboarding-colors';
 import { onboardingConfig } from './onboarding-config';
 import {
   acceptTime2PayLegalDocument,

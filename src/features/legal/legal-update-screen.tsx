@@ -4,9 +4,9 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-n
 
 import { InlineNotice, type NoticeTone } from '@/components/inline-notice';
 import { useAuthUiStore } from '@/stores/auth-ui-store';
+import { getReadableTextColor } from '@/theme/color-utils';
 
 import { useAppTheme } from '../../theme/provider';
-import { getReadableTextColor } from '../onboarding/onboarding-colors';
 import {
   completeTime2PayOnboarding,
   loadTime2PayOnboardingGateSnapshot,
