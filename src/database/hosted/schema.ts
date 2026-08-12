@@ -6,3 +6,4 @@ export * from '@/database/hosted/sessions/schema';
 export * from '@/database/hosted/invoice-session-links/schema';
 export * from '@/database/hosted/mercury/schema';
 export * from '@/database/hosted/billing/schema';
+export * from '@/database/hosted/onboarding/schema';

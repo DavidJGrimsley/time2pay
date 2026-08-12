@@ -473,6 +473,13 @@ export function LandingPage() {
     router.push('/sign-in' as never);
   }, [dataMode, dataModeResolved, hostedMode, router]);
 
+  const handleOnboarding = useCallback(() => {
+    logRuntimeDiagnostic('landing.onboarding.open', {
+      destination: '/onboarding',
+    });
+    router.push('/onboarding' as never);
+  }, [router]);
+
   const handleTourExperience = useCallback(() => {
     if (!dataModeResolved) {
       logRuntimeDiagnostic('landing.tour.blocked.dataModePending');
@@ -552,9 +559,9 @@ export function LandingPage() {
               </SemanticText>
               <SectionBody paragraphs={heroSection.body} compact={sectionBodyCompact} />
               <View className="flex-row flex-wrap gap-3">
-                <Pressable className="rounded-full bg-primary px-5 py-3" onPress={handleSignIn}>
+                <Pressable className="rounded-full bg-primary px-5 py-3" onPress={handleOnboarding}>
                   <Text className="text-sm font-semibold text-heading">
-                    {!dataModeResolved ? 'Continue' : hostedMode ? 'Sign In to Continue' : 'Open Dashboard'}
+                    Get Started
                   </Text>
                 </Pressable>
                 <Pressable

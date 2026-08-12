@@ -860,12 +860,11 @@ export function ProfileOverview() {
 
       <View className="gap-3 rounded-xl bg-card p-4">
         <Text className="text-xl font-bold text-heading">Billing</Text>
-        <Text className="text-sm text-muted">
-          Billing settings are being added in the separate billing branch.
-        </Text>
+        <Link href={'/settings/billing' as Href} asChild>
         <Pressable className="rounded-md border border-border px-4 py-2 opacity-70" disabled>
           <Text className="text-center font-semibold text-heading">Open Billing Settings</Text>
         </Pressable>
+        </Link>
       </View>
 
       <View className="gap-3 rounded-xl bg-card p-4">
