@@ -1,10 +1,30 @@
 import type { HostedOnboardingGateStatus } from '@/database/hosted/onboarding';
 
-type ResolveHostedOnboardingRedirectInput = {
+export type HostedAccessGateStatus = 'checking' | 'allowed' | 'blocked' | 'error';
+
+export type Time2PayRouteClassification = {
+  normalizedPathname: string;
+  isAccessRequiredRoute: boolean;
+  isAccountRoute: boolean;
+  isAppRoute: boolean;
+  isLegalDocumentRoute: boolean;
+  isLegalUpdateRoute: boolean;
+  isOnboardingAuthRoute: boolean;
+  isOnboardingLegalRoute: boolean;
+  isOnboardingRoute: boolean;
+  isPricingRoute: boolean;
+  isPublicRoute: boolean;
+  isRootRoute: boolean;
+  isSignInRoute: boolean;
+};
+
+export type ResolveHostedRouteGateInput = {
   authReady: boolean;
+  hostedAccessGateReady: boolean;
+  hostedAccessGateStatus: HostedAccessGateStatus;
   hostedMode: boolean;
   isAuthenticated: boolean;
-  isInsideTabsGroup: boolean;
+  isTourSeedReady: boolean;
   onboardingGateReady: boolean;
   onboardingGateStatus: HostedOnboardingGateStatus | 'checking' | 'error';
   pathname: string;
@@ -12,8 +32,29 @@ type ResolveHostedOnboardingRedirectInput = {
   tourModeHydrated: boolean;
 };
 
+export type HostedRouteGateDecision = Time2PayRouteClassification & {
+  canAccessAccountRoutes: boolean;
+  canAccessAppRoutes: boolean;
+  canMountAccountRoutes: boolean;
+  canMountAppRoutes: boolean;
+  redirectTarget: string | null;
+  shouldShowLoadingShell: boolean;
+};
+
+type ResolveHostedOnboardingRedirectInput = Omit<
+  ResolveHostedRouteGateInput,
+  'hostedAccessGateReady' | 'hostedAccessGateStatus' | 'isTourSeedReady'
+> & {
+  hostedAccessGateReady?: boolean;
+  hostedAccessGateStatus?: HostedAccessGateStatus;
+  isInsideTabsGroup?: boolean;
+  isTourSeedReady?: boolean;
+};
+
 function normalizePathname(pathname: string): string {
-  return pathname !== '/' ? pathname.replace(/\/+$/, '') : pathname;
+  const pathOnly = pathname.split(/[?#]/)[0] || '/';
+  const withLeadingSlash = pathOnly.startsWith('/') ? pathOnly : `/${pathOnly}`;
+  return withLeadingSlash !== '/' ? withLeadingSlash.replace(/\/+$/, '') : '/';
 }
 
 function isOnboardingPath(pathname: string): boolean {
@@ -28,67 +69,248 @@ function isLegalUpdatePath(pathname: string): boolean {
   return pathname === '/legal/updates';
 }
 
-export function resolveHostedOnboardingRedirect({
-  authReady,
-  hostedMode,
-  isAuthenticated,
-  isInsideTabsGroup,
-  onboardingGateReady,
-  onboardingGateStatus,
-  pathname,
-  tourModeEnabled,
-  tourModeHydrated,
-}: ResolveHostedOnboardingRedirectInput): string | null {
+function isSettingsPath(pathname: string): boolean {
+  return pathname === '/settings' || pathname.startsWith('/settings/');
+}
+
+function shouldHoldForPendingDecision(route: Time2PayRouteClassification): boolean {
+  return (
+    route.isAppRoute ||
+    route.isAccountRoute ||
+    route.isRootRoute ||
+    route.isSignInRoute ||
+    route.isOnboardingRoute ||
+    route.isLegalUpdateRoute
+  );
+}
+
+function shouldHoldForHostedAccessDecision(route: Time2PayRouteClassification): boolean {
+  return (
+    route.isAppRoute ||
+    route.isRootRoute ||
+    route.isSignInRoute ||
+    route.isOnboardingRoute ||
+    route.isLegalUpdateRoute ||
+    route.isAccessRequiredRoute
+  );
+}
+
+function toDecision(
+  route: Time2PayRouteClassification,
+  input: {
+    canAccessAccountRoutes: boolean;
+    canAccessAppRoutes: boolean;
+    canMountAccountRoutes?: boolean;
+    canMountAppRoutes?: boolean;
+    redirectTarget?: string | null;
+    shouldShowLoadingShell?: boolean;
+  },
+): HostedRouteGateDecision {
+  return {
+    ...route,
+    canAccessAccountRoutes: input.canAccessAccountRoutes,
+    canAccessAppRoutes: input.canAccessAppRoutes,
+    canMountAccountRoutes: input.canMountAccountRoutes ?? input.canAccessAccountRoutes,
+    canMountAppRoutes: input.canMountAppRoutes ?? input.canAccessAppRoutes,
+    redirectTarget: input.redirectTarget ?? null,
+    shouldShowLoadingShell: input.shouldShowLoadingShell ?? false,
+  };
+}
+
+export function classifyTime2PayRoute(pathname: string): Time2PayRouteClassification {
   const normalizedPathname = normalizePathname(pathname);
+  const isRootRoute = normalizedPathname === '/';
+  const isSignInRoute = normalizedPathname === '/sign-in';
+  const isPricingRoute = normalizedPathname === '/pricing';
+  const isOnboardingRoute = isOnboardingPath(normalizedPathname);
+  const isOnboardingAuthRoute = normalizedPathname === '/onboarding/auth';
+  const isOnboardingLegalRoute = normalizedPathname === '/onboarding/legal';
+  const isLegalDocumentRoute = isLegalDocumentPath(normalizedPathname);
+  const isLegalUpdateRoute = isLegalUpdatePath(normalizedPathname);
+  const isAccessRequiredRoute = normalizedPathname === '/access-required';
+  const isAccountRoute =
+    isAccessRequiredRoute ||
+    isSettingsPath(normalizedPathname) ||
+    normalizedPathname === '/referral-status';
+  const isPublicRoute =
+    isRootRoute ||
+    isSignInRoute ||
+    isPricingRoute ||
+    isLegalDocumentRoute ||
+    isLegalUpdateRoute ||
+    isOnboardingRoute;
 
-  if (!hostedMode || !tourModeHydrated || !authReady || tourModeEnabled) {
-    return null;
+  return {
+    normalizedPathname,
+    isAccessRequiredRoute,
+    isAccountRoute,
+    isAppRoute: !isPublicRoute && !isAccountRoute,
+    isLegalDocumentRoute,
+    isLegalUpdateRoute,
+    isOnboardingAuthRoute,
+    isOnboardingLegalRoute,
+    isOnboardingRoute,
+    isPricingRoute,
+    isPublicRoute,
+    isRootRoute,
+    isSignInRoute,
+  };
+}
+
+export function resolveHostedRouteGate(input: ResolveHostedRouteGateInput): HostedRouteGateDecision {
+  const route = classifyTime2PayRoute(input.pathname);
+
+  if (!input.hostedMode) {
+    return toDecision(route, {
+      canAccessAccountRoutes: true,
+      canAccessAppRoutes: true,
+    });
   }
 
-  if (!isAuthenticated) {
-    if (normalizedPathname === '/onboarding/legal') {
-      return '/onboarding/auth';
-    }
-
-    if (isLegalUpdatePath(normalizedPathname)) {
-      return '/sign-in';
-    }
-
-    return isInsideTabsGroup ? '/sign-in' : null;
+  if (!input.tourModeHydrated || !input.authReady) {
+    return toDecision(route, {
+      canAccessAccountRoutes: false,
+      canAccessAppRoutes: false,
+      canMountAccountRoutes: route.isAccountRoute,
+      canMountAppRoutes: route.isAppRoute,
+      shouldShowLoadingShell: shouldHoldForPendingDecision(route),
+    });
   }
 
-  if (!onboardingGateReady) {
-    return null;
+  if (input.tourModeEnabled) {
+    return toDecision(route, {
+      canAccessAccountRoutes: input.isTourSeedReady,
+      canAccessAppRoutes: input.isTourSeedReady,
+      canMountAccountRoutes: route.isAccountRoute || input.isTourSeedReady,
+      canMountAppRoutes: route.isAppRoute || input.isTourSeedReady,
+      shouldShowLoadingShell: !input.isTourSeedReady && (route.isAppRoute || route.isAccountRoute),
+    });
   }
 
-  if (onboardingGateStatus === 'needs-onboarding') {
-    return normalizedPathname === '/onboarding' ||
-      normalizedPathname === '/onboarding/features'
-      ? null
-      : '/onboarding';
+  if (!input.isAuthenticated) {
+    const redirectTarget = route.isOnboardingLegalRoute
+      ? '/onboarding/auth'
+      : route.isAppRoute || route.isAccountRoute
+        ? '/sign-in'
+        : null;
+
+    return toDecision(route, {
+      canAccessAccountRoutes: false,
+      canAccessAppRoutes: false,
+      redirectTarget,
+      shouldShowLoadingShell: route.isAccountRoute || route.isAppRoute,
+    });
   }
 
-  if (onboardingGateStatus === 'needs-legal' || onboardingGateStatus === 'error') {
-    if (
-      normalizedPathname === '/onboarding/legal' ||
-      isLegalUpdatePath(normalizedPathname) ||
-      isLegalDocumentPath(normalizedPathname)
-    ) {
-      return null;
-    }
-
-    return '/legal/updates';
+  if (!input.onboardingGateReady) {
+    return toDecision(route, {
+      canAccessAccountRoutes: true,
+      canAccessAppRoutes: false,
+      canMountAccountRoutes: true,
+      canMountAppRoutes: route.isAppRoute,
+      shouldShowLoadingShell: shouldHoldForPendingDecision(route) && !route.isAccountRoute,
+    });
   }
 
-  if (
-    onboardingGateStatus === 'complete' &&
-    (normalizedPathname === '/' ||
-      normalizedPathname === '/sign-in' ||
-      isOnboardingPath(normalizedPathname) ||
-      isLegalUpdatePath(normalizedPathname))
-  ) {
-    return '/dashboard';
+  if (input.onboardingGateStatus === 'needs-onboarding') {
+    const canStayOnOnboardingIntro =
+      route.normalizedPathname === '/onboarding' || route.normalizedPathname === '/onboarding/features';
+    const redirectTarget =
+      route.isAccountRoute || route.isPricingRoute || route.isLegalDocumentRoute || canStayOnOnboardingIntro
+        ? null
+        : '/onboarding';
+
+    return toDecision(route, {
+      canAccessAccountRoutes: true,
+      canAccessAppRoutes: false,
+      canMountAccountRoutes: true,
+      canMountAppRoutes: route.isAppRoute,
+      redirectTarget,
+      shouldShowLoadingShell: route.isAppRoute,
+    });
   }
 
-  return null;
+  if (input.onboardingGateStatus === 'needs-legal' || input.onboardingGateStatus === 'error') {
+    const canStayOnLegalGate =
+      route.isOnboardingLegalRoute || route.isLegalUpdateRoute || route.isLegalDocumentRoute;
+    const redirectTargetFromOnboarding =
+      route.normalizedPathname === '/onboarding' ||
+      route.normalizedPathname === '/onboarding/features' ||
+      route.isOnboardingAuthRoute
+        ? '/onboarding/legal'
+        : null;
+    const redirectTarget =
+      route.isAccountRoute || route.isPricingRoute || canStayOnLegalGate
+        ? null
+        : redirectTargetFromOnboarding ?? '/legal/updates';
+
+    return toDecision(route, {
+      canAccessAccountRoutes: true,
+      canAccessAppRoutes: false,
+      canMountAccountRoutes: true,
+      canMountAppRoutes: route.isAppRoute,
+      redirectTarget,
+      shouldShowLoadingShell: route.isAppRoute,
+    });
+  }
+
+  if (!input.hostedAccessGateReady) {
+    return toDecision(route, {
+      canAccessAccountRoutes: true,
+      canAccessAppRoutes: false,
+      canMountAccountRoutes: true,
+      canMountAppRoutes: route.isAppRoute,
+      shouldShowLoadingShell: shouldHoldForHostedAccessDecision(route),
+    });
+  }
+
+  if (input.hostedAccessGateStatus === 'blocked') {
+    const shouldRedirectToAccessRequired =
+      route.isAppRoute ||
+      route.isRootRoute ||
+      route.isSignInRoute ||
+      route.isOnboardingRoute ||
+      route.isLegalUpdateRoute;
+
+    return toDecision(route, {
+      canAccessAccountRoutes: true,
+      canAccessAppRoutes: false,
+      canMountAccountRoutes: true,
+      canMountAppRoutes: route.isAppRoute,
+      redirectTarget: shouldRedirectToAccessRequired ? '/access-required' : null,
+      shouldShowLoadingShell: route.isAppRoute,
+    });
+  }
+
+  const shouldRedirectToDashboard =
+    route.isRootRoute ||
+    route.isSignInRoute ||
+    route.isOnboardingRoute ||
+    route.isLegalUpdateRoute ||
+    route.isAccessRequiredRoute;
+
+  return toDecision(route, {
+    canAccessAccountRoutes: true,
+    canAccessAppRoutes: true,
+    canMountAccountRoutes: true,
+    redirectTarget: shouldRedirectToDashboard ? '/dashboard' : null,
+  });
+}
+
+export function resolveHostedOnboardingRedirect(
+  input: ResolveHostedOnboardingRedirectInput,
+): string | null {
+  return resolveHostedRouteGate({
+    authReady: input.authReady,
+    hostedAccessGateReady: input.hostedAccessGateReady ?? true,
+    hostedAccessGateStatus: input.hostedAccessGateStatus ?? 'allowed',
+    hostedMode: input.hostedMode,
+    isAuthenticated: input.isAuthenticated,
+    isTourSeedReady: input.isTourSeedReady ?? true,
+    onboardingGateReady: input.onboardingGateReady,
+    onboardingGateStatus: input.onboardingGateStatus,
+    pathname: input.pathname,
+    tourModeEnabled: input.tourModeEnabled,
+    tourModeHydrated: input.tourModeHydrated,
+  }).redirectTarget;
 }

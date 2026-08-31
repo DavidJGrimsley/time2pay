@@ -5,6 +5,7 @@ import {
   writeLocalStorageItem,
 } from '@/services/browser-storage';
 import type { HostedOnboardingGateStatus } from '@/database/hosted/onboarding';
+import type { HostedAccessGateStatus } from '@/features/onboarding/onboarding-route-gate';
 
 const TOUR_MODE_STORAGE_KEY = 'time2pay.auth.tour-mode-enabled';
 
@@ -32,6 +33,12 @@ type HostedOnboardingSnapshot = {
   missingLegalDocumentIds: string[];
 };
 
+type HostedAccessSnapshot = {
+  enforcementEnabled: boolean;
+  hasAccess: boolean | null;
+  status: HostedAccessGateStatus;
+};
+
 type AuthUiState = {
   authReady: boolean;
   isAuthenticated: boolean;
@@ -40,6 +47,11 @@ type AuthUiState = {
   completedOnboardingStepIds: string[];
   missingLegalDocumentIds: string[];
   onboardingGateError: string | null;
+  hostedAccessGateReady: boolean;
+  hostedAccessGateStatus: HostedAccessGateStatus;
+  hostedAccessEnforcementEnabled: boolean;
+  hostedAccessHasAccess: boolean | null;
+  hostedAccessGateError: string | null;
   tourModeEnabled: boolean;
   tourModeHydrated: boolean;
   tourInitError: string | null;
@@ -50,6 +62,10 @@ type AuthUiState = {
   syncOnboardingGate: (snapshot: HostedOnboardingSnapshot) => void;
   setOnboardingGateError: (message: string) => void;
   resetOnboardingGate: () => void;
+  setHostedAccessGateChecking: () => void;
+  syncHostedAccessGate: (snapshot: HostedAccessSnapshot) => void;
+  setHostedAccessGateError: (message: string) => void;
+  resetHostedAccessGate: () => void;
   setTourModeEnabled: (enabled: boolean) => void;
   setTourInitError: (message: string | null) => void;
   startTour: () => void;
@@ -66,6 +82,11 @@ export const useAuthUiStore = create<AuthUiState>((set) => ({
   completedOnboardingStepIds: [],
   missingLegalDocumentIds: [],
   onboardingGateError: null,
+  hostedAccessGateReady: false,
+  hostedAccessGateStatus: 'checking',
+  hostedAccessEnforcementEnabled: false,
+  hostedAccessHasAccess: null,
+  hostedAccessGateError: null,
   tourModeEnabled: false,
   tourModeHydrated: false,
   tourInitError: null,
@@ -94,6 +115,11 @@ export const useAuthUiStore = create<AuthUiState>((set) => ({
         completedOnboardingStepIds: authenticated ? state.completedOnboardingStepIds : [],
         missingLegalDocumentIds: authenticated ? state.missingLegalDocumentIds : [],
         onboardingGateError: authenticated ? state.onboardingGateError : null,
+        hostedAccessGateReady: authenticated ? state.hostedAccessGateReady : false,
+        hostedAccessGateStatus: authenticated ? state.hostedAccessGateStatus : 'checking',
+        hostedAccessEnforcementEnabled: authenticated ? state.hostedAccessEnforcementEnabled : false,
+        hostedAccessHasAccess: authenticated ? state.hostedAccessHasAccess : null,
+        hostedAccessGateError: authenticated ? state.hostedAccessGateError : null,
       };
     }),
   setOnboardingGateChecking: () =>
@@ -124,10 +150,51 @@ export const useAuthUiStore = create<AuthUiState>((set) => ({
       missingLegalDocumentIds: [],
       onboardingGateError: null,
     }),
+  setHostedAccessGateChecking: () =>
+    set({
+      hostedAccessGateReady: false,
+      hostedAccessGateStatus: 'checking',
+      hostedAccessEnforcementEnabled: false,
+      hostedAccessHasAccess: null,
+      hostedAccessGateError: null,
+    }),
+  syncHostedAccessGate: (snapshot) =>
+    set({
+      hostedAccessGateReady: true,
+      hostedAccessGateStatus: snapshot.status,
+      hostedAccessEnforcementEnabled: snapshot.enforcementEnabled,
+      hostedAccessHasAccess: snapshot.hasAccess,
+      hostedAccessGateError: null,
+    }),
+  setHostedAccessGateError: (message) =>
+    set({
+      hostedAccessGateReady: true,
+      hostedAccessGateStatus: 'error',
+      hostedAccessEnforcementEnabled: false,
+      hostedAccessHasAccess: null,
+      hostedAccessGateError: message,
+    }),
+  resetHostedAccessGate: () =>
+    set({
+      hostedAccessGateReady: false,
+      hostedAccessGateStatus: 'checking',
+      hostedAccessEnforcementEnabled: false,
+      hostedAccessHasAccess: null,
+      hostedAccessGateError: null,
+    }),
   setTourModeEnabled: (enabled) =>
     set(() => {
       persistTourMode(enabled);
-      return { tourModeEnabled: enabled, tourModeHydrated: true, tourInitError: null };
+      return {
+        hostedAccessGateReady: false,
+        hostedAccessGateStatus: 'checking',
+        hostedAccessEnforcementEnabled: false,
+        hostedAccessHasAccess: null,
+        hostedAccessGateError: null,
+        tourModeEnabled: enabled,
+        tourModeHydrated: true,
+        tourInitError: null,
+      };
     }),
   setTourInitError: (message) => set({ tourInitError: message }),
   startTour: () =>
@@ -140,6 +207,11 @@ export const useAuthUiStore = create<AuthUiState>((set) => ({
         onboardingGateReady: false,
         onboardingGateStatus: 'checking',
         onboardingGateError: null,
+        hostedAccessGateReady: false,
+        hostedAccessGateStatus: 'checking',
+        hostedAccessEnforcementEnabled: false,
+        hostedAccessHasAccess: null,
+        hostedAccessGateError: null,
         authReady: true,
         isAuthenticated: false,
       };
@@ -165,6 +237,11 @@ export const useAuthUiStore = create<AuthUiState>((set) => ({
         completedOnboardingStepIds: authenticated ? state.completedOnboardingStepIds : [],
         missingLegalDocumentIds: authenticated ? state.missingLegalDocumentIds : [],
         onboardingGateError: authenticated ? state.onboardingGateError : null,
+        hostedAccessGateReady: authenticated ? state.hostedAccessGateReady : false,
+        hostedAccessGateStatus: authenticated ? state.hostedAccessGateStatus : 'checking',
+        hostedAccessEnforcementEnabled: authenticated ? state.hostedAccessEnforcementEnabled : false,
+        hostedAccessHasAccess: authenticated ? state.hostedAccessHasAccess : null,
+        hostedAccessGateError: authenticated ? state.hostedAccessGateError : null,
       };
     }),
   resetForLocalMode: () =>
@@ -178,6 +255,11 @@ export const useAuthUiStore = create<AuthUiState>((set) => ({
         completedOnboardingStepIds: [],
         missingLegalDocumentIds: [],
         onboardingGateError: null,
+        hostedAccessGateReady: true,
+        hostedAccessGateStatus: 'allowed',
+        hostedAccessEnforcementEnabled: false,
+        hostedAccessHasAccess: true,
+        hostedAccessGateError: null,
         tourModeEnabled: false,
         tourModeHydrated: true,
         tourInitError: null,

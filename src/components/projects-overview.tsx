@@ -38,6 +38,7 @@ import {
 import { createTime2PayClient } from '@/services/client-sync';
 import { showActionErrorAlert, showSystemConfirm, showValidationAlert } from '@/services/system-alert';
 
+// Motion budget: project rows use lightweight fade transitions around list mutations only.
 type StatusNotice = {
   message: string;
   tone: NoticeTone;

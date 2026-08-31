@@ -39,6 +39,7 @@ import {
 import { prettifyBranchName } from '@/services/github';
 import { showActionErrorAlert, showBlockedAlert, showValidationAlert } from '@/services/system-alert';
 
+// Motion budget: timer state changes use short fade transitions and avoid scroll-linked work.
 const LAST_SELECTIONS_KEY = 'time2pay.timer.last-selection';
 const CREATE_CLIENT_PICKER_VALUE = '__create_client__';
 const CREATE_PROJECT_PICKER_VALUE = '__create_project__';

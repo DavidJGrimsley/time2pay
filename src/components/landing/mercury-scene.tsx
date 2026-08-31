@@ -25,6 +25,7 @@ import {
 } from './landing-motion';
 import { SemanticText } from './semantic-elements';
 
+// Motion budget: Mercury cards use the same pinned-scene progress and avoid layout-affecting animation.
 const MERCURY_NAVY = '#272735';
 const MERCURY_SURFACE = '#ffffff';
 const MERCURY_BACKGROUND = '#f6f8fb';

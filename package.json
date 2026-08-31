@@ -24,7 +24,7 @@
     "lint": "eslint . --ignore-pattern mds",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "doctor": "npx expo-doctor"
+    "doctor": "npx expo-doctor@1.20.1"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
@@ -38,13 +38,13 @@
     "compression": "^1.8.1",
     "drizzle-orm": "^0.45.2",
     "drizzle-zod": "^0.8.3",
-    "expo": "~56.0.19",
+    "expo": "~56.0.21",
     "expo-constants": "~56.0.23",
     "expo-font": "~56.0.7",
-    "expo-linking": "~56.0.16",
-    "expo-router": "~56.2.18",
+    "expo-linking": "~56.0.17",
+    "expo-router": "~56.2.20",
     "expo-server": "~56.0.5",
-    "expo-sqlite": "~56.0.5",
+    "expo-sqlite": "~56.0.6",
     "expo-status-bar": "~56.0.4",
     "express": "^5.2.1",
     "lottie-react-native": "~7.3.4",

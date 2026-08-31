@@ -1,0 +1,23 @@
+import { beforeEach, describe, expect, it } from 'vitest';
+
+import { useAuthUiStore } from '@/stores/auth-ui-store';
+
+const initialState = useAuthUiStore.getInitialState();
+
+describe('useAuthUiStore hosted access gate', () => {
+  beforeEach(() => {
+    useAuthUiStore.setState(initialState, true);
+  });
+
+  it('records hosted access check errors without enabling paywall enforcement', () => {
+    useAuthUiStore.getState().setHostedAccessGateError('Network failed.');
+
+    const state = useAuthUiStore.getState();
+
+    expect(state.hostedAccessGateReady).toBe(true);
+    expect(state.hostedAccessGateStatus).toBe('error');
+    expect(state.hostedAccessEnforcementEnabled).toBe(false);
+    expect(state.hostedAccessHasAccess).toBeNull();
+    expect(state.hostedAccessGateError).toBe('Network failed.');
+  });
+});
