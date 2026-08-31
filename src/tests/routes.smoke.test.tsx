@@ -15,6 +15,7 @@ vi.mock('react-native', async () => {
     View: makeComponent('View'),
     Text: makeComponent('Text'),
     Pressable: makeComponent('Pressable'),
+    useColorScheme: () => 'light',
   };
 });
 
@@ -51,6 +52,18 @@ vi.mock('../components/route-nav', () => ({
   RouteNav: () => null,
 }));
 
+vi.mock('@/components/route-nav', () => ({
+  RouteNav: () => null,
+}));
+
+vi.mock('../components/profile-overview', () => ({
+  ProfileOverview: () => null,
+}));
+
+vi.mock('@/components/profile-overview', () => ({
+  ProfileOverview: () => null,
+}));
+
 vi.mock('../components/payments-overview', () => ({
   PaymentsOverview: () => null,
 }));
@@ -77,5 +90,10 @@ describe('web route smoke tests', () => {
   it('renders the Projects route shell', async () => {
     const { default: ProjectsRoute } = await import('../app/(tabs)/projects');
     expect(() => renderer.create(<ProjectsRoute />)).not.toThrow();
+  });
+
+  it('renders the root Settings route shell', async () => {
+    const { default: SettingsRoute } = await import('../app/settings');
+    expect(() => renderer.create(<SettingsRoute />)).not.toThrow();
   });
 });

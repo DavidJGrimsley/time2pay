@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   requireAuthUserId: vi.fn(),
   resolveHostedAccess: vi.fn(),
+  isHostedAccessEnforcementEnabled: vi.fn(),
   createStripeCheckoutSession: vi.fn(),
   createStripePaymentMethodSetup: vi.fn(),
   getStripeSubscriptionManagement: vi.fn(),
@@ -19,6 +20,7 @@ vi.mock('@/server/db/_shared/auth', () => ({
 }));
 
 vi.mock('@/server/billing/entitlements', () => ({
+  isHostedAccessEnforcementEnabled: mocks.isHostedAccessEnforcementEnabled,
   resolveHostedAccess: mocks.resolveHostedAccess,
 }));
 
@@ -49,6 +51,7 @@ describe('billing API routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.requireAuthUserId.mockResolvedValue('user-1');
+    mocks.isHostedAccessEnforcementEnabled.mockReturnValue(true);
   });
 
   it('requires authentication before exposing hosted billing status', async () => {
@@ -61,6 +64,35 @@ describe('billing API routes', () => {
     await expect(response.json()).resolves.toEqual({
       error: 'Authentication is required.',
       code: 'unauthorized',
+    });
+  });
+
+  it('exposes hosted billing status with the server enforcement flag', async () => {
+    mocks.isHostedAccessEnforcementEnabled.mockReturnValue(false);
+    mocks.resolveHostedAccess.mockResolvedValue({
+      hasAccess: false,
+      status: 'payment_required',
+      source: null,
+      validUntil: null,
+      eligibleOffers: ['monthly', 'annual'],
+    });
+    const { GET } = await import('@/app/api/billing/status+api');
+
+    const response = await GET(
+      new Request('http://localhost/api/billing/status', {
+        headers: { Authorization: 'Bearer supabase-token' },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.resolveHostedAccess).toHaveBeenCalledWith('user-1');
+    await expect(response.json()).resolves.toEqual({
+      hasAccess: false,
+      status: 'payment_required',
+      source: null,
+      validUntil: null,
+      eligibleOffers: ['monthly', 'annual'],
+      enforcementEnabled: false,
     });
   });
 

@@ -5,6 +5,7 @@ import { AppLoadingShell } from '@/components/app-loading-shell';
 import { RouteNav } from '@/components/route-nav';
 import { useResolvedDataMode } from '@/hooks/use-resolved-data-mode';
 import { getProfileCompletion } from '@/services/profile-completion';
+import { resolveHostedRouteGate } from '@/features/onboarding/onboarding-route-gate';
 import { useAuthUiStore } from '@/stores/auth-ui-store';
 
 export default function TabsLayout() {
@@ -13,17 +14,38 @@ export default function TabsLayout() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const { hostedMode, resolved: dataModeResolved } = useResolvedDataMode();
+  const authReady = useAuthUiStore((state) => state.authReady);
+  const isAuthenticated = useAuthUiStore((state) => state.isAuthenticated);
+  const onboardingGateReady = useAuthUiStore((state) => state.onboardingGateReady);
+  const onboardingGateStatus = useAuthUiStore((state) => state.onboardingGateStatus);
+  const hostedAccessGateReady = useAuthUiStore((state) => state.hostedAccessGateReady);
+  const hostedAccessGateStatus = useAuthUiStore((state) => state.hostedAccessGateStatus);
   const tourModeEnabled = useAuthUiStore((state) => state.tourModeEnabled);
-  const shouldBypassProfileGate = dataModeResolved && hostedMode && tourModeEnabled;
-  const normalizedPathname = pathname !== '/' ? pathname.replace(/\/+$/, '') : pathname;
-  const isSettingsRoute = normalizedPathname === '/settings';
+  const tourModeHydrated = useAuthUiStore((state) => state.tourModeHydrated);
+  const routeGate = resolveHostedRouteGate({
+    authReady,
+    hostedAccessGateReady,
+    hostedAccessGateStatus,
+    hostedMode,
+    isAuthenticated,
+    isTourSeedReady: true,
+    onboardingGateReady,
+    onboardingGateStatus,
+    pathname,
+    tourModeEnabled,
+    tourModeHydrated,
+  });
+  const shouldHoldTabsForRootGate =
+    hostedMode && (!routeGate.canAccessAppRoutes || routeGate.shouldShowLoadingShell);
+  const shouldBypassProfileGate =
+    shouldHoldTabsForRootGate || (dataModeResolved && hostedMode && tourModeEnabled);
   const [profileGateReady, setProfileGateReady] = useState(false);
   const [profileComplete, setProfileComplete] = useState(true);
 
   useEffect(() => {
     let isActive = true;
 
-    if (shouldBypassProfileGate || isSettingsRoute) {
+    if (shouldBypassProfileGate) {
       setProfileComplete(true);
       setProfileGateReady(true);
       return () => {
@@ -57,19 +79,27 @@ export default function TabsLayout() {
     return () => {
       isActive = false;
     };
-  }, [isSettingsRoute, shouldBypassProfileGate]);
+  }, [shouldBypassProfileGate]);
 
   useEffect(() => {
-    if (!profileGateReady || shouldBypassProfileGate || isSettingsRoute || profileComplete) {
+    if (!profileGateReady || shouldBypassProfileGate || profileComplete) {
       return;
     }
 
     router.replace('/settings');
-  }, [isSettingsRoute, profileComplete, profileGateReady, router, shouldBypassProfileGate]);
+  }, [profileComplete, profileGateReady, router, shouldBypassProfileGate]);
 
-  const isTabsGateLoading = !profileGateReady && !shouldBypassProfileGate && !isSettingsRoute;
+  const isTabsGateLoading = !profileGateReady && !shouldBypassProfileGate;
 
   const backgroundColor = isDark ? '#1a1f16' : '#f8f7f3';
+
+  if (shouldHoldTabsForRootGate) {
+    return (
+      <View className="flex-1" style={{ backgroundColor }}>
+        <AppLoadingShell />
+      </View>
+    );
+  }
 
   return (
     <View className="flex-1" style={{ backgroundColor }}>
@@ -99,7 +129,6 @@ export default function TabsLayout() {
           <Tabs.Screen name="invoices" options={{ title: 'Invoices' }} />
           <Tabs.Screen name="bank" options={{ title: 'Bank' }} />
           <Tabs.Screen name="payments" options={{ title: 'Payments' }} />
-          <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
         </Tabs>
       </View>
       {isTabsGateLoading ? (

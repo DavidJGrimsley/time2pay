@@ -101,4 +101,5 @@ export type HostedAccessResult = {
   source: HostedAccessSource;
   validUntil: string | null;
   eligibleOffers: HostedOffer[];
+  enforcementEnabled?: boolean;
 };

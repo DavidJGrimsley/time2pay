@@ -12,6 +12,7 @@ import {
   isHostedMode,
   resolveAppAccessMode,
 } from '@/services/runtime-mode';
+import { getHostedBillingStatus } from '@/services/billing';
 import { syncGitHubProviderTokenToHostedProfile } from '@/services/github-auth';
 import { invalidateMercuryResourceCache } from '@/services/mercury';
 import { syncPendingMercuryReferralClick } from '@/services/mercury-referrals';
@@ -23,13 +24,12 @@ import {
   loadTime2PayOnboardingGateSnapshot,
   syncPendingTime2PayOnboardingProgress,
 } from '@/features/onboarding/onboarding-state';
-import { resolveHostedOnboardingRedirect } from '@/features/onboarding/onboarding-route-gate';
+import { resolveHostedRouteGate } from '@/features/onboarding/onboarding-route-gate';
 export const unstable_settings = {
   anchor: 'index',
 };
 
 const AUTH_BOOTSTRAP_TIMEOUT_MS = 5000;
-type HostedAccessState = 'checking' | 'allowed' | 'blocked';
 
 if (Platform.OS === 'web' && typeof window !== 'undefined') {
   try {
@@ -61,6 +61,13 @@ export default function RootLayout() {
   const onboardingGateReady = useAuthUiStore((state) => state.onboardingGateReady);
   const onboardingGateStatus = useAuthUiStore((state) => state.onboardingGateStatus);
   const onboardingGateError = useAuthUiStore((state) => state.onboardingGateError);
+  const hostedAccessGateReady = useAuthUiStore((state) => state.hostedAccessGateReady);
+  const hostedAccessGateStatus = useAuthUiStore((state) => state.hostedAccessGateStatus);
+  const hostedAccessGateError = useAuthUiStore((state) => state.hostedAccessGateError);
+  const hostedAccessEnforcementEnabled = useAuthUiStore(
+    (state) => state.hostedAccessEnforcementEnabled,
+  );
+  const hostedAccessHasAccess = useAuthUiStore((state) => state.hostedAccessHasAccess);
   const tourModeEnabled = useAuthUiStore((state) => state.tourModeEnabled);
   const tourModeHydrated = useAuthUiStore((state) => state.tourModeHydrated);
   const setTourInitError = useAuthUiStore((state) => state.setTourInitError);
@@ -68,6 +75,12 @@ export default function RootLayout() {
   const syncOnboardingGate = useAuthUiStore((state) => state.syncOnboardingGate);
   const setOnboardingGateError = useAuthUiStore((state) => state.setOnboardingGateError);
   const resetOnboardingGate = useAuthUiStore((state) => state.resetOnboardingGate);
+  const setHostedAccessGateChecking = useAuthUiStore(
+    (state) => state.setHostedAccessGateChecking,
+  );
+  const syncHostedAccessGate = useAuthUiStore((state) => state.syncHostedAccessGate);
+  const setHostedAccessGateError = useAuthUiStore((state) => state.setHostedAccessGateError);
+  const resetHostedAccessGate = useAuthUiStore((state) => state.resetHostedAccessGate);
   const hydrateTourMode = useAuthUiStore((state) => state.hydrateTourMode);
   const syncHostedAuth = useAuthUiStore((state) => state.syncHostedAuth);
   const resetForLocalMode = useAuthUiStore((state) => state.resetForLocalMode);
@@ -351,6 +364,80 @@ export default function RootLayout() {
   ]);
 
   useEffect(() => {
+    if (
+      !hostedMode ||
+      tourModeEnabled ||
+      !authReady ||
+      !isAuthenticated ||
+      !onboardingGateReady ||
+      onboardingGateStatus !== 'complete'
+    ) {
+      resetHostedAccessGate();
+      return;
+    }
+
+    let isActive = true;
+    const abortController = new AbortController();
+
+    setHostedAccessGateChecking();
+    logRuntimeDiagnostic('hosted.access.gate.load.start');
+
+    getHostedBillingStatus(abortController.signal)
+      .then((hostedAccess) => {
+        if (!isActive) {
+          return;
+        }
+
+        const enforcementEnabled = hostedAccess.enforcementEnabled === true;
+        const status = !enforcementEnabled || hostedAccess.hasAccess ? 'allowed' : 'blocked';
+
+        logRuntimeDiagnostic('hosted.access.gate.load.success', {
+          enforcementEnabled,
+          hasAccess: hostedAccess.hasAccess,
+          source: hostedAccess.source,
+          status: hostedAccess.status,
+          routeGateStatus: status,
+        });
+        syncHostedAccessGate({
+          enforcementEnabled,
+          hasAccess: hostedAccess.hasAccess,
+          status,
+        });
+      })
+      .catch((error) => {
+        if (!isActive || abortController.signal.aborted) {
+          return;
+        }
+
+        const message = errorMessage(error);
+        logRuntimeDiagnostic(
+          'hosted.access.gate.load.error',
+          {
+            message,
+          },
+          { level: 'error' },
+        );
+        setHostedAccessGateError(message);
+      });
+
+    return () => {
+      isActive = false;
+      abortController.abort();
+    };
+  }, [
+    authReady,
+    hostedMode,
+    isAuthenticated,
+    onboardingGateReady,
+    onboardingGateStatus,
+    resetHostedAccessGate,
+    setHostedAccessGateChecking,
+    setHostedAccessGateError,
+    syncHostedAccessGate,
+    tourModeEnabled,
+  ]);
+
+  useEffect(() => {
     let isActive = true;
 
     if (!hostedMode || appAccessMode !== 'tour') {
@@ -395,132 +482,114 @@ export default function RootLayout() {
     };
   }, [appAccessMode, hostedMode, setTourInitError]);
 
-  // Keep tabs reachable while hosted auth/tour state is still bootstrapping so
-  // first-click tour navigation can land on the loading shell instead of
-  // bouncing back to the public landing route.
-  const hostedAccessState: HostedAccessState = !hostedMode
-    ? 'allowed'
-    : !tourModeHydrated || !authReady
-      ? 'checking'
-      : isAuthenticated || tourModeEnabled
-        ? 'allowed'
-        : 'blocked';
-  const hostedAccessResolved = hostedAccessState !== 'checking';
-  const onboardingGateRequired = hostedMode && isAuthenticated && !tourModeEnabled;
-  const onboardingGateAllowsTabs =
-    !onboardingGateRequired || !onboardingGateReady || onboardingGateStatus === 'complete';
-  const canAccessTabs = hostedAccessState !== 'blocked' && onboardingGateAllowsTabs;
-  const normalizedPathname = pathname !== '/' ? pathname.replace(/\/+$/, '') : pathname;
-  const isOnboardingRoute =
-    normalizedPathname === '/onboarding' || normalizedPathname.startsWith('/onboarding/');
-  const isLegalUpdateRoute = normalizedPathname === '/legal/updates';
-  const isPublicRoute =
-    normalizedPathname === '/' ||
-    normalizedPathname === '/sign-in' ||
-    normalizedPathname === '/pricing' ||
-    normalizedPathname === '/privacy' ||
-    normalizedPathname === '/terms' ||
-    isLegalUpdateRoute ||
-    isOnboardingRoute;
-  const isInsideTabsGroup = !isPublicRoute;
+  const routeGate = resolveHostedRouteGate({
+    authReady,
+    hostedAccessGateReady,
+    hostedAccessGateStatus,
+    hostedMode,
+    isAuthenticated,
+    isTourSeedReady,
+    onboardingGateReady,
+    onboardingGateStatus,
+    pathname,
+    tourModeEnabled,
+    tourModeHydrated,
+  });
 
   useEffect(() => {
-    if (!hostedMode || !tourModeHydrated || !authReady) {
-      logRuntimeDiagnostic('auth.redirect.check.skipped', {
-        hostedMode,
-        tourModeHydrated,
-        authReady,
-      });
-      return;
-    }
-
-    const redirectTarget = resolveHostedOnboardingRedirect({
-      authReady,
-      hostedMode,
-      isAuthenticated,
-      isInsideTabsGroup,
-      onboardingGateReady,
-      onboardingGateStatus,
-      pathname,
-      tourModeEnabled,
-      tourModeHydrated,
-    });
-
     logRuntimeDiagnostic('auth.redirect.check', {
-      canAccessTabs,
-      hostedAccessState,
-      hostedAccessResolved,
-      isInsideTabsGroup,
+      canAccessAccountRoutes: routeGate.canAccessAccountRoutes,
+      canAccessAppRoutes: routeGate.canAccessAppRoutes,
+      canMountAccountRoutes: routeGate.canMountAccountRoutes,
+      canMountAppRoutes: routeGate.canMountAppRoutes,
+      hostedAccessEnforcementEnabled,
+      hostedAccessGateError,
+      hostedAccessGateReady,
+      hostedAccessGateStatus,
+      hostedAccessHasAccess,
+      isAccountRoute: routeGate.isAccountRoute,
+      isAppRoute: routeGate.isAppRoute,
       isAuthenticated,
       onboardingGateError,
       onboardingGateReady,
       onboardingGateStatus,
       pathname,
-      redirectTarget,
+      redirectTarget: routeGate.redirectTarget,
+      shouldShowLoadingShell: routeGate.shouldShowLoadingShell,
       tourModeEnabled,
     });
 
-    if (redirectTarget) {
+    if (routeGate.redirectTarget) {
       logRuntimeDiagnostic(
         'auth.redirect.toOnboardingGateTarget',
         {
-          redirectTarget,
+          redirectTarget: routeGate.redirectTarget,
         },
         { level: 'warn' },
       );
-      router.replace(redirectTarget as never);
+      router.replace(routeGate.redirectTarget as never);
       return;
     }
   }, [
-    authReady,
-    canAccessTabs,
-    hostedAccessState,
-    hostedAccessResolved,
-    hostedMode,
+    hostedAccessEnforcementEnabled,
+    hostedAccessGateError,
+    hostedAccessGateReady,
+    hostedAccessGateStatus,
+    hostedAccessHasAccess,
     isAuthenticated,
-    isInsideTabsGroup,
     onboardingGateError,
     onboardingGateReady,
     onboardingGateStatus,
     pathname,
+    routeGate.canAccessAccountRoutes,
+    routeGate.canAccessAppRoutes,
+    routeGate.canMountAccountRoutes,
+    routeGate.canMountAppRoutes,
+    routeGate.isAccountRoute,
+    routeGate.isAppRoute,
+    routeGate.redirectTarget,
+    routeGate.shouldShowLoadingShell,
     router,
     tourModeEnabled,
-    tourModeHydrated,
   ]);
 
-  const isLoadingShellVisible =
-    hostedMode &&
-    (hostedAccessState === 'checking' ||
-      (appAccessMode === 'tour' && !isTourSeedReady) ||
-      (onboardingGateRequired && !onboardingGateReady));
+  const isLoadingShellVisible = hostedMode && routeGate.shouldShowLoadingShell;
 
   useEffect(() => {
     if (isLoadingShellVisible) {
       logRuntimeDiagnostic('root.loadingShell.visible', {
         hostedMode,
-        hostedAccessState,
-        hostedAccessResolved,
-        tourModeHydrated,
+        hostedAccessEnforcementEnabled,
+        hostedAccessGateError,
+        hostedAccessGateReady,
+        hostedAccessGateStatus,
+        hostedAccessHasAccess,
         authReady,
         appAccessMode,
         isTourSeedReady,
+        isAccountRoute: routeGate.isAccountRoute,
+        isAppRoute: routeGate.isAppRoute,
         onboardingGateReady,
-        onboardingGateRequired,
         onboardingGateStatus,
+        tourModeHydrated,
       });
     }
   }, [
-    isLoadingShellVisible,
-    hostedMode,
-    hostedAccessState,
-    hostedAccessResolved,
-    tourModeHydrated,
-    authReady,
     appAccessMode,
+    authReady,
+    hostedAccessEnforcementEnabled,
+    hostedAccessGateError,
+    hostedAccessGateReady,
+    hostedAccessGateStatus,
+    hostedAccessHasAccess,
+    hostedMode,
     isTourSeedReady,
+    isLoadingShellVisible,
     onboardingGateReady,
-    onboardingGateRequired,
     onboardingGateStatus,
+    routeGate.isAccountRoute,
+    routeGate.isAppRoute,
+    tourModeHydrated,
   ]);
 
   return (
@@ -544,11 +613,14 @@ export default function RootLayout() {
         <Stack.Screen name="onboarding/features" options={{ title: 'Time2Pay Features' }} />
         <Stack.Screen name="onboarding/auth" options={{ title: 'Time2Pay Account' }} />
         <Stack.Screen name="onboarding/legal" options={{ title: 'Time2Pay Legal' }} />
-        <Stack.Protected guard={canAccessTabs}>
-          <Stack.Screen name="(tabs)" options={{ title: 'Time2Pay' }} />
+        <Stack.Protected guard={routeGate.canMountAccountRoutes}>
+          <Stack.Screen name="settings" options={{ title: 'Settings' }} />
           <Stack.Screen name="access-required" options={{ title: 'Hosted Access' }} />
           <Stack.Screen name="referral-status" options={{ title: 'Mercury Referral' }} />
           <Stack.Screen name="settings/billing" options={{ title: 'Billing' }} />
+        </Stack.Protected>
+        <Stack.Protected guard={routeGate.canMountAppRoutes}>
+          <Stack.Screen name="(tabs)" options={{ title: 'Time2Pay' }} />
         </Stack.Protected>
         <Stack.Screen name="+not-found" options={{ title: 'Not Found' }} />
       </Stack>
