@@ -170,7 +170,7 @@ export const useAuthUiStore = create<AuthUiState>((set) => ({
     set({
       hostedAccessGateReady: true,
       hostedAccessGateStatus: 'error',
-      hostedAccessEnforcementEnabled: true,
+      hostedAccessEnforcementEnabled: false,
       hostedAccessHasAccess: null,
       hostedAccessGateError: message,
     }),

@@ -197,8 +197,6 @@ export function resolveHostedRouteGate(input: ResolveHostedRouteGateInput): Host
     return toDecision(route, {
       canAccessAccountRoutes: false,
       canAccessAppRoutes: false,
-      canMountAccountRoutes: route.isAccountRoute,
-      canMountAppRoutes: route.isAppRoute,
       redirectTarget,
       shouldShowLoadingShell: route.isAccountRoute || route.isAppRoute,
     });
@@ -266,7 +264,7 @@ export function resolveHostedRouteGate(input: ResolveHostedRouteGateInput): Host
     });
   }
 
-  if (input.hostedAccessGateStatus === 'blocked' || input.hostedAccessGateStatus === 'error') {
+  if (input.hostedAccessGateStatus === 'blocked') {
     const shouldRedirectToAccessRequired =
       route.isAppRoute ||
       route.isRootRoute ||

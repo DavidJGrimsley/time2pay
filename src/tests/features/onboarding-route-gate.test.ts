@@ -90,6 +90,7 @@ describe('resolveHostedRouteGate direct URL access', () => {
 
       expect(decision.redirectTarget).toBe('/sign-in');
       expect(decision.canAccessAppRoutes).toBe(false);
+      expect(decision.canMountAppRoutes).toBe(false);
     },
   );
 
@@ -100,6 +101,7 @@ describe('resolveHostedRouteGate direct URL access', () => {
 
       expect(decision.redirectTarget).toBe('/sign-in');
       expect(decision.canAccessAccountRoutes).toBe(false);
+      expect(decision.canMountAccountRoutes).toBe(false);
     },
   );
 
@@ -260,6 +262,16 @@ describe('resolveHostedRouteGate paywall and hosted access gating', () => {
   it('treats hosted users as app-eligible when hosted access enforcement is not active', () => {
     const decision = signedInComplete({
       hostedAccessGateStatus: 'allowed',
+      pathname: '/dashboard',
+    });
+
+    expect(decision.redirectTarget).toBeNull();
+    expect(decision.canAccessAppRoutes).toBe(true);
+  });
+
+  it('fails open when the hosted access check errors instead of forcing the paywall', () => {
+    const decision = signedInComplete({
+      hostedAccessGateStatus: 'error',
       pathname: '/dashboard',
     });
 
