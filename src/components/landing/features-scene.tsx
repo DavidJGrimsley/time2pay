@@ -20,6 +20,7 @@ import {
 } from './landing-motion';
 import { SemanticText } from './semantic-elements';
 
+// Motion budget: pinned cards animate opacity/transform only and stay limited to this section.
 type FeaturesSceneProps = {
   scrollY: SharedValue<number>;
   layout: SectionLayout | undefined;

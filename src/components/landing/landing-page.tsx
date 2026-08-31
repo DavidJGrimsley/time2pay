@@ -46,6 +46,7 @@ import { useStableWindowDimensions } from '@/hooks/use-stable-window-dimensions'
 import { LandingSection } from './landing-section';
 import { SemanticText } from './semantic-elements';
 
+// Motion budget: landing reveals are short transform/opacity transitions shared by scene components.
 type PercentageWidth = '100%' | '48.5%' | '31.8%';
 
 // GitHub brand colors for the workflow section card
