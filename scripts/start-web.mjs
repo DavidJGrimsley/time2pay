@@ -20,7 +20,8 @@ child.once('error', (error) => {
 
 child.once('exit', (code, signal) => {
   if (signal) {
-    process.exit(1);
+    process.kill(process.pid, signal);
+    return;
   }
 
   process.exit(code ?? 1);
