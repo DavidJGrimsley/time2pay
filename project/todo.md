@@ -216,6 +216,10 @@ Milestone Payments:
 - [ ] Choose OSS license for core (default candidate: MIT) and document what is not included
 - [ ] Add `LICENSE`, `CONTRIBUTING.md`, and `SECURITY.md` before public launch
 
+## Bug Fixes & Regressions
+- [x] [Bug · Origin: Hosted/Tour Stabilization] Prevent Expo web worker chunk failures for `expo-sqlite` in local and hosted web modes by starting and exporting with Metro lazy loading disabled.
+- [ ] [Test · Origin: Hosted/Tour Stabilization] Verify SQLite persistence and tour VFS behavior in a browser session.
+
 ## Priority Post MVP TODO
 - [x] Clean up stale branches
 - [x] Upgrade to Expo SDK 56
