@@ -1,7 +1,7 @@
 import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { LogBox, Platform, StyleSheet, useColorScheme, View } from 'react-native';
-import { Uniwind } from 'uniwind';
+import { LogBox, Platform, StyleSheet, View } from 'react-native';
+import { useUniwind } from 'uniwind';
 import { AppLoadingShell } from '@/components/app-loading-shell';
 import { LandingSeoHead } from '@/components/landing/landing-seo-head';
 import { NoIndexSeoHead } from '@/components/no-index-seo-head';
@@ -18,6 +18,7 @@ import { invalidateMercuryResourceCache } from '@/services/mercury';
 import { syncPendingMercuryReferralClick } from '@/services/mercury-referrals';
 import { getSupabaseSession, onSupabaseAuthStateChange } from '@/services/supabase-client';
 import { ensureTourDemoData } from '@/services/tour-demo';
+import { useAppearanceUiStore } from '@/stores/appearance-store';
 import { useAuthUiStore } from '@/stores/auth-ui-store';
 import { AppThemeProvider } from '@/theme/provider';
 import {
@@ -33,7 +34,7 @@ const AUTH_BOOTSTRAP_TIMEOUT_MS = 5000;
 
 if (Platform.OS === 'web' && typeof window !== 'undefined') {
   try {
-    Uniwind.setTheme('system');
+    useAppearanceUiStore.getState().hydrateAppearancePreference();
   } catch {
     // no-op
   }
@@ -52,8 +53,10 @@ export default function RootLayout() {
   const pathname = usePathname();
   const segments = useSegments();
   const router = useRouter();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
+  const appearancePreference = useAppearanceUiStore((state) => state.appearancePreference);
+  const hydrateAppearancePreference = useAppearanceUiStore((state) => state.hydrateAppearancePreference);
+  const { theme: resolvedAppearanceTheme } = useUniwind();
+  const isDark = resolvedAppearanceTheme === 'dark';
   const isLandingEntry = pathname === '/';
 
   const authReady = useAuthUiStore((state) => state.authReady);
@@ -132,8 +135,8 @@ export default function RootLayout() {
   }, [hostedMode]);
 
   useEffect(() => {
-    Uniwind.setTheme('system');
-  }, []);
+    hydrateAppearancePreference();
+  }, [hydrateAppearancePreference]);
 
   useEffect(() => {
     logRuntimeDiagnostic('auth.tourMode.hydrate.start');
@@ -593,7 +596,7 @@ export default function RootLayout() {
   ]);
 
   return (
-    <AppThemeProvider>
+    <AppThemeProvider scheme={appearancePreference}>
       {isLandingEntry ? <LandingSeoHead /> : <NoIndexSeoHead />}
       <Stack
         screenOptions={{
@@ -618,6 +621,7 @@ export default function RootLayout() {
           <Stack.Screen name="access-required" options={{ title: 'Hosted Access' }} />
           <Stack.Screen name="referral-status" options={{ title: 'Mercury Referral' }} />
           <Stack.Screen name="settings/billing" options={{ title: 'Billing' }} />
+          <Stack.Screen name="settings/integrations" options={{ title: 'Integrations' }} />
         </Stack.Protected>
         <Stack.Protected guard={routeGate.canMountAppRoutes}>
           <Stack.Screen name="(tabs)" options={{ title: 'Time2Pay' }} />

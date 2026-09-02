@@ -56,12 +56,20 @@ vi.mock('@/components/route-nav', () => ({
   RouteNav: () => null,
 }));
 
-vi.mock('../components/profile-overview', () => ({
-  ProfileOverview: () => null,
+vi.mock('../features/settings/settings-screen', () => ({
+  SettingsScreen: () => null,
 }));
 
-vi.mock('@/components/profile-overview', () => ({
-  ProfileOverview: () => null,
+vi.mock('@/features/settings/settings-screen', () => ({
+  SettingsScreen: () => null,
+}));
+
+vi.mock('../features/settings/integrations/integrations-screen', () => ({
+  IntegrationsScreen: () => null,
+}));
+
+vi.mock('@/features/settings/integrations/integrations-screen', () => ({
+  IntegrationsScreen: () => null,
 }));
 
 vi.mock('../components/payments-overview', () => ({
@@ -95,5 +103,10 @@ describe('web route smoke tests', () => {
   it('renders the root Settings route shell', async () => {
     const { default: SettingsRoute } = await import('../app/settings');
     expect(() => renderer.create(<SettingsRoute />)).not.toThrow();
+  });
+
+  it('renders the Settings Integrations route shell', async () => {
+    const { default: IntegrationsRoute } = await import('../app/settings/integrations');
+    expect(() => renderer.create(<IntegrationsRoute />)).not.toThrow();
   });
 });
