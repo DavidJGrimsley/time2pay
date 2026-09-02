@@ -29,7 +29,7 @@ export function RouteNav() {
   const tourInitError = useAuthUiStore((state) => state.tourInitError);
   const setTourInitError = useAuthUiStore((state) => state.setTourInitError);
   const showTourBanner = dataModeResolved && tourModeEnabled;
-  const showSignInBanner = dataModeResolved && hostedMode && !isAuthenticated;
+  const showSignInBanner = dataModeResolved && !isAuthenticated;
   const showModeBanner = showTourBanner || showSignInBanner;
 
   async function handleResetTour(): Promise<void> {
@@ -52,7 +52,7 @@ export function RouteNav() {
             {tourModeEnabled
               ? hostedMode
                 ? 'Tour mode active. Sign in to save data to your hosted account.'
-                : 'Tour mode active. Demo data stays in this session.'
+                : 'Tour mode active. Sign in to exit the tour and use your own local data.'
               : 'Sign in to unlock hosted account sync.'}
           </Text>
           {showSignInBanner ? (
