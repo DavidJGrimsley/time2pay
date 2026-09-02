@@ -23,6 +23,9 @@ temp/
 time2pay_icons/
 packages/*/dist/
 packages/*/coverage/
+coverage/
+playwright-report/
+test-results/
 *.tsbuildinfo
 
 # Local editor/agent config

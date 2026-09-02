@@ -304,6 +304,10 @@ Notes:
 - `npm run serve:prod:env` - same as `serve:prod`; kept as a compatibility alias
 - `npm run typecheck` - TypeScript type checks
 - `npm run lint` - lint codebase
+- `npm test` - run the unit and deterministic integration suite
+- `npm run test:coverage` - run the suite with application-source coverage floors and reports
+- `npm run build:web:e2e` - build the non-secret hosted tour artifact used by browser smoke tests
+- `npm run test:e2e` - run the Chromium tour smoke test against the built production server
 
 ## Security Notes
 

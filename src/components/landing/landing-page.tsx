@@ -498,6 +498,13 @@ export function LandingPage() {
 
     if (startsTourMode) {
       startTour();
+      // The protected tabs mount only after tour mode is in state. Defer navigation
+      // one turn so Expo Router handles this as an in-app transition instead of a
+      // server-rendered request that cannot see browser-only tour state.
+      setTimeout(() => {
+        router.push('/dashboard' as never);
+      }, 0);
+      return;
     }
 
     router.push('/dashboard' as never);
