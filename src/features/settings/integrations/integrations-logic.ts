@@ -33,7 +33,9 @@ export function useIntegrationsScreen() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingIntegrations, setIsSavingIntegrations] = useState(false);
-  const [status, setStatus] = useState<IntegrationsStatus>(null);
+  const [generalStatus, setGeneralStatus] = useState<IntegrationsStatus>(null);
+  const [githubStatus, setGitHubStatus] = useState<IntegrationsStatus>(null);
+  const [mercuryStatus, setMercuryStatus] = useState<IntegrationsStatus>(null);
 
   const [githubPat, setGithubPat] = useState('');
   const [showAdvancedGitHubOptions, setShowAdvancedGitHubOptions] = useState(false);
@@ -76,6 +78,7 @@ export function useIntegrationsScreen() {
   const refreshMercuryCredentialStatus = useCallback(async (): Promise<void> => {
     if (!shouldShowHostedMercuryCredentials) {
       setMercuryCredentialStatus(null);
+      setMercuryStatus(null);
       return;
     }
 
@@ -88,6 +91,13 @@ export function useIntegrationsScreen() {
         updatedAt: null,
         arAccessAvailable: null,
         arAccessVerifiedAt: null,
+      });
+      setMercuryStatus({
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Failed to load Mercury credential status.',
+        tone: 'error',
       });
       if (typeof console !== 'undefined' && typeof console.warn === 'function') {
         console.warn('Failed to load Mercury credential status:', error);
@@ -111,7 +121,7 @@ export function useIntegrationsScreen() {
         }
       })
       .catch((error: unknown) => {
-        setStatus({
+        setGeneralStatus({
           message: error instanceof Error ? error.message : 'Failed to load integrations.',
           tone: 'error',
         });
@@ -146,16 +156,16 @@ export function useIntegrationsScreen() {
     window.sessionStorage.setItem(GITHUB_OAUTH_STATE_KEY, oauthState);
     const redirectUri = resolveGitHubOAuthRedirectUri();
     if (!redirectUri) {
-      setStatus({
+      setGitHubStatus({
         message: 'GitHub OAuth is unavailable: no valid redirect URL is configured.',
         tone: 'error',
       });
       return;
     }
 
-    setStatus(null);
+    setGitHubStatus(null);
     setIsSigningInWithGitHub(true);
-    setStatus({
+    setGitHubStatus({
       tone: 'neutral',
       message: 'Redirecting to GitHub so you can approve repository sync.',
     });
@@ -170,7 +180,7 @@ export function useIntegrationsScreen() {
       window.location.assign(authorizeUrl.toString());
     } catch (error) {
       setIsSigningInWithGitHub(false);
-      setStatus({
+      setGitHubStatus({
         tone: 'error',
         message: error instanceof Error ? error.message : 'Failed to open GitHub OAuth.',
       });
@@ -178,29 +188,29 @@ export function useIntegrationsScreen() {
   }
 
   async function handleSaveIntegrations(): Promise<void> {
-    setStatus(null);
+    setGitHubStatus(null);
     setIsSavingIntegrations(true);
 
     try {
       await upsertUserProfile({ github_pat: githubPat.trim() ? githubPat.trim() : null });
       await loadGitHubPat();
-      setStatus({ message: 'Integrations saved.', tone: 'success' });
+      setGitHubStatus({ message: 'Integrations saved.', tone: 'success' });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Failed to save integrations.';
       showActionErrorAlert(message);
-      setStatus({ message, tone: 'error' });
+      setGitHubStatus({ message, tone: 'error' });
     } finally {
       setIsSavingIntegrations(false);
     }
   }
 
   async function handleSaveMercuryKey(): Promise<void> {
-    setStatus(null);
+    setMercuryStatus(null);
     const apiKey = mercuryApiKey.trim();
     if (!apiKey) {
       const message = 'Mercury API key is required.';
       showValidationAlert(message);
-      setStatus({ message, tone: 'error' });
+      setMercuryStatus({ message, tone: 'error' });
       return;
     }
 
@@ -209,35 +219,35 @@ export function useIntegrationsScreen() {
       const nextStatus = await saveMercuryApiKey(apiKey);
       setMercuryCredentialStatus(nextStatus);
       setMercuryApiKey('');
-      setStatus({ message: 'Mercury API key saved.', tone: 'success' });
+      setMercuryStatus({ message: 'Mercury API key saved.', tone: 'success' });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Failed to save Mercury API key.';
       showActionErrorAlert(message);
-      setStatus({ message, tone: 'error' });
+      setMercuryStatus({ message, tone: 'error' });
     } finally {
       setIsSavingMercuryKey(false);
     }
   }
 
   async function handleTestMercuryKey(): Promise<void> {
-    setStatus(null);
+    setMercuryStatus(null);
     setIsTestingMercuryKey(true);
 
     try {
       await testMercuryApiKey();
       await refreshMercuryCredentialStatus();
-      setStatus({ message: 'Mercury API key connected successfully.', tone: 'success' });
+      setMercuryStatus({ message: 'Mercury API key connected successfully.', tone: 'success' });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Failed to test Mercury API key.';
       showActionErrorAlert(message);
-      setStatus({ message, tone: 'error' });
+      setMercuryStatus({ message, tone: 'error' });
     } finally {
       setIsTestingMercuryKey(false);
     }
   }
 
   async function handleToggleMercuryArAccess(enabled: boolean): Promise<void> {
-    setStatus(null);
+    setMercuryStatus(null);
     setIsTogglingMercuryAr(true);
 
     try {
@@ -246,19 +256,19 @@ export function useIntegrationsScreen() {
       const message = enabled
         ? 'Mercury invoicing enabled. The Mercury Invoice Builder is now available.'
         : 'Mercury invoicing disabled.';
-      setStatus({ message, tone: 'success' });
+      setMercuryStatus({ message, tone: 'success' });
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : 'Failed to update Mercury invoicing setting.';
       showActionErrorAlert(message);
-      setStatus({ message, tone: 'error' });
+      setMercuryStatus({ message, tone: 'error' });
     } finally {
       setIsTogglingMercuryAr(false);
     }
   }
 
   async function handleDeleteMercuryKey(): Promise<void> {
-    setStatus(null);
+    setMercuryStatus(null);
     const confirmed = await showSystemConfirm({
       title: 'Delete Mercury API key?',
       message: 'This removes the saved Mercury key from your Time2Pay hosted profile.',
@@ -281,11 +291,11 @@ export function useIntegrationsScreen() {
         arAccessVerifiedAt: null,
       });
       setMercuryApiKey('');
-      setStatus({ message: 'Mercury API key deleted.', tone: 'success' });
+      setMercuryStatus({ message: 'Mercury API key deleted.', tone: 'success' });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Failed to delete Mercury API key.';
       showActionErrorAlert(message);
-      setStatus({ message, tone: 'error' });
+      setMercuryStatus({ message, tone: 'error' });
     } finally {
       setIsDeletingMercuryKey(false);
     }
@@ -294,7 +304,9 @@ export function useIntegrationsScreen() {
   return {
     isLoading,
     isSavingIntegrations,
-    status,
+    generalStatus,
+    githubStatus,
+    mercuryStatus,
     tourModeEnabled,
     shouldShowHostedMercuryCredentials,
     githubPat,

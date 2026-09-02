@@ -43,12 +43,18 @@ export function SettingsScreen() {
       ) : null}
 
       <Link href={'/settings/billing' as Href} asChild>
-        <Pressable className="flex-row items-center justify-between gap-3 rounded-xl bg-card p-4">
+        <Pressable
+          className="flex-row items-center justify-between gap-3 rounded-xl bg-card p-4"
+          accessibilityLabel="Billing settings"
+          accessibilityHint="Manage your plan, payment method, and invoices."
+        >
           <View className="gap-1">
             <Text className="text-xl font-bold text-heading">Billing</Text>
             <Text className="text-sm text-muted">Manage your plan, payment method, and invoices.</Text>
           </View>
-          <Text className="text-sm font-semibold text-secondary">Open →</Text>
+          <Text accessible={false} className="text-3xl leading-none text-secondary">
+            →
+          </Text>
         </Pressable>
       </Link>
 
@@ -61,12 +67,18 @@ export function SettingsScreen() {
       </CollapsibleSection>
 
       <Link href={'/settings/integrations' as Href} asChild>
-        <Pressable className="flex-row items-center justify-between gap-3 rounded-xl bg-card p-4">
+        <Pressable
+          className="flex-row items-center justify-between gap-3 rounded-xl bg-card p-4"
+          accessibilityLabel="Integrations settings"
+          accessibilityHint="Connect GitHub repositories and your Mercury account."
+        >
           <View className="gap-1">
             <Text className="text-xl font-bold text-heading">Integrations</Text>
             <Text className="text-sm text-muted">Connect GitHub repositories and your Mercury account.</Text>
           </View>
-          <Text className="text-sm font-semibold text-secondary">Open →</Text>
+          <Text accessible={false} className="text-3xl leading-none text-secondary">
+            →
+          </Text>
         </Pressable>
       </Link>
 

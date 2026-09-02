@@ -148,6 +148,41 @@ describe('SettingsScreen', () => {
     ).toBeTruthy();
   });
 
+  it('uses arrow-only indicators for linked Billing and Integrations cards', async () => {
+    const { SettingsScreen } = await import('@/features/settings/settings-screen');
+
+    let root!: renderer.ReactTestRenderer;
+    await act(async () => {
+      root = renderer.create(<SettingsScreen />);
+    });
+
+    expect(
+      root.root.findAll(
+        (node: renderer.ReactTestInstance) =>
+          String(node.type) === 'Text' &&
+          node.props.children === '→' &&
+          node.props.className === 'text-3xl leading-none text-secondary',
+      ),
+    ).toHaveLength(2);
+    expect(
+      root.root.findAll(
+        (node: renderer.ReactTestInstance) =>
+          String(node.type) === 'Text' && node.props.children === 'Open →',
+      ),
+    ).toHaveLength(0);
+    expect(
+      root.root.findAll(
+        (node: renderer.ReactTestInstance) =>
+          String(node.type) === 'Pressable' &&
+          ((node.props.accessibilityLabel === 'Billing settings' &&
+            node.props.accessibilityHint === 'Manage your plan, payment method, and invoices.') ||
+            (node.props.accessibilityLabel === 'Integrations settings' &&
+              node.props.accessibilityHint ===
+                'Connect GitHub repositories and your Mercury account.')),
+      ),
+    ).toHaveLength(2);
+  });
+
   it('shows the Sign Out action for an authenticated hosted account', async () => {
     const { SettingsScreen } = await import('@/features/settings/settings-screen');
 

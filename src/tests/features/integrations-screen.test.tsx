@@ -13,6 +13,13 @@ const mocks = vi.hoisted(() => ({
   initializeDatabase: vi.fn(),
   getCurrentGitHubSessionState: vi.fn(),
   getMercuryCredentialStatus: vi.fn(),
+  saveMercuryApiKey: vi.fn(),
+  deleteMercuryApiKey: vi.fn(),
+  testMercuryApiKey: vi.fn(),
+  setMercuryArAccess: vi.fn(),
+  showActionErrorAlert: vi.fn(),
+  showSystemConfirm: vi.fn(),
+  showValidationAlert: vi.fn(),
 }));
 
 function makeComponent(name: string) {
@@ -56,10 +63,16 @@ vi.mock('@/services/github-auth', () => ({
 
 vi.mock('@/services/mercury-credentials', () => ({
   getMercuryCredentialStatus: mocks.getMercuryCredentialStatus,
-  saveMercuryApiKey: vi.fn(),
-  deleteMercuryApiKey: vi.fn(),
-  testMercuryApiKey: vi.fn(),
-  setMercuryArAccess: vi.fn(),
+  saveMercuryApiKey: mocks.saveMercuryApiKey,
+  deleteMercuryApiKey: mocks.deleteMercuryApiKey,
+  testMercuryApiKey: mocks.testMercuryApiKey,
+  setMercuryArAccess: mocks.setMercuryArAccess,
+}));
+
+vi.mock('@/services/system-alert', () => ({
+  showActionErrorAlert: mocks.showActionErrorAlert,
+  showSystemConfirm: mocks.showSystemConfirm,
+  showValidationAlert: mocks.showValidationAlert,
 }));
 
 vi.mock('@/services/runtime-mode', () => ({
@@ -101,6 +114,15 @@ describe('IntegrationsScreen', () => {
       arAccessAvailable: null,
       arAccessVerifiedAt: null,
     });
+    mocks.upsertUserProfile.mockResolvedValue(undefined);
+    mocks.saveMercuryApiKey.mockResolvedValue({
+      configured: true,
+      keyLastFour: '1234',
+      updatedAt: '2026-09-02T00:00:00.000Z',
+      arAccessAvailable: false,
+      arAccessVerifiedAt: null,
+    });
+    mocks.showSystemConfirm.mockResolvedValue(true);
   });
 
   it('renders the GitHub sync entry point', async () => {
@@ -152,5 +174,111 @@ describe('IntegrationsScreen', () => {
           String(node.type) === 'Text' && node.props.children === 'Mercury production API key',
       ),
     ).toHaveLength(0);
+  });
+
+  it('renders an initialization failure above both provider cards', async () => {
+    mocks.initializeDatabase.mockRejectedValue(new Error('Unable to initialize integrations.'));
+    const { IntegrationsScreen } = await import('@/features/settings/integrations/integrations-screen');
+
+    let root!: renderer.ReactTestRenderer;
+    await act(async () => {
+      root = renderer.create(<IntegrationsScreen />);
+    });
+
+    const mercuryCard = root.root.findByProps({ testID: 'mercury-integration-card' });
+    const githubCard = root.root.findByProps({ testID: 'github-integration-card' });
+    const noticeMatcher = (node: renderer.ReactTestInstance) =>
+      String(node.type) === 'Text' && node.props.children === 'Unable to initialize integrations.';
+
+    expect(root.root.findAll(noticeMatcher)).toHaveLength(1);
+    expect(githubCard.findAll(noticeMatcher)).toHaveLength(0);
+    expect(mercuryCard.findAll(noticeMatcher)).toHaveLength(0);
+  });
+
+  it('renders a Mercury save failure in the Mercury card, not the GitHub card', async () => {
+    mocks.saveMercuryApiKey.mockRejectedValue(new Error('Mercury key was rejected.'));
+    const { IntegrationsScreen } = await import('@/features/settings/integrations/integrations-screen');
+
+    let root!: renderer.ReactTestRenderer;
+    await act(async () => {
+      root = renderer.create(<IntegrationsScreen />);
+    });
+
+    const mercuryInput = root.root.find(
+      (node: renderer.ReactTestInstance) =>
+        String(node.type) === 'TextInput' && node.props.placeholder === 'Mercury production API key',
+    );
+    await act(async () => {
+      mercuryInput.props.onChangeText('mercury-key');
+    });
+
+    const saveMercuryButton = root.root.find(
+      (node: renderer.ReactTestInstance) =>
+        String(node.type) === 'Pressable' &&
+        node.findAll(
+          (child: renderer.ReactTestInstance) =>
+            String(child.type) === 'Text' && child.props.children === 'Save Mercury Key',
+        ).length > 0,
+    );
+    await act(async () => {
+      saveMercuryButton.props.onPress();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const mercuryCard = root.root.findByProps({ testID: 'mercury-integration-card' });
+    const githubCard = root.root.findByProps({ testID: 'github-integration-card' });
+    const noticeMatcher = (node: renderer.ReactTestInstance) =>
+      String(node.type) === 'Text' && node.props.children === 'Mercury key was rejected.';
+
+    expect(mocks.showActionErrorAlert).toHaveBeenCalledWith('Mercury key was rejected.');
+    expect(mercuryCard.findAll(noticeMatcher)).toHaveLength(1);
+    expect(githubCard.findAll(noticeMatcher)).toHaveLength(0);
+  });
+
+  it('renders a GitHub save failure in the GitHub card, not the Mercury card', async () => {
+    mocks.upsertUserProfile.mockRejectedValue(new Error('GitHub token could not be saved.'));
+    const { IntegrationsScreen } = await import('@/features/settings/integrations/integrations-screen');
+
+    let root!: renderer.ReactTestRenderer;
+    await act(async () => {
+      root = renderer.create(<IntegrationsScreen />);
+    });
+
+    const advancedOptionsButton = root.root.find(
+      (node: renderer.ReactTestInstance) =>
+        String(node.type) === 'Pressable' &&
+        node.findAll(
+          (child: renderer.ReactTestInstance) =>
+            String(child.type) === 'Text' &&
+            child.props.children === 'Advanced GitHub token options',
+        ).length > 0,
+    );
+    await act(async () => {
+      advancedOptionsButton.props.onPress();
+    });
+
+    const saveGitHubButton = root.root.find(
+      (node: renderer.ReactTestInstance) =>
+        String(node.type) === 'Pressable' &&
+        node.findAll(
+          (child: renderer.ReactTestInstance) =>
+            String(child.type) === 'Text' && child.props.children === 'Save Integrations',
+        ).length > 0,
+    );
+    await act(async () => {
+      saveGitHubButton.props.onPress();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const mercuryCard = root.root.findByProps({ testID: 'mercury-integration-card' });
+    const githubCard = root.root.findByProps({ testID: 'github-integration-card' });
+    const noticeMatcher = (node: renderer.ReactTestInstance) =>
+      String(node.type) === 'Text' && node.props.children === 'GitHub token could not be saved.';
+
+    expect(mocks.showActionErrorAlert).toHaveBeenCalledWith('GitHub token could not be saved.');
+    expect(githubCard.findAll(noticeMatcher)).toHaveLength(1);
+    expect(mercuryCard.findAll(noticeMatcher)).toHaveLength(0);
   });
 });

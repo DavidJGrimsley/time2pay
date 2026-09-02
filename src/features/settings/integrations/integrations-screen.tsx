@@ -48,7 +48,9 @@ export function IntegrationsScreen() {
   const {
     isLoading,
     isSavingIntegrations,
-    status,
+    generalStatus,
+    githubStatus,
+    mercuryStatus,
     tourModeEnabled,
     shouldShowHostedMercuryCredentials,
     githubPat,
@@ -90,8 +92,9 @@ export function IntegrationsScreen() {
       <Text className="text-muted">
         Connect GitHub for repository lookups and Mercury for banking, invoicing, and referrals.
       </Text>
+      {generalStatus ? <InlineNotice tone={generalStatus.tone} message={generalStatus.message} /> : null}
 
-      <View className="gap-3 rounded-xl bg-card p-4">
+      <View testID="github-integration-card" className="gap-3 rounded-xl bg-card p-4">
         <Text className="text-xl font-bold text-heading">GitHub</Text>
         <Text className="text-sm text-muted">
           GitHub access is for repository and commit lookup only. It does not auto-fill your
@@ -181,11 +184,11 @@ export function IntegrationsScreen() {
             </Pressable>
           </View>
         ) : null}
-        {status ? <InlineNotice tone={status.tone} message={status.message} /> : null}
+        {githubStatus ? <InlineNotice tone={githubStatus.tone} message={githubStatus.message} /> : null}
       </View>
 
       {shouldShowHostedMercuryCredentials || tourModeEnabled ? (
-        <View className="gap-3 rounded-xl bg-card p-4">
+        <View testID="mercury-integration-card" className="gap-3 rounded-xl bg-card p-4">
           <Text className="text-xl font-bold text-heading">Mercury</Text>
           {shouldShowHostedMercuryCredentials ? (
             <View className="gap-2.5 rounded-md border border-border bg-background p-3">
@@ -329,6 +332,9 @@ export function IntegrationsScreen() {
               tone="neutral"
               message="Tour mode uses Mercury sandbox credentials. Sign in to save your own production Mercury API key."
             />
+          ) : null}
+          {mercuryStatus ? (
+            <InlineNotice tone={mercuryStatus.tone} message={mercuryStatus.message} />
           ) : null}
         </View>
       ) : null}
