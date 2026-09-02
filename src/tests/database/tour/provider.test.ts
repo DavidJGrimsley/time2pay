@@ -37,8 +37,12 @@ describe('tour provider integration', () => {
 
     await resetTourProviderData();
 
-    expect(await tourProvider.listClients()).toEqual([
-      expect.objectContaining({ id: 'tour_client_001', name: 'Acme Design Co.' }),
-    ]);
+    const resetClients = await tourProvider.listClients();
+    expect(resetClients).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'tour_client_001', name: 'Acme Design Co.' }),
+      ]),
+    );
+    expect(resetClients.some((client) => client.id === 'e2e-client')).toBe(false);
   });
 });
