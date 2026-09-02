@@ -382,7 +382,10 @@ function isAccessHandleConflictError(error: unknown): boolean {
 async function openConfiguredDatabase(databaseName: string): Promise<SQLite.SQLiteDatabase> {
   const db = await SQLite.openDatabaseAsync(databaseName);
   await db.execAsync('PRAGMA foreign_keys = ON;');
-  await db.execAsync('PRAGMA journal_mode = WAL;');
+  // WAL is not reliably supported by expo-sqlite's web VFS / memory databases.
+  if (!isWebRuntime()) {
+    await db.execAsync('PRAGMA journal_mode = WAL;');
+  }
   activeDbName = databaseName;
   return db;
 }
@@ -418,20 +421,36 @@ async function getUserVersion(db: SQLite.SQLiteDatabase): Promise<number> {
   return row?.user_version ?? 0;
 }
 
+export async function runSqliteTransaction(
+  db: SQLite.SQLiteDatabase,
+  work: () => Promise<void>,
+): Promise<void> {
+  if (await db.isInTransactionAsync()) {
+    await work();
+    return;
+  }
+
+  try {
+    await db.withTransactionAsync(work);
+  } catch (error) {
+    const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+    if (message.includes('within a transaction')) {
+      await work();
+      return;
+    }
+    throw error;
+  }
+}
+
 async function runMigrations(db: SQLite.SQLiteDatabase): Promise<number> {
   const currentVersion = await getUserVersion(db);
   const pending = MIGRATIONS.filter((migration) => migration.version > currentVersion);
 
   for (const migration of pending) {
-    await db.execAsync('BEGIN;');
-    try {
+    await runSqliteTransaction(db, async () => {
       await db.execAsync(migration.upSql);
       await db.execAsync(`PRAGMA user_version = ${migration.version};`);
-      await db.execAsync('COMMIT;');
-    } catch (error) {
-      await db.execAsync('ROLLBACK;');
-      throw error;
-    }
+    });
   }
 
   return getUserVersion(db);

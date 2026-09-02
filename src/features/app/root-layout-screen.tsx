@@ -440,7 +440,7 @@ export default function RootLayout() {
   useEffect(() => {
     let isActive = true;
 
-    if (!hostedMode || appAccessMode !== 'tour') {
+    if (appAccessMode !== 'tour') {
       setIsTourSeedReady(true);
       setTourInitError(null);
       logRuntimeDiagnostic('tour.seed.skipped', {

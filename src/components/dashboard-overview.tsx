@@ -16,9 +16,9 @@ type DashboardGateStatus = 'loading' | 'locked' | 'unlocked';
 
 export function DashboardOverview() {
   const router = useRouter();
-  const { hostedMode, resolved: dataModeResolved } = useResolvedDataMode();
+  const { resolved: dataModeResolved } = useResolvedDataMode();
   const tourModeEnabled = useAuthUiStore((state) => state.tourModeEnabled);
-  const shouldBypassProfileGate = dataModeResolved && hostedMode && tourModeEnabled;
+  const shouldBypassProfileGate = dataModeResolved && tourModeEnabled;
   const [gateStatus, setGateStatus] = useState<DashboardGateStatus>('unlocked');
   const [missingFields, setMissingFields] = useState<RequiredProfileField[]>([]);
   const [gateStatusMessage, setGateStatusMessage] = useState<string | null>(null);

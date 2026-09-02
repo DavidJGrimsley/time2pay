@@ -245,11 +245,12 @@ export const useAuthUiStore = create<AuthUiState>((set) => ({
       };
     }),
   resetForLocalMode: () =>
-    set(() => {
-      persistTourMode(false);
+    set((state) => {
+      const keepTour = state.tourModeEnabled || loadPersistedTourMode();
+      persistTourMode(keepTour);
       return {
         authReady: true,
-        isAuthenticated: true,
+        isAuthenticated: !keepTour,
         onboardingGateReady: true,
         onboardingGateStatus: 'complete',
         completedOnboardingStepIds: [],
@@ -260,9 +261,9 @@ export const useAuthUiStore = create<AuthUiState>((set) => ({
         hostedAccessEnforcementEnabled: false,
         hostedAccessHasAccess: true,
         hostedAccessGateError: null,
-        tourModeEnabled: false,
+        tourModeEnabled: keepTour,
         tourModeHydrated: true,
-        tourInitError: null,
+        tourInitError: keepTour ? state.tourInitError : null,
       };
     }),
 }));

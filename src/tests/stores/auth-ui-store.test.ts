@@ -9,6 +9,15 @@ describe('useAuthUiStore hosted access gate', () => {
     useAuthUiStore.setState(initialState, true);
   });
 
+  it('keeps an active local tour instead of treating the user as signed in', () => {
+    useAuthUiStore.getState().startTour();
+    useAuthUiStore.getState().resetForLocalMode();
+
+    const state = useAuthUiStore.getState();
+    expect(state.tourModeEnabled).toBe(true);
+    expect(state.isAuthenticated).toBe(false);
+  });
+
   it('records hosted access check errors without enabling paywall enforcement', () => {
     useAuthUiStore.getState().setHostedAccessGateError('Network failed.');
 
