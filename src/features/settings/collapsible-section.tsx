@@ -1,4 +1,4 @@
-import { useState, type PropsWithChildren } from 'react';
+import { useEffect, useState, type PropsWithChildren } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Octicons } from '@expo/vector-icons';
 import { useUniwind } from 'uniwind';
@@ -28,6 +28,16 @@ export function CollapsibleSection({
   const [expanded, setExpanded] = useState(defaultExpanded);
   const { theme } = useUniwind();
   const headingColor = HEADING_COLOR_BY_THEME[theme === 'dark' ? 'dark' : 'light'];
+
+  // defaultExpanded can flip true after mount (e.g. an async profile-completion
+  // check resolves) — force the section open when that happens so whatever
+  // needs attention isn't hidden behind a closed accordion. Never auto-collapse
+  // it back, so a user who manually closed it isn't surprised.
+  useEffect(() => {
+    if (defaultExpanded) {
+      setExpanded(true);
+    }
+  }, [defaultExpanded]);
 
   return (
     <View className="gap-3 rounded-xl bg-card p-4">

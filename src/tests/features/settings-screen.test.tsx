@@ -179,7 +179,7 @@ describe('SettingsScreen', () => {
     ).toHaveLength(0);
   });
 
-  it('shows the incomplete-profile banner when the profile is missing required fields', async () => {
+  it('shows the incomplete-profile banner and auto-expands Your Business when fields are missing', async () => {
     mocks.getProfileCompletion.mockResolvedValue({
       isComplete: false,
       missingFields: ['full_name'],
@@ -195,8 +195,34 @@ describe('SettingsScreen', () => {
       root.root.find(
         (node: renderer.ReactTestInstance) =>
           String(node.type) === 'Text' &&
-          node.props.children === 'Please complete your settings before using the rest of the app.',
+          node.props.children === 'Add your name, phone, and email in Your Business below to start tracking time and invoicing.',
       ),
     ).toBeTruthy();
+
+    // The fields that unblock the profile gate must be visible immediately,
+    // not hidden behind a collapsed accordion the user has to discover.
+    expect(
+      root.root.find(
+        (node: renderer.ReactTestInstance) =>
+          String(node.type) === 'TextInput' && node.props.placeholder === 'Full name',
+      ),
+    ).toBeTruthy();
+  });
+
+  it('keeps Your Business collapsed by default when the profile is already complete', async () => {
+    mocks.getProfileCompletion.mockResolvedValue({ isComplete: true, missingFields: [] });
+    const { SettingsScreen } = await import('@/features/settings/settings-screen');
+
+    let root!: renderer.ReactTestRenderer;
+    await act(async () => {
+      root = renderer.create(<SettingsScreen />);
+    });
+
+    expect(
+      root.root.findAll(
+        (node: renderer.ReactTestInstance) =>
+          String(node.type) === 'TextInput' && node.props.placeholder === 'Full name',
+      ),
+    ).toHaveLength(0);
   });
 });

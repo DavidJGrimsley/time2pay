@@ -98,4 +98,37 @@ describe('CollapsibleSection', () => {
       ),
     ).toHaveLength(0);
   });
+
+  it('force-expands when defaultExpanded flips true after mount (e.g. an async check resolves)', async () => {
+    const { CollapsibleSection } = await import('@/features/settings/collapsible-section');
+
+    function Wrapper({ defaultExpanded }: { defaultExpanded: boolean }) {
+      return (
+        <CollapsibleSection title="Your Business" defaultExpanded={defaultExpanded}>
+          <Text>Section content</Text>
+        </CollapsibleSection>
+      );
+    }
+
+    let root!: renderer.ReactTestRenderer;
+    await act(async () => {
+      root = renderer.create(<Wrapper defaultExpanded={false} />);
+    });
+
+    expect(
+      root.root.findAll(
+        (node: renderer.ReactTestInstance) => String(node.type) === 'Text' && node.props.children === 'Section content',
+      ),
+    ).toHaveLength(0);
+
+    await act(async () => {
+      root.update(<Wrapper defaultExpanded />);
+    });
+
+    expect(
+      root.root.find(
+        (node: renderer.ReactTestInstance) => String(node.type) === 'Text' && node.props.children === 'Section content',
+      ),
+    ).toBeTruthy();
+  });
 });

@@ -36,7 +36,10 @@ export function SettingsScreen() {
       </Text>
       {generalStatus ? <InlineNotice tone={generalStatus.tone} message={generalStatus.message} /> : null}
       {isProfileIncomplete ? (
-        <InlineNotice tone="error" message="Please complete your settings before using the rest of the app." />
+        <InlineNotice
+          tone="neutral"
+          message="Add your name, phone, and email in Your Business below to start tracking time and invoicing."
+        />
       ) : null}
 
       <Link href={'/settings/billing' as Href} asChild>
@@ -49,7 +52,11 @@ export function SettingsScreen() {
         </Pressable>
       </Link>
 
-      <CollapsibleSection title="Your Business" description="Company, contact, and profile details.">
+      <CollapsibleSection
+        title="Your Business"
+        description="Company, contact, and profile details."
+        defaultExpanded={isProfileIncomplete}
+      >
         <ProfileBusinessSection key={dataVersion} onProfileUpdated={refreshProfileCompletion} />
       </CollapsibleSection>
 
