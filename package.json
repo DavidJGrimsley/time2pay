@@ -5,10 +5,10 @@
   "packageManager": "npm@10.9.8",
   "main": "expo-router/entry",
   "scripts": {
-    "start": "expo start --web",
+    "start": "node scripts/start-web.mjs",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web",
+    "web": "node scripts/start-web.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node scripts/db-migrate.mjs",
     "mercury:backfill-vault": "node scripts/backfill-mercury-vault.mjs",
