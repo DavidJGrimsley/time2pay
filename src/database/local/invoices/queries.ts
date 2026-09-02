@@ -8,7 +8,13 @@ import type {
   MilestoneCompletionMode,
   Session,
 } from '@/database/types';
-import { assertDbInvoiceTotal, createDbId, getDb, nowIso } from '@/database/local/shared/runtime';
+import {
+  assertDbInvoiceTotal,
+  createDbId,
+  getDb,
+  nowIso,
+  runSqliteTransaction,
+} from '@/database/local/shared/runtime';
 
 export async function createInvoice(input: {
   id: string;
@@ -221,8 +227,7 @@ export async function deleteInvoice(invoiceId: string): Promise<void> {
   }
 
   const timestamp = nowIso();
-  await db.execAsync('BEGIN;');
-  try {
+  await runSqliteTransaction(db, async () => {
     await db.runAsync(
       `UPDATE sessions
          SET invoice_id = NULL,
@@ -253,12 +258,7 @@ export async function deleteInvoice(invoiceId: string): Promise<void> {
     if (result.changes === 0) {
       throw new Error('Invoice not found');
     }
-
-    await db.execAsync('COMMIT;');
-  } catch (error) {
-    await db.execAsync('ROLLBACK;');
-    throw error;
-  }
+  });
 }
 
 export async function createInvoiceSessionLinks(input: {

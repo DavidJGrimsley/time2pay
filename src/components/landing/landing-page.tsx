@@ -487,7 +487,9 @@ export function LandingPage() {
       return;
     }
 
-    const startsTourMode = !isAuthenticated;
+    // Local mode pretends the user is authenticated so hosted gates stay off.
+    // Still start tour from this CTA; only skip it for a real hosted session.
+    const startsTourMode = !hostedMode || !isAuthenticated;
     logRuntimeDiagnostic('landing.tour.start', {
       dataMode,
       destination: '/dashboard',
@@ -499,7 +501,7 @@ export function LandingPage() {
     }
 
     router.push('/dashboard' as never);
-  }, [dataMode, dataModeResolved, isAuthenticated, router, startTour]);
+  }, [dataMode, dataModeResolved, hostedMode, isAuthenticated, router, startTour]);
 
   const heroCopyStyle = useHeroPieceStyle(heroCopyProgress, 40);
   const logoStyle = useHeroPieceStyle(logoProgress, 0);

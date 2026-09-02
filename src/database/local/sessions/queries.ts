@@ -7,6 +7,7 @@ import {
   getDb,
   nowIso,
   parseDbIsoTimestamp,
+  runSqliteTransaction,
 } from '@/database/local/shared/runtime';
 
 export async function startSession(input: {
@@ -333,8 +334,7 @@ export async function deleteSession(sessionId: string): Promise<void> {
   }
 
   const timestamp = nowIso();
-  await db.execAsync('BEGIN;');
-  try {
+  await runSqliteTransaction(db, async () => {
     await db.runAsync(
       `UPDATE session_breaks
          SET deleted_at = ?,
@@ -362,12 +362,7 @@ export async function deleteSession(sessionId: string): Promise<void> {
     if (result.changes === 0) {
       throw new Error('Unable to delete session.');
     }
-
-    await db.execAsync('COMMIT;');
-  } catch (error) {
-    await db.execAsync('ROLLBACK;');
-    throw error;
-  }
+  });
 }
 
 export async function listSessions(): Promise<Session[]> {
