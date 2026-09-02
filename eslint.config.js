@@ -8,7 +8,7 @@ module.exports = [
   {
     files: ['src/**/*.{ts,tsx}'],
     rules: {
-      // SDK 56 enables stricter React linting; keep the upgrade branch focused on dependency/runtime compatibility.
+      // SDK 57 still enables these React lint rules; keep the upgrade branch focused on dependency/runtime compatibility.
       'react-hooks/purity': 'off',
       'react-hooks/set-state-in-effect': 'off',
     },
