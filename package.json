@@ -24,6 +24,9 @@
     "lint": "eslint . --ignore-pattern mds",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "build:web:e2e": "node scripts/build-e2e.mjs",
+    "test:e2e": "playwright test",
     "doctor": "npx expo-doctor@1.20.1"
   },
   "dependencies": {
@@ -69,10 +72,12 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@types/express": "^5.0.6",
     "@types/node": "^24.6.1",
     "@types/react": "~19.2.10",
     "@types/react-test-renderer": "^19.1.0",
+    "@vitest/coverage-v8": "^3.2.4",
     "dotenv": "^17.3.1",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9.39.3",
