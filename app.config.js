@@ -1,6 +1,3 @@
-// Loaded before Metro. Keep sqlite's web worker in the graph for every start path.
-process.env.EXPO_NO_METRO_LAZY = '1';
-
 const DEFAULT_SITE_ORIGIN = 'https://time2pay.app';
 const LOCAL_DATABASE_HEADERS = {
   'Cross-Origin-Embedder-Policy': 'credentialless',

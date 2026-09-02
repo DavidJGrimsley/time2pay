@@ -37,11 +37,11 @@ export function resolveAppAccessMode(
   dataMode: Time2PayDataMode,
   tourModeEnabled: boolean,
 ): AppAccessMode {
-  if (dataMode !== 'hosted') {
-    return 'local';
+  if (tourModeEnabled) {
+    return 'tour';
   }
 
-  return tourModeEnabled ? 'tour' : 'hosted';
+  return dataMode === 'hosted' ? 'hosted' : 'local';
 }
 
 export function getAppAccessMode(): AppAccessMode {

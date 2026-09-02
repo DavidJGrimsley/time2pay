@@ -28,7 +28,9 @@ export function RouteNav() {
   const tourModeEnabled = useAuthUiStore((state) => state.tourModeEnabled);
   const tourInitError = useAuthUiStore((state) => state.tourInitError);
   const setTourInitError = useAuthUiStore((state) => state.setTourInitError);
+  const showTourBanner = dataModeResolved && tourModeEnabled;
   const showSignInBanner = dataModeResolved && hostedMode && !isAuthenticated;
+  const showModeBanner = showTourBanner || showSignInBanner;
 
   async function handleResetTour(): Promise<void> {
     setIsResettingTour(true);
@@ -44,18 +46,22 @@ export function RouteNav() {
 
   return (
     <View className="gap-2">
-      {showSignInBanner ? (
+      {showModeBanner ? (
         <View className="flex-row flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-card px-3 py-2">
           <Text className="text-xs text-muted">
             {tourModeEnabled
-              ? 'Tour mode active. Sign in to save data to your hosted account.'
+              ? hostedMode
+                ? 'Tour mode active. Sign in to save data to your hosted account.'
+                : 'Tour mode active. Demo data stays in this session.'
               : 'Sign in to unlock hosted account sync.'}
           </Text>
-          <Link href={'/sign-in' as Href} asChild>
-            <Pressable className="rounded-full bg-secondary px-3 py-1.5">
-              <Text className="text-xs font-semibold text-white">Sign In</Text>
-            </Pressable>
-          </Link>
+          {showSignInBanner ? (
+            <Link href={'/sign-in' as Href} asChild>
+              <Pressable className="rounded-full bg-secondary px-3 py-1.5">
+                <Text className="text-xs font-semibold text-white">Sign In</Text>
+              </Pressable>
+            </Link>
+          ) : null}
           {tourModeEnabled ? (
             <Pressable
               className="rounded-full border border-border px-3 py-1.5"

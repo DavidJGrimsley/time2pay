@@ -38,7 +38,7 @@ export default function TabsLayout() {
   const shouldHoldTabsForRootGate =
     hostedMode && (!routeGate.canAccessAppRoutes || routeGate.shouldShowLoadingShell);
   const shouldBypassProfileGate =
-    shouldHoldTabsForRootGate || (dataModeResolved && hostedMode && tourModeEnabled);
+    shouldHoldTabsForRootGate || (dataModeResolved && tourModeEnabled);
   const [profileGateReady, setProfileGateReady] = useState(false);
   const [profileComplete, setProfileComplete] = useState(true);
 

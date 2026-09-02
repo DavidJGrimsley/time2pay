@@ -487,19 +487,19 @@ export function LandingPage() {
       return;
     }
 
-    const startsTourMode = hostedMode && !isAuthenticated;
+    const startsTourMode = !isAuthenticated;
     logRuntimeDiagnostic('landing.tour.start', {
       dataMode,
       destination: '/dashboard',
       startsTourMode,
     });
 
-    if (hostedMode && !isAuthenticated) {
+    if (startsTourMode) {
       startTour();
     }
 
     router.push('/dashboard' as never);
-  }, [dataMode, dataModeResolved, hostedMode, isAuthenticated, router, startTour]);
+  }, [dataMode, dataModeResolved, isAuthenticated, router, startTour]);
 
   const heroCopyStyle = useHeroPieceStyle(heroCopyProgress, 40);
   const logoStyle = useHeroPieceStyle(logoProgress, 0);

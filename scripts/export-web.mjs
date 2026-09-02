@@ -94,11 +94,7 @@ async function runExpoExport(resolvedEnv) {
 
   const child = spawn(command, args, {
     cwd: repoRoot,
-    env: {
-      ...resolvedEnv,
-      // SQLite's browser worker must be present in Metro's initial graph.
-      EXPO_NO_METRO_LAZY: '1',
-    },
+    env: resolvedEnv,
     stdio: 'inherit',
     shell: false,
   });
