@@ -99,5 +99,5 @@ export function resolveBrowserSiteOrigin(): string {
     return runtimeOrigin;
   }
 
-  return DEFAULT_SITE_ORIGIN;
+  return '';
 }
