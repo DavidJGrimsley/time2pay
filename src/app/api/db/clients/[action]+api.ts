@@ -40,11 +40,27 @@ const updateClientHourlyRateSchema = clientInsertSchema
   })
   .strict();
 
+function getRequestAction(request: Request, params?: { action?: string }): string | undefined {
+  const routeAction = params?.action;
+  if (typeof routeAction === 'string' && routeAction.trim()) {
+    return routeAction;
+  }
+
+  try {
+    const lastPathSegment = new URL(request.url).pathname.split('/').filter(Boolean).at(-1);
+    return lastPathSegment && lastPathSegment !== 'db' ? lastPathSegment : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function POST(
   request: Request,
-  { params }: { params: { action: string } },
+  { params }: { params?: { action?: string } },
 ): Promise<Response> {
-  switch (params.action) {
+  const action = getRequestAction(request, params);
+
+  switch (action) {
     case 'create':
       return handleDbWrite(request, createClientSchema, createClient);
     case 'update-contact':
@@ -52,6 +68,6 @@ export async function POST(
     case 'update-hourly-rate':
       return handleDbWrite(request, updateClientHourlyRateSchema, updateClientHourlyRate);
     default:
-      return Response.json({ error: `Unsupported clients action: ${params.action}` }, { status: 404 });
+      return Response.json({ error: `Unsupported clients action: ${action ?? 'unknown'}` }, { status: 404 });
   }
 }

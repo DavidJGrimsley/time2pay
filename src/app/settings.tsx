@@ -1,19 +1,16 @@
-import { useColorScheme, View } from 'react-native';
-import { ProfileOverview } from '@/components/profile-overview';
+import { View } from 'react-native';
 import { RouteNav } from '@/components/route-nav';
 import { TabScreenFrame } from '@/components/tab-screen-frame';
+import { SettingsScreen } from '@/features/settings/settings-screen';
 
 export default function SettingsRoute() {
-  const colorScheme = useColorScheme();
-  const backgroundColor = colorScheme === 'dark' ? '#1a1f16' : '#f8f7f3';
-
   return (
-    <View className="flex-1" style={{ backgroundColor }}>
+    <View className="flex-1 bg-background">
       <View className="px-6 pt-6 pb-2">
         <RouteNav />
       </View>
       <TabScreenFrame>
-        <ProfileOverview />
+        <SettingsScreen />
       </TabScreenFrame>
     </View>
   );

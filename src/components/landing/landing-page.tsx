@@ -335,7 +335,10 @@ export function LandingPage() {
   const colorScheme = useColorScheme();
   const { dataMode, hostedMode, resolved: dataModeResolved } = useResolvedDataMode();
   const isAuthenticated = useAuthUiStore((state) => state.isAuthenticated);
+  const tourModeEnabled = useAuthUiStore((state) => state.tourModeEnabled);
   const startTour = useAuthUiStore((state) => state.startTour);
+  const endTour = useAuthUiStore((state) => state.endTour);
+  const resetForLocalMode = useAuthUiStore((state) => state.resetForLocalMode);
   const scrollRef = useAnimatedRef<ScrollView>();
   const scrollY = useScrollOffset(scrollRef);
   const heroCopyProgress = useSharedValue(0);
@@ -463,6 +466,15 @@ export function LandingPage() {
         },
         { level: 'warn' },
       );
+
+      // Signing in from local mode has no hosted auth to redirect to, but it
+      // must still exit a stuck tour so the user reaches their own local data
+      // instead of the read-only tour dashboard.
+      if (tourModeEnabled) {
+        endTour();
+        resetForLocalMode();
+      }
+
       router.push('/dashboard' as never);
       return;
     }
@@ -472,7 +484,7 @@ export function LandingPage() {
       destination: '/sign-in',
     });
     router.push('/sign-in' as never);
-  }, [dataMode, dataModeResolved, hostedMode, router]);
+  }, [dataMode, dataModeResolved, endTour, hostedMode, resetForLocalMode, router, tourModeEnabled]);
 
   const handleOnboarding = useCallback(() => {
     logRuntimeDiagnostic('landing.onboarding.open', {
