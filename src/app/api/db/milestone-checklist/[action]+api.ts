@@ -33,18 +33,34 @@ const updateChecklistSchema = milestoneChecklistItemInsertSchema
   })
   .strict();
 
+function getRequestAction(request: Request, params?: { action?: string }): string | undefined {
+  const routeAction = params?.action;
+  if (typeof routeAction === 'string' && routeAction.trim()) {
+    return routeAction;
+  }
+
+  try {
+    const lastPathSegment = new URL(request.url).pathname.split('/').filter(Boolean).at(-1);
+    return lastPathSegment && lastPathSegment !== 'db' ? lastPathSegment : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function POST(
   request: Request,
-  { params }: { params: { action: string } },
+  { params }: { params?: { action?: string } },
 ): Promise<Response> {
-  switch (params.action) {
+  const action = getRequestAction(request, params);
+
+  switch (action) {
     case 'create':
       return handleDbWrite(request, createChecklistSchema, createMilestoneChecklistItem);
     case 'update':
       return handleDbWrite(request, updateChecklistSchema, updateMilestoneChecklistItem);
     default:
       return Response.json(
-        { error: `Unsupported milestone-checklist action: ${params.action}` },
+        { error: `Unsupported milestone-checklist action: ${action ?? 'unknown'}` },
         { status: 404 },
       );
   }

@@ -138,4 +138,19 @@ describe('RouteNav mode banner', () => {
     expect(findText(root, 'Sign In')).toHaveLength(1);
     expect(findText(root, 'Reset Tour')).toHaveLength(0);
   });
+
+  it('hides the banner for signed-out local users who are not touring', async () => {
+    mocks.hostedMode = false;
+    mocks.tourModeEnabled = false;
+    mocks.isAuthenticated = false;
+    const { RouteNav } = await import('@/components/route-nav');
+
+    let root!: renderer.ReactTestRenderer;
+    await act(async () => {
+      root = renderer.create(<RouteNav />);
+    });
+
+    expect(findText(root, 'Sign In')).toHaveLength(0);
+    expect(findText(root, 'Reset Tour')).toHaveLength(0);
+  });
 });

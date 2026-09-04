@@ -1,5 +1,6 @@
 const PUBLIC_RUNTIME_ENV_KEYS = [
   'EXPO_PUBLIC_GITHUB_CLIENT_ID',
+  'EXPO_PUBLIC_MERCURY_ALLOWLIST_IP',
   'EXPO_PUBLIC_SITE_ORIGIN',
   'EXPO_PUBLIC_SUPABASE_ANON_KEY',
   'EXPO_PUBLIC_SUPABASE_URL',
@@ -20,6 +21,8 @@ function readBuildTimePublicRuntimeValue(key: PublicRuntimeEnvKey): string {
   switch (key) {
     case 'EXPO_PUBLIC_GITHUB_CLIENT_ID':
       return process.env.EXPO_PUBLIC_GITHUB_CLIENT_ID ?? '';
+    case 'EXPO_PUBLIC_MERCURY_ALLOWLIST_IP':
+      return process.env.EXPO_PUBLIC_MERCURY_ALLOWLIST_IP ?? '108.175.12.95';
     case 'EXPO_PUBLIC_SITE_ORIGIN':
       return process.env.EXPO_PUBLIC_SITE_ORIGIN ?? '';
     case 'EXPO_PUBLIC_SUPABASE_ANON_KEY':

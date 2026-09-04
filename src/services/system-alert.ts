@@ -25,8 +25,32 @@ export function showValidationAlert(message: string): void {
   showSystemAlert('Check your input', message);
 }
 
+export function sanitizeActionErrorMessage(message: string): string {
+  const trimmed = message.trim();
+  if (!trimmed) {
+    return 'We couldn’t save this change. Please refresh and try again.';
+  }
+
+  if (
+    trimmed.startsWith('<!DOCTYPE') ||
+    trimmed.startsWith('<html') ||
+    trimmed.startsWith('<body') ||
+    trimmed.includes('TypeError') ||
+    trimmed.includes('ReferenceError') ||
+    trimmed.includes('Cannot read properties') ||
+    trimmed.includes('Hosted write route failed') ||
+    trimmed.includes('Internal server error') ||
+    /\bat\s+/.test(trimmed) ||
+    trimmed.length > 180
+  ) {
+    return 'We couldn’t save this change. Please refresh and try again.';
+  }
+
+  return trimmed;
+}
+
 export function showActionErrorAlert(message: string): void {
-  showSystemAlert('Action failed', message);
+  showSystemAlert('Something went wrong', sanitizeActionErrorMessage(message));
 }
 
 function showWebConfirm(title: string, message: string): boolean | null {

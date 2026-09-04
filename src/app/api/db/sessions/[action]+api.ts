@@ -69,11 +69,27 @@ const resumeSessionSchema = z.object({
   endTime: z.string().optional(),
 }).strict();
 
+function getRequestAction(request: Request, params?: { action?: string }): string | undefined {
+  const routeAction = params?.action;
+  if (typeof routeAction === 'string' && routeAction.trim()) {
+    return routeAction;
+  }
+
+  try {
+    const lastPathSegment = new URL(request.url).pathname.split('/').filter(Boolean).at(-1);
+    return lastPathSegment && lastPathSegment !== 'db' ? lastPathSegment : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function POST(
   request: Request,
-  { params }: { params: { action: string } },
+  { params }: { params?: { action?: string } },
 ): Promise<Response> {
-  switch (params.action) {
+  const action = getRequestAction(request, params);
+
+  switch (action) {
     case 'start':
       return handleDbWrite(request, startSessionSchema, startSession);
     case 'stop':
@@ -91,6 +107,6 @@ export async function POST(
     case 'resume':
       return handleDbWrite(request, resumeSessionSchema, resumeSession);
     default:
-      return Response.json({ error: `Unsupported sessions action: ${params.action}` }, { status: 404 });
+      return Response.json({ error: `Unsupported sessions action: ${action ?? 'unknown'}` }, { status: 404 });
   }
 }

@@ -3,18 +3,22 @@ import { Link } from 'expo-router';
 import { Octicons } from '@expo/vector-icons';
 import { Image, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { InlineNotice } from '@/components/inline-notice';
+import { readTrimmedPublicRuntimeConfigValue } from '@/services/runtime-config';
 import { useIntegrationsScreen } from './integrations-logic';
 import { GITHUB_PAT_CREATE_URL, GITHUB_PAT_DOCS_URL } from './github-oauth-shared';
 
-const SERVER_IP = '108.175.12.95';
+const DEFAULT_MERCURY_ALLOWLIST_IP = '108.175.12.95';
 
 function ServerIpCopyRow() {
   const [copied, setCopied] = useState(false);
+  const serverIp =
+    readTrimmedPublicRuntimeConfigValue('EXPO_PUBLIC_MERCURY_ALLOWLIST_IP') ||
+    DEFAULT_MERCURY_ALLOWLIST_IP;
 
   function handleCopy(): void {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
       navigator.clipboard
-        .writeText(SERVER_IP)
+        .writeText(serverIp)
         .then(() => {
           setCopied(true);
           setTimeout(() => setCopied(false), 1500);
@@ -26,7 +30,7 @@ function ServerIpCopyRow() {
   return (
     <View className="flex-row items-center gap-2">
       <Text selectable className="text-sm font-semibold text-heading" style={{ fontFamily: 'Menlo' }}>
-        {SERVER_IP}
+        {serverIp}
       </Text>
       <Pressable
         onPress={handleCopy}

@@ -29,7 +29,7 @@ export function RouteNav() {
   const tourInitError = useAuthUiStore((state) => state.tourInitError);
   const setTourInitError = useAuthUiStore((state) => state.setTourInitError);
   const showTourBanner = dataModeResolved && tourModeEnabled;
-  const showSignInBanner = dataModeResolved && !isAuthenticated;
+  const showSignInBanner = dataModeResolved && !isAuthenticated && (hostedMode || tourModeEnabled);
   const showModeBanner = showTourBanner || showSignInBanner;
 
   async function handleResetTour(): Promise<void> {

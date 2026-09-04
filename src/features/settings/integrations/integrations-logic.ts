@@ -131,6 +131,10 @@ export function useIntegrationsScreen() {
 
   function openExternalUrl(url: string, options?: { authRelated?: boolean }): void {
     if (options?.authRelated && shouldRouteAuthIntegrationsToSignIn) {
+      setGitHubStatus({
+        tone: 'neutral',
+        message: 'Sign in to connect GitHub and open the PAT setup pages.',
+      });
       return;
     }
 
@@ -143,7 +147,15 @@ export function useIntegrationsScreen() {
   }
 
   function startGitHubOAuth(): void {
-    if (shouldRouteAuthIntegrationsToSignIn || !isGitHubOAuthEnabled || typeof window === 'undefined') {
+    if (shouldRouteAuthIntegrationsToSignIn) {
+      setGitHubStatus({
+        tone: 'neutral',
+        message: 'Sign in to connect your GitHub account.',
+      });
+      return;
+    }
+
+    if (!isGitHubOAuthEnabled || typeof window === 'undefined') {
       return;
     }
 

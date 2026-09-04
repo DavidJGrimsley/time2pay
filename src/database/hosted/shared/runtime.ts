@@ -148,14 +148,41 @@ export function toNumberOrNull(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+export function normalizeHostedWriteError(message: string): string {
+  const trimmed = message.trim();
+  if (!trimmed) {
+    return 'We couldn’t save this change. Please refresh and try again.';
+  }
+
+  if (
+    trimmed.includes('Hosted write route failed') ||
+    trimmed.includes('Internal server error') ||
+    trimmed.startsWith('<!DOCTYPE') ||
+    trimmed.startsWith('<html') ||
+    trimmed.startsWith('<body') ||
+    trimmed.includes('TypeError') ||
+    trimmed.includes('ReferenceError') ||
+    trimmed.includes('Cannot read properties') ||
+    /\bat\s+/.test(trimmed) ||
+    trimmed.length > 180
+  ) {
+    return 'We couldn’t save this change. Please refresh and try again.';
+  }
+
+  return trimmed;
+}
+
 export function byId<T extends { id: string }>(rows: T[]): Map<string, T> {
   return new Map(rows.map((row) => [row.id, row]));
 }
 
-function resolveHostedWriteUrl(path: string): string {
+export function resolveHostedWriteUrl(path: string): string {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  requireConfiguredSiteOrigin();
-  return new URL(normalizedPath, resolveBrowserSiteOrigin()).toString();
+  const baseOrigin = resolveBrowserSiteOrigin();
+  if (!baseOrigin) {
+    requireConfiguredSiteOrigin();
+  }
+  return new URL(normalizedPath, baseOrigin).toString();
 }
 
 export async function callHostedWriteRoute(
@@ -197,7 +224,9 @@ export async function callHostedWriteRoute(
       typeof body.error === 'string' && body.error.trim()
         ? body.error.trim()
         : responseText.trim();
-    throw new Error(serverMessage || `Hosted write route failed (HTTP ${response.status}).`);
+    throw new Error(
+      normalizeHostedWriteError(serverMessage || `Hosted write route failed (HTTP ${response.status}).`),
+    );
   }
 }
 

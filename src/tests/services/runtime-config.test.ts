@@ -30,4 +30,8 @@ describe('runtime-config', () => {
 
     expect(readTrimmedPublicRuntimeConfigValue('EXPO_PUBLIC_TIME2PAY_DATA_MODE')).toBe('local');
   });
+
+  it('uses the default Mercury allowlist IP when no runtime override is provided', () => {
+    expect(readTrimmedPublicRuntimeConfigValue('EXPO_PUBLIC_MERCURY_ALLOWLIST_IP')).toBe('108.175.12.95');
+  });
 });
