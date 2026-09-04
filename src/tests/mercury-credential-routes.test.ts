@@ -77,6 +77,21 @@ describe('Mercury credential/referral API routes', () => {
     });
   });
 
+  it('returns safe recovery guidance when Mercury rejects a saved key', async () => {
+    mocks.testMercuryCredentialForUser.mockRejectedValue(
+      Object.assign(new Error('Mercury request failed with status 401.'), { status: 401 }),
+    );
+    const { POST } = await import('@/app/api/mercury-credentials+api');
+
+    const response = await POST(credentialRequest({ action: 'test' }));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error:
+        'Mercury rejected this key. Verify it is active and its IP allowlist includes the machine running Time2Pay. For help, email info@Time2Pay.app.',
+    });
+  });
+
   it('returns 400 for malformed referral action payloads after auth succeeds', async () => {
     const { POST } = await import('@/app/api/mercury-referrals+api');
 

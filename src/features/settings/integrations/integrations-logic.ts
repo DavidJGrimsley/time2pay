@@ -231,7 +231,7 @@ export function useIntegrationsScreen() {
       const nextStatus = await saveMercuryApiKey(apiKey);
       setMercuryCredentialStatus(nextStatus);
       setMercuryApiKey('');
-      setMercuryStatus({ message: 'Mercury API key saved.', tone: 'success' });
+      setMercuryStatus({ message: 'Mercury API key saved and verified.', tone: 'success' });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Failed to save Mercury API key.';
       showActionErrorAlert(message);

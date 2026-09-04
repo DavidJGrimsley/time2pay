@@ -184,6 +184,29 @@ describe('/api/mercury POST', () => {
     expect(createMercuryClientMock).not.toHaveBeenCalled();
   });
 
+  it('returns Settings recovery guidance when a shared account request receives a Mercury 401', async () => {
+    mockHostedMercuryCredential();
+    accountsListMock.mockRejectedValue(
+      Object.assign(new Error('Mercury request failed with status 401.'), { status: 401 }),
+    );
+    const { POST } = await import('@/app/api/mercury+api');
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    const response = await (async () => {
+      try {
+        return await POST(hostedMercuryRequest({ action: 'listAccounts' }));
+      } finally {
+        consoleErrorSpy.mockRestore();
+      }
+    })();
+
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toEqual({
+      error:
+        'Mercury rejected this key. Verify it is active and its IP allowlist includes the machine running Time2Pay. For help, email info@Time2Pay.app.',
+    });
+  });
+
   it('ensures a Mercury customer for client-sync flows', async () => {
     mockHostedMercuryCredential();
     ensureCustomerMock.mockResolvedValue('customer_789');
