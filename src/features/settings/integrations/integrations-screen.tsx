@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Link } from 'expo-router';
 import { Octicons } from '@expo/vector-icons';
 import { Image, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { InlineNotice } from '@/components/inline-notice';
@@ -89,9 +88,6 @@ export function IntegrationsScreen() {
       contentInsetAdjustmentBehavior="automatic"
       contentContainerClassName="gap-3 p-6"
     >
-      <Link href={'/settings' as never} className="self-start text-sm font-semibold text-secondary">
-        ← Back to Settings
-      </Link>
       <Text className="text-3xl font-extrabold text-heading">Integrations</Text>
       <Text className="text-muted">
         Connect GitHub for repository lookups and Mercury for banking, invoicing, and referrals.
