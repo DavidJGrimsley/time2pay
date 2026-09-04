@@ -157,6 +157,42 @@ describe('IntegrationsScreen', () => {
     ).toBeTruthy();
   });
 
+  it('labels a configured Mercury key as saved rather than connected', async () => {
+    mocks.getMercuryCredentialStatus.mockResolvedValue({
+      configured: true,
+      keyLastFour: '1234',
+      updatedAt: '2026-09-02T00:00:00.000Z',
+      arAccessAvailable: null,
+      arAccessVerifiedAt: null,
+    });
+    const { IntegrationsScreen } = await import('@/features/settings/integrations/integrations-screen');
+
+    let root!: renderer.ReactTestRenderer;
+    await act(async () => {
+      root = renderer.create(<IntegrationsScreen />);
+    });
+
+    expect(
+      root.root.find(
+        (node: renderer.ReactTestInstance) =>
+          String(node.type) === 'Text' && node.props.children === 'Saved',
+      ),
+    ).toBeTruthy();
+  });
+
+  it('explains the local Mercury IP allowlist requirement on localhost', async () => {
+    vi.stubGlobal('window', { location: { hostname: 'localhost' } });
+    const { IntegrationsScreen } = await import('@/features/settings/integrations/integrations-screen');
+
+    let root!: renderer.ReactTestRenderer;
+    await act(async () => {
+      root = renderer.create(<IntegrationsScreen />);
+    });
+
+    expect(root.root.findByProps({ testID: 'mercury-localhost-allowlist-note' })).toBeTruthy();
+    vi.unstubAllGlobals();
+  });
+
   it('hides the Mercury key section for tour mode', async () => {
     mocks.isHostedMode = true;
     mocks.tourModeEnabled = true;

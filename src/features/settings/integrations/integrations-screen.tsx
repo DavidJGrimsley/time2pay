@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Octicons } from '@expo/vector-icons';
-import { Image, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Image, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { InlineNotice } from '@/components/inline-notice';
 import { readTrimmedPublicRuntimeConfigValue } from '@/services/runtime-config';
 import { useIntegrationsScreen } from './integrations-logic';
@@ -47,7 +47,16 @@ function ServerIpCopyRow() {
   );
 }
 
+function isLocalWebDevelopment(): boolean {
+  return (
+    Platform.OS === 'web' &&
+    typeof window !== 'undefined' &&
+    ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname)
+  );
+}
+
 export function IntegrationsScreen() {
+  const localWebDevelopment = isLocalWebDevelopment();
   const {
     isLoading,
     isSavingIntegrations,
@@ -202,7 +211,7 @@ export function IntegrationsScreen() {
                 <Text className="text-sm font-semibold text-heading">Mercury production API key</Text>
                 {mercuryCredentialStatus?.configured ? (
                   <View className="ml-auto rounded-full bg-success/15 px-2 py-0.5">
-                    <Text className="text-xs font-bold text-success">Connected</Text>
+                    <Text className="text-xs font-bold text-success">Saved</Text>
                   </View>
                 ) : null}
               </View>
@@ -260,6 +269,12 @@ export function IntegrationsScreen() {
                   token with write access.
                 </Text>
                 <ServerIpCopyRow />
+                {localWebDevelopment ? (
+                  <Text testID="mercury-localhost-allowlist-note" className="text-xs leading-5 text-warning">
+                    Local testing uses your computer&apos;s public IP, not the Time2Pay server IP above. Add
+                    your current public IP to this token&apos;s allowlist before testing a write-enabled key.
+                  </Text>
+                ) : null}
                 <Text className="text-xs text-muted">
                   4. Click Create token, copy the value Mercury shows, and paste it above.
                 </Text>

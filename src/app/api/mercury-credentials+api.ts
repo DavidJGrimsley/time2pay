@@ -6,6 +6,7 @@ import {
   setMercuryArAccessForUser,
   testMercuryCredentialForUser,
 } from '@/server/mercury/credentials';
+import { formatMercuryUnauthorizedMessage } from '@/server/mercury/messages';
 import { redactMercuryString } from '@/server/mercury/redact';
 
 type MercuryCredentialActionRequest =
@@ -35,6 +36,7 @@ const SUPPORT_CONTACT = 'If this keeps happening, please contact mrdj@davidjgrim
 
 function formatCredentialError(error: unknown): string {
   const message = getErrorText(error);
+  const status = getMercuryHttpStatus(error);
   const code =
     error && typeof error === 'object' && 'code' in error
       ? String((error as { code?: unknown }).code ?? '')
@@ -55,6 +57,10 @@ function formatCredentialError(error: unknown): string {
   ];
   if (passthroughPatterns.some((re) => re.test(message))) {
     return message;
+  }
+
+  if (status === 401 || /\b401\b|invalid.*token|unauthori[sz]ed/i.test(message)) {
+    return formatMercuryUnauthorizedMessage();
   }
 
   // Server-side configuration / schema problems — not actionable by the
@@ -93,6 +99,20 @@ function formatCredentialError(error: unknown): string {
   // Generic catch-all: surface the underlying message but always append
   // the contact so the user has a path forward.
   return `${message || 'Mercury credential request failed.'} ${SUPPORT_CONTACT}`;
+}
+
+function getMercuryHttpStatus(error: unknown): number | null {
+  if (!error || typeof error !== 'object') {
+    return null;
+  }
+
+  const status = (error as { status?: unknown }).status;
+  if (typeof status === 'number') {
+    return status;
+  }
+
+  const cause = (error as { cause?: { status?: unknown } }).cause;
+  return typeof cause?.status === 'number' ? cause.status : null;
 }
 
 function getErrorText(error: unknown): string {

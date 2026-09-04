@@ -241,7 +241,8 @@ Milestone Payments:
 - [ ] Add internationalization (i18n) support for multiple languages and locales
 - [ ] Add accessibility features and ensure compliance with WCAG guidelines
 - [ ] Add automated testing (unit, integration, end-to-end) and CI/CD pipeline
-- [ ] Fix mercury hosted mode bug (might only effect localhost) see temp md
+- [x] Fix mercury hosted mode bug (might only effect localhost) see temp md
+  > 2026-09-04: Validated production keys before persistence, retained a working key on a failed replacement, and clarified local IP allowlisting. PR: https://github.com/DavidJGrimsley/time2pay/pull/68
 - [ ] Fix nav bar white background (replace with other nav bar?) see temp md. consider using vert tab bar from my portfolio which would need to be updated and published to npm first.
 - [ ] Fix the invoice pdf to total the milestones AND the attached sessions. Currently it only totals the milestones and not the attached sessions. This is a bug that needs to be fixed but there's also some ugliness witht the wording and overlaping and overal layout of the invoice pdf that needs to be cleaned up. The invoice pdf should be clean and professional looking but modern and friendly to read. The invoice building for milestone projects needs to be refined/revisited because currently it can be done in the projects and the invoices screen but I'm wondering if that's necessary and if one is better than the other. The invoice pdf name is terrible as well. let's think of a good format that is readable and professional.
 - [ ] Add the ability to add pictures to a clock-in session. This is a feature that would be useful for construction workers and other tradesmen who need to take pictures of their work for proof of work. The pictures should be stored in the database and associated with the session. The pictures should be viewable in the session details and in the invoice pdf. The pictures should be optional and not required for clocking in or out.

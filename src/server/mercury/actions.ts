@@ -12,6 +12,7 @@ import {
 } from '@mr.dj2u/mercury';
 import { requireAuthUserId } from '@/server/db/_shared/auth';
 import { getDecryptedMercuryApiKeyForUser } from '@/server/mercury/credentials';
+import { formatMercuryUnauthorizedMessage } from '@/server/mercury/messages';
 import { redactMercuryError, redactMercuryString } from '@/server/mercury/redact';
 
 type MercuryAccessMode = 'local' | 'hosted' | 'tour';
@@ -395,7 +396,7 @@ function formatMercuryActionError(redacted: {
     redacted.status === 401 ||
     /\b401\b|invalid.*token|unauthori[sz]ed/i.test(message)
   ) {
-    return `Your saved Mercury API key was rejected by Mercury. Please re-save your production Mercury API key in Profile (Mercury dashboard → Settings → API tokens). ${MERCURY_SUPPORT_CONTACT}`;
+    return formatMercuryUnauthorizedMessage();
   }
 
   if (redacted.status === 403 || /\b403\b|forbidden/i.test(message)) {
