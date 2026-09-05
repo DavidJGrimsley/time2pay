@@ -4,7 +4,7 @@ import { readLocalStorageItem, writeLocalStorageItem } from '@/services/browser-
 
 export type AppearancePreference = 'light' | 'dark' | 'system';
 
-const APPEARANCE_STORAGE_KEY = 'time2pay.settings.appearance-preference';
+export const APPEARANCE_STORAGE_KEY = 'time2pay.settings.appearance-preference';
 const VALID_PREFERENCES: AppearancePreference[] = ['light', 'dark', 'system'];
 
 function isAppearancePreference(value: string | null): value is AppearancePreference {

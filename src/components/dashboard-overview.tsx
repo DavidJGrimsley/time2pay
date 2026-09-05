@@ -1,4 +1,4 @@
-import { useFocusEffect, useRouter } from 'expo-router';
+import { type Href, Link, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import {
@@ -88,6 +88,15 @@ export function DashboardOverview() {
     <View className="gap-3">
       <Text className="text-3xl font-extrabold text-heading">Dashboard</Text>
       <Text className="text-muted">Clock-in and out or create work sessions manually.</Text>
+      <Link href={'/projects' as Href} asChild>
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel="Projects and milestones"
+          className="self-start rounded-full border border-border px-3 py-1.5"
+        >
+          <Text className="text-sm font-semibold text-heading">Projects & milestones</Text>
+        </Pressable>
+      </Link>
 
       {locked ? (
         <View className="gap-2 rounded-xl border border-border bg-background p-4">

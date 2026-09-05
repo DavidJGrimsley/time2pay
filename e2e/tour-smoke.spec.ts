@@ -3,8 +3,8 @@ import { expect, test } from '@playwright/test';
 const tourRoutes = [
   ['Dashboard', '/dashboard', 'Currently clocked out'],
   ['Sessions', '/sessions', 'Track and review your logged work sessions.'],
-  ['Projects', '/projects', 'Milestone-based pricing with optional session attachments and Mercury sync.'],
   ['Invoices', '/invoices', 'Create and manage client invoices.'],
+  ['Mercury', '/mercury', 'Mercury checking and send-money tools in one place.'],
   ['Settings', '/settings', 'Manage your account details, integrations, billing access, and local backup tools.'],
 ] as const;
 
@@ -28,7 +28,8 @@ test('runs the hosted tour through the primary workspace routes and resets its s
     .filter({ hasText: /^Reset Tour$/ });
   await resetTour.click();
   await expect(resetTour).toBeVisible();
-  await page.getByRole('link', { name: 'Projects', exact: true }).click();
+  await page.getByRole('link', { name: 'Dashboard', exact: true }).click();
+  await page.getByRole('link', { name: 'Projects and milestones' }).click();
   await expect(page).toHaveURL(/\/projects$/);
   await expect(page.locator('select:visible').nth(1)).toHaveValue('tour_project_001');
 });
