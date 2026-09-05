@@ -4,7 +4,7 @@ import { assignSessionsToInvoice, createInvoice, deleteInvoice } from '@/server/
 import { invoiceInsertSchema } from '@/database/hosted/invoices/schema';
 
 const invoiceStatusSchema = z.enum(['draft', 'sent', 'paid', 'overdue']);
-const invoiceTypeSchema = z.enum(['hourly', 'milestone']);
+const invoiceTypeSchema = z.enum(['hourly', 'milestone', 'combined']);
 const milestoneAmountTypeSchema = z.enum(['percent', 'fixed']);
 const milestoneCompletionModeSchema = z.enum(['toggle', 'checklist']);
 const invoiceSessionLinkModeSchema = z.enum(['context', 'billed']);

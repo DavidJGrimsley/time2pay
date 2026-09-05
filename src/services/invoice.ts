@@ -1,7 +1,10 @@
 import {
   assignSessionsToInvoice,
   createInvoiceSessionLinks,
+  createInvoiceMilestoneLinks,
   createInvoice,
+  getProjectMilestoneById,
+  listInvoices,
   type InvoiceSessionLinkMode,
   type InvoiceType,
   type MilestoneAmountType,
@@ -60,6 +63,12 @@ export type CreateInvoiceFromSessionsInput = {
   clientId: string;
   sessionIds: string[];
   hourlyRate: number;
+  milestoneSources?: {
+    milestoneId: string;
+    projectId: string;
+    projectName: string;
+    projectTotalFee: number | null;
+  }[];
   paypalLink?: string | null;
   status?: Invoice['status'];
   mercury?: {
@@ -725,11 +734,29 @@ export async function createInvoiceFromSessions(
     (session) => input.sessionIds.includes(session.id) && session.invoice_id === null,
   );
 
-  if (selected.length === 0) {
-    throw new Error('No uninvoiced sessions found for the provided session IDs');
+  const milestoneSources = input.milestoneSources ?? [];
+  const milestones = await Promise.all(milestoneSources.map(async (source) => {
+    const milestone = await getProjectMilestoneById(source.milestoneId);
+    if (!milestone || milestone.project_id !== source.projectId || !milestone.is_completed) {
+      throw new Error('Only completed milestones in the selected project can be invoiced.');
+    }
+    return {
+      source,
+      milestone,
+      amount: computeMilestoneInvoiceAmount({
+        amountType: milestone.amount_type,
+        amountValue: milestone.amount_value,
+        projectTotalFee: source.projectTotalFee,
+      }),
+    };
+  }));
+  if (selected.length === 0 && milestones.length === 0) {
+    throw new Error('Select at least one uninvoiced week or completed milestone.');
   }
 
   const totals = computeInvoiceTotals(selected, input.hourlyRate);
+  const milestoneTotal = milestones.reduce((sum, row) => sum + row.amount, 0);
+  const invoiceTotal = totals.totalAmount + milestoneTotal;
 
   if (input.paypalLink && !isValidPayPalPaymentLink(input.paypalLink)) {
     throw new Error('Invalid PayPal payment link format');
@@ -741,16 +768,25 @@ export async function createInvoiceFromSessions(
     const mercuryLineItems: MercuryLineItemPayload[] =
       input.mercury.lineItems && input.mercury.lineItems.length > 0
         ? input.mercury.lineItems
-        : buildMercurySessionLineItems(totals.sessions, input.hourlyRate);
+        : [
+            ...buildMercurySessionLineItems(totals.sessions, input.hourlyRate),
+            ...milestones.flatMap((row) => buildMercuryMilestoneLineItems({
+              projectName: row.source.projectName,
+              milestoneTitle: row.milestone.title,
+              amount: row.amount,
+            })),
+          ];
 
     try {
       mercuryInvoice = await createMercuryInvoice({
         customerName: input.mercury.customerName,
         customerEmail: input.mercury.customerEmail,
-        amount: input.mercury.amount ?? totals.totalAmount,
+        amount: input.mercury.amount ?? invoiceTotal,
         currency: input.mercury.currency ?? 'USD',
-        description:
-          input.mercury.description ?? buildMercuryInvoiceDescriptionFromSessions(totals.sessions),
+        description: input.mercury.description ?? [
+          totals.sessions.length > 0 ? buildMercuryInvoiceDescriptionFromSessions(totals.sessions) : null,
+          ...milestones.map((row) => `Milestone: ${row.milestone.title}`),
+        ].filter(Boolean).join(' · '),
         dueDateIso: input.mercury.dueDateIso,
         invoiceDateIso: input.mercury.invoiceDateIso,
         servicePeriodStartDate: input.mercury.servicePeriodStartDate,
@@ -772,23 +808,36 @@ export async function createInvoiceFromSessions(
   await createInvoice({
     id: input.invoiceId,
     client_id: input.clientId,
-    total: totals.totalAmount,
+    total: invoiceTotal,
     status: input.status ?? 'draft',
-    invoice_type: 'hourly',
+    invoice_type: selected.length > 0 && milestones.length > 0 ? 'combined' : milestones.length > 0 ? 'milestone' : 'hourly',
     payment_link: mercuryInvoice?.hosted_url ?? input.paypalLink ?? null,
     mercury_invoice_id: mercuryInvoice?.id ?? null,
   });
 
   const sessionIds = selected.map((session) => session.id);
-  await assignSessionsToInvoice(sessionIds, input.invoiceId);
-  await createInvoiceSessionLinks({
+  if (sessionIds.length > 0) {
+    await assignSessionsToInvoice(sessionIds, input.invoiceId);
+    await createInvoiceSessionLinks({ invoiceId: input.invoiceId, sessionIds, linkMode: 'billed' });
+  }
+  await createInvoiceMilestoneLinks({
     invoiceId: input.invoiceId,
-    sessionIds,
-    linkMode: 'billed',
+    links: milestones.map((row) => ({
+      milestoneId: row.milestone.id,
+      projectId: row.source.projectId,
+      projectName: row.source.projectName,
+      title: row.milestone.title,
+      amount: row.amount,
+      amountType: row.milestone.amount_type,
+      amountValue: row.milestone.amount_value,
+      completionMode: row.milestone.completion_mode,
+      completedAt: row.milestone.completed_at,
+    })),
   });
 
   return {
     ...totals,
+    totalAmount: invoiceTotal,
     mercuryInvoice,
     mercuryWarning,
   };
@@ -797,9 +846,22 @@ export async function createInvoiceFromSessions(
 export async function createMilestoneInvoice(
   input: CreateMilestoneInvoiceInput,
 ): Promise<MilestoneInvoiceComputation> {
+  const milestone = await getProjectMilestoneById(input.milestoneId);
+  if (!milestone || milestone.project_id !== input.projectId) {
+    throw new Error('Milestone not found for this project.');
+  }
+  if (!milestone.is_completed) {
+    throw new Error('Complete this milestone before creating its invoice draft.');
+  }
+
+  const activeInvoices = await listInvoices();
+  if (activeInvoices.some((invoice) => invoice.source_milestone_id === milestone.id)) {
+    throw new Error('This completed milestone already has an active invoice draft.');
+  }
+
   const milestoneAmount = computeMilestoneInvoiceAmount({
-    amountType: input.milestoneAmountType,
-    amountValue: input.milestoneAmountValue,
+    amountType: milestone.amount_type,
+    amountValue: milestone.amount_value,
     projectTotalFee: input.projectTotalFee,
   });
   const selectedSessionIds = Array.from(new Set((input.sessionIds ?? []).filter(Boolean)));
@@ -831,12 +893,12 @@ export async function createMilestoneInvoice(
         ? input.mercury.lineItems
         : buildMercuryMilestoneLineItems({
             projectName: input.projectName,
-            milestoneTitle: input.milestoneTitle,
+            milestoneTitle: milestone.title,
             amount: input.mercury.amount ?? milestoneAmount,
           });
     const description =
       input.mercury.description ??
-      `Milestone invoice for ${sanitizeSingleLineText(input.projectName)} - ${sanitizeSingleLineText(input.milestoneTitle)}.`;
+      `Milestone invoice for ${sanitizeSingleLineText(input.projectName)} - ${sanitizeSingleLineText(milestone.title)}.`;
 
     try {
       mercuryInvoice = await createMercuryInvoice({
@@ -863,26 +925,34 @@ export async function createMilestoneInvoice(
     }
   }
 
-  await createInvoice({
-    id: input.invoiceId,
-    client_id: input.clientId,
-    total: milestoneAmount,
-    status: input.status ?? 'draft',
-    invoice_type: 'milestone',
-    payment_link: mercuryInvoice?.hosted_url ?? null,
-    mercury_invoice_id: mercuryInvoice?.id ?? null,
-    source_project_id: input.projectId,
-    source_project_name: input.projectName,
-    source_milestone_id: input.milestoneId,
-    source_milestone_title: input.milestoneTitle,
-    source_milestone_amount_type: input.milestoneAmountType,
-    source_milestone_amount_value: input.milestoneAmountValue,
-    source_milestone_completion_mode: input.milestoneCompletionMode,
-    source_milestone_completed_at: input.milestoneCompletedAtIso ?? null,
-    source_session_link_mode: sessionLinkMode,
-    source_session_hourly_rate:
-      selectedSessionIds.length > 0 ? input.hourlyRateForSessionAppendix ?? 0 : null,
-  });
+  try {
+    await createInvoice({
+      id: input.invoiceId,
+      client_id: input.clientId,
+      total: milestoneAmount,
+      status: input.status ?? 'draft',
+      invoice_type: 'milestone',
+      payment_link: mercuryInvoice?.hosted_url ?? null,
+      mercury_invoice_id: mercuryInvoice?.id ?? null,
+      source_project_id: input.projectId,
+      source_project_name: input.projectName,
+      source_milestone_id: milestone.id,
+      source_milestone_title: milestone.title,
+      source_milestone_amount_type: milestone.amount_type,
+      source_milestone_amount_value: milestone.amount_value,
+      source_milestone_completion_mode: milestone.completion_mode,
+      source_milestone_completed_at: milestone.completed_at,
+      source_session_link_mode: sessionLinkMode,
+      source_session_hourly_rate:
+        selectedSessionIds.length > 0 ? input.hourlyRateForSessionAppendix ?? 0 : null,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message.toLowerCase() : '';
+    if (message.includes('active_source_milestone') || message.includes('duplicate key')) {
+      throw new Error('This completed milestone already has an active invoice draft.');
+    }
+    throw error;
+  }
 
   if (selectedSessionIds.length > 0 && sessionLinkMode) {
     await createInvoiceSessionLinks({

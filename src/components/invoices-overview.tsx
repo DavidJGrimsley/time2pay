@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { MercurySessionInvoiceWorkspace } from '@mr.dj2u/mercury-ui';
 import { InvoiceBuilder } from './InvoiceBuilder';
@@ -7,8 +7,7 @@ import { MercuryKeyGate } from './mercury-key-gate';
 import { useStableWindowDimensions } from '@/hooks/use-stable-window-dimensions';
 import { useTime2PayMercurySessionWorkspace } from '@/hooks/use-time2pay-mercury-session-workspace';
 import { mercuryUiAdapter } from '@/services/mercury-ui-adapters';
-
-type InvoiceBuilderMode = 't2p' | 'mercury';
+import { getUserProfile, upsertUserProfile, type InvoiceBuilderMode } from '@/database/db';
 
 export function InvoicesOverview() {
   const { width } = useStableWindowDimensions();
@@ -27,6 +26,17 @@ export function InvoicesOverview() {
     refreshKey,
   });
 
+  useEffect(() => {
+    getUserProfile()
+      .then((profile) => setBuilderMode(profile.invoice_builder_mode ?? 't2p'))
+      .catch(() => setBuilderMode('t2p'));
+  }, []);
+
+  function selectBuilderMode(mode: InvoiceBuilderMode): void {
+    setBuilderMode(mode);
+    upsertUserProfile({ invoice_builder_mode: mode }).catch(() => undefined);
+  }
+
   return (
     <View className="gap-3">
       <Text className="text-3xl font-extrabold text-heading">Invoices</Text>
@@ -37,12 +47,12 @@ export function InvoicesOverview() {
             <View className="flex-row rounded-md border border-border bg-background p-1">
               {(['t2p', 'mercury'] as InvoiceBuilderMode[]).map((mode) => {
                 const active = builderMode === mode;
-                const label = mode === 't2p' ? 'T2P Invoice Builder' : 'Mercury Invoice Builder';
+                const label = mode === 't2p' ? 'Time2Pay' : 'Mercury';
                 return (
                   <Pressable
                     key={mode}
                     className={active ? 'flex-1 rounded bg-secondary px-3 py-2 md:flex-none' : 'flex-1 rounded px-3 py-2 md:flex-none'}
-                    onPress={() => setBuilderMode(mode)}
+                    onPress={() => selectBuilderMode(mode)}
                   >
                     <Text
                       className={active ? 'text-center text-sm font-semibold text-white' : 'text-center text-sm font-semibold text-heading'}

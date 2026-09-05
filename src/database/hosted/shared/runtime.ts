@@ -15,6 +15,7 @@ export type UserProfileRow = {
   phone: string | null;
   email: string | null;
   github_pat: string | null;
+  invoice_builder_mode: 't2p' | 'mercury' | null;
   created_at: string;
   updated_at: string;
 };
@@ -64,6 +65,7 @@ export async function ensureHostedProfileRow(userId: string): Promise<void> {
       id: 'me',
       full_name: metadataName,
       email: metadataEmail,
+      invoice_builder_mode: 't2p',
       created_at: timestamp,
       updated_at: timestamp,
     });
@@ -120,6 +122,7 @@ export function toUserProfile(row: UserProfileRow): UserProfile {
     phone: row.phone,
     email: row.email,
     github_pat: row.github_pat,
+    invoice_builder_mode: row.invoice_builder_mode === 'mercury' ? 'mercury' : 't2p',
     created_at: row.created_at,
     updated_at: row.updated_at,
   };

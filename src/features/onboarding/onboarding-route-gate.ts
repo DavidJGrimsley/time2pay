@@ -130,8 +130,7 @@ export function classifyTime2PayRoute(pathname: string): Time2PayRouteClassifica
   const isAccessRequiredRoute = normalizedPathname === '/access-required';
   const isAccountRoute =
     isAccessRequiredRoute ||
-    isSettingsPath(normalizedPathname) ||
-    normalizedPathname === '/referral-status';
+    isSettingsPath(normalizedPathname);
   const isPublicRoute =
     isRootRoute ||
     isSignInRoute ||

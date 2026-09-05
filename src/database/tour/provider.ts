@@ -3,6 +3,7 @@ import type {
   Client,
   Invoice,
   InvoiceSessionLink,
+  InvoiceMilestoneLink,
   InvoiceWithClient,
   MilestoneChecklistItem,
   Project,
@@ -34,6 +35,7 @@ type TourState = {
   sessionBreaks: SessionBreak[];
   invoices: Invoice[];
   invoiceSessionLinks: InvoiceSessionLink[];
+  invoiceMilestoneLinks: InvoiceMilestoneLink[];
 };
 
 let state: TourState | null = null;
@@ -104,6 +106,7 @@ function createInitialState(): TourState {
       phone: '(555) 010-2000',
       email: 'tour@time2pay.demo',
       github_pat: null,
+      invoice_builder_mode: 't2p',
       created_at: createdAt,
       updated_at: createdAt,
     },
@@ -138,6 +141,7 @@ function createInitialState(): TourState {
       { id: 'tour_invoice_link_001', invoice_id: TOUR_INVOICE_ID, session_id: 'tour_session_001', link_mode: 'billed', created_at: createdAt, updated_at: createdAt },
       { id: 'tour_invoice_link_002', invoice_id: TOUR_INVOICE_ID, session_id: 'tour_session_002', link_mode: 'billed', created_at: createdAt, updated_at: createdAt },
     ],
+    invoiceMilestoneLinks: [],
   };
 }
 
@@ -270,6 +274,10 @@ export const tourProvider: DbProvider = {
       phone: input.phone === undefined ? current.profile.phone : input.phone ?? null,
       email: input.email === undefined ? current.profile.email : input.email ?? null,
       github_pat: input.github_pat === undefined ? current.profile.github_pat : input.github_pat ?? null,
+      invoice_builder_mode:
+        input.invoice_builder_mode === undefined
+          ? current.profile.invoice_builder_mode
+          : input.invoice_builder_mode,
       updated_at: nowIso(),
     };
   },
@@ -307,6 +315,30 @@ export const tourProvider: DbProvider = {
       name: input.name,
       email: input.email ?? null,
       phone: input.phone ?? null,
+      updated_at: nowIso(),
+    };
+  },
+  async updateClientDetails(input) {
+    nonNegative(input.hourly_rate, 'Hourly rate');
+    const name = input.name.trim();
+    if (!name) {
+      throw new Error('Customer name is required.');
+    }
+    if (input.email?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.email.trim())) {
+      throw new Error('Enter a valid customer email address.');
+    }
+    const current = getState();
+    const index = current.clients.findIndex((item) => item.id === input.id && item.deleted_at === null);
+    if (index < 0) {
+      throw new Error('Customer not found');
+    }
+    current.clients[index] = {
+      ...current.clients[index],
+      name,
+      email: input.email?.trim() || null,
+      phone: input.phone?.trim() || null,
+      hourly_rate: input.hourly_rate,
+      github_org: input.github_org?.trim() || null,
       updated_at: nowIso(),
     };
   },
@@ -738,6 +770,7 @@ export const tourProvider: DbProvider = {
       item.invoice_id === invoiceId ? { ...item, invoice_id: null, updated_at: timestamp } : item,
     );
     current.invoiceSessionLinks = current.invoiceSessionLinks.filter((item) => item.invoice_id !== invoiceId);
+    current.invoiceMilestoneLinks = current.invoiceMilestoneLinks.filter((item) => item.invoice_id !== invoiceId);
   },
   async listInvoices() {
     const current = getState();
@@ -780,6 +813,25 @@ export const tourProvider: DbProvider = {
   },
   async listInvoiceSessionLinksByInvoiceId(invoiceId) {
     return getState().invoiceSessionLinks.filter((item) => item.invoice_id === invoiceId).map(clone).sort((left, right) => (left.created_at < right.created_at ? -1 : 1));
+  },
+  async createInvoiceMilestoneLinks(input) {
+    const current = getState();
+    const timestamp = nowIso();
+    for (const link of input.links) {
+      if (current.invoiceMilestoneLinks.some((item) => item.milestone_id === link.milestoneId && item.deleted_at === null)) {
+        throw new Error('This completed milestone already has an active invoice draft.');
+      }
+      current.invoiceMilestoneLinks.push({
+        id: createId('invoice_milestone_link'), invoice_id: input.invoiceId, milestone_id: link.milestoneId,
+        project_id: link.projectId, project_name: link.projectName, title: link.title, amount: link.amount,
+        amount_type: link.amountType, amount_value: link.amountValue, completion_mode: link.completionMode,
+        completed_at: link.completedAt, created_at: timestamp, updated_at: timestamp,
+        deleted_at: null,
+      });
+    }
+  },
+  async listInvoiceMilestoneLinksByInvoiceId(invoiceId) {
+    return getState().invoiceMilestoneLinks.filter((item) => item.invoice_id === invoiceId && item.deleted_at === null).map(clone);
   },
   async runCoreDbValidationScript() {
     throw new Error('Core DB validation script is not available in tour mode.');

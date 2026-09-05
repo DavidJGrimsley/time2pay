@@ -208,6 +208,7 @@ export function BillingScreen({ variant }: BillingScreenProps) {
     : 'checkout-return-without-session-id';
   const isReferralScreen = variant === 'referral-status';
   const isBillingSettings = variant === 'settings';
+  const isReferralVisible = isReferralScreen || isBillingSettings;
 
   const clearPurchaseFlowTransition = useCallback((): void => {
     if (purchaseFlowTransitionTimer.current) {
@@ -259,7 +260,7 @@ export function BillingScreen({ variant }: BillingScreenProps) {
 
     Promise.all([
       accessRequest,
-      isReferralScreen ? getMercuryReferralStatus() : Promise.resolve(null),
+      isReferralVisible ? getMercuryReferralStatus() : Promise.resolve(null),
       isBillingSettings && isWeb
         ? getBillingSubscription(controller.signal)
         : Promise.resolve(null),
@@ -301,6 +302,7 @@ export function BillingScreen({ variant }: BillingScreenProps) {
     isAuthenticated,
     isBillingSettings,
     isReferralScreen,
+    isReferralVisible,
     isWeb,
     tourModeEnabled,
   ]);
@@ -652,7 +654,7 @@ export function BillingScreen({ variant }: BillingScreenProps) {
         </>
       ) : null}
 
-      {isReferralScreen && isAuthenticated && !tourModeEnabled ? (
+      {isReferralVisible && isAuthenticated && !tourModeEnabled ? (
         <View className="gap-3 rounded-xl border border-border bg-card p-4">
           <View className="flex-row flex-wrap items-center justify-between gap-2">
             <Text className="text-base font-bold text-heading">Referral progress</Text>
@@ -677,9 +679,9 @@ export function BillingScreen({ variant }: BillingScreenProps) {
           {referral?.qualifiedAt ? (
             <Text className="text-sm text-success">Qualified on {formatDate(referral.qualifiedAt)}.</Text>
           ) : null}
-          <Link href="/settings" asChild>
+          <Link href="/settings/billing" asChild>
             <Pressable className="self-start rounded-md border border-border px-4 py-2">
-              <Text className="font-semibold text-heading">Open Profile</Text>
+              <Text className="font-semibold text-heading">Refresh referral status</Text>
             </Pressable>
           </Link>
         </View>

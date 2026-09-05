@@ -67,6 +67,7 @@ type TimerProps = {
   gate?: TimerGateState;
   selectionHandoff?: TimerSelectionHandoff | null;
   onOpenGitHubStart?: (() => void) | null;
+  onOpenMilestones?: ((selection: { clientId: string | null; projectId: string | null }) => void) | null;
 };
 
 type StatusNotice = {
@@ -333,7 +334,7 @@ function saveLastSelection(selection: LastSelection): void {
   localStorage.setItem(LAST_SELECTIONS_KEY, JSON.stringify(selection));
 }
 
-export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps) {
+export function Timer({ gate, selectionHandoff, onOpenGitHubStart, onOpenMilestones }: TimerProps) {
   const { width: viewportWidth } = useStableWindowDimensions();
   const defaults = loadLastSelection();
   const [clients, setClients] = useState<Client[]>([]);
@@ -1066,6 +1067,21 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
               </View>
             </Pressable>
           </View>
+        ) : null}
+        {onOpenMilestones ? (
+          <Pressable
+            className={`rounded-full border border-border bg-background px-4 py-3 ${isInteractionLocked ? 'opacity-60' : ''}`}
+            onPress={() => {
+              if (isInteractionLocked) {
+                showBlockedMessage(lockReason);
+                return;
+              }
+              onOpenMilestones({ clientId: selectedClientId, projectId: selectedProjectId });
+            }}
+            disabled={isInteractionLocked}
+          >
+            <Text className="text-base font-semibold text-heading">Milestones</Text>
+          </Pressable>
         ) : null}
       </View>
       <Animated.View

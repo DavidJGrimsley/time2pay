@@ -2,16 +2,12 @@ import {
   areMilestoneChecklistItemsComplete,
   createProjectMilestone,
   getProjectMilestoneById,
+  listInvoices,
   listProjectMilestones,
   setProjectMilestoneCompletion,
   type MilestoneChecklistItem,
   type ProjectMilestone,
 } from '@/database/db';
-import {
-  createMilestoneInvoice,
-  type CreateMilestoneInvoiceInput,
-  type MilestoneInvoiceComputation,
-} from '@/services/invoice';
 
 export type MilestoneTemplateRow = {
   title: string;
@@ -109,60 +105,29 @@ export async function applyProjectMilestoneTemplate(input: {
   }
 }
 
-export type CompleteMilestoneAndCreateInvoiceInput = Omit<
-  CreateMilestoneInvoiceInput,
-  'milestoneTitle' | 'milestoneAmountType' | 'milestoneAmountValue' | 'milestoneCompletionMode' | 'milestoneCompletedAtIso'
-> & {
+export async function setDashboardMilestoneCompletion(input: {
   milestoneId: string;
-};
-
-export async function completeMilestoneAndCreateInvoiceDraft(
-  input: CompleteMilestoneAndCreateInvoiceInput,
-): Promise<MilestoneInvoiceComputation> {
+  isCompleted: boolean;
+}): Promise<void> {
   const milestone = await getProjectMilestoneById(input.milestoneId);
   if (!milestone) {
     throw new Error('Milestone not found.');
   }
-  if (milestone.is_completed) {
-    throw new Error('This milestone is already completed and already has a draft invoice.');
-  }
-
-  if (milestone.completion_mode === 'checklist') {
+  if (input.isCompleted && milestone.completion_mode === 'checklist') {
     const checklistComplete = await areMilestoneChecklistItemsComplete(milestone.id);
     if (!checklistComplete) {
       throw new Error('Complete all checklist items before marking this milestone complete.');
     }
   }
-
-  const completedAtIso = new Date().toISOString();
+  if (!input.isCompleted) {
+    const invoices = await listInvoices();
+    if (invoices.some((invoice) => invoice.source_milestone_id === milestone.id)) {
+      throw new Error('This milestone cannot reopen after its invoice draft exists.');
+    }
+  }
   await setProjectMilestoneCompletion({
     milestoneId: milestone.id,
-    isCompleted: true,
-    completedAtIso,
+    isCompleted: input.isCompleted,
+    completedAtIso: input.isCompleted ? new Date().toISOString() : null,
   });
-
-  try {
-    return await createMilestoneInvoice({
-      ...input,
-      milestoneId: milestone.id,
-      milestoneTitle: milestone.title,
-      milestoneAmountType: milestone.amount_type,
-      milestoneAmountValue: milestone.amount_value,
-      milestoneCompletionMode: milestone.completion_mode,
-      milestoneCompletedAtIso: completedAtIso,
-      markAttachedSessionsInvoiced:
-        input.markAttachedSessionsInvoiced === undefined ? true : input.markAttachedSessionsInvoiced,
-      status: input.status ?? 'draft',
-      sessionIds: input.sessionIds ?? [],
-      hourlyRateForSessionAppendix: input.hourlyRateForSessionAppendix,
-    });
-  } catch (error) {
-    // Best effort rollback to keep milestone state aligned if invoice creation fails.
-    await setProjectMilestoneCompletion({
-      milestoneId: milestone.id,
-      isCompleted: false,
-      completedAtIso: null,
-    }).catch(() => undefined);
-    throw error;
-  }
 }

@@ -3,6 +3,7 @@ export type {
   CoreDbValidationReport,
   Invoice,
   InvoiceSessionLink,
+  InvoiceMilestoneLink,
   InvoiceSessionLinkMode,
   InvoiceType,
   InvoiceWithClient,

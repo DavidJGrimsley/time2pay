@@ -43,13 +43,16 @@ export const invoices = pgTable(
     authUserIdIdx: index('idx_invoices_auth_user_id').on(table.authUserId),
     clientIdIdx: index('idx_invoices_client_id').on(table.clientId),
     userScopedUnique: uniqueIndex('ux_invoices_id_auth_user_id').on(table.id, table.authUserId),
+    activeMilestoneUnique: uniqueIndex('ux_invoices_active_source_milestone')
+      .on(table.sourceMilestoneId)
+      .where(sql`${table.sourceMilestoneId} is not null and ${table.deletedAt} is null`),
     statusCheck: check(
       'invoices_status_check',
       sql`${table.status} in ('draft', 'sent', 'paid', 'overdue')`,
     ),
     invoiceTypeCheck: check(
       'invoices_invoice_type_check',
-      sql`${table.invoiceType} in ('hourly', 'milestone')`,
+      sql`${table.invoiceType} in ('hourly', 'milestone', 'combined')`,
     ),
     sourceMilestoneAmountTypeCheck: check(
       'invoices_source_milestone_amount_type_check',

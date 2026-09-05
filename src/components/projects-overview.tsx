@@ -1,18 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, Text, TextInput, View } from 'react-native';
+import { Pressable, Text, TextInput, View } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import {
   createMilestoneChecklistItem,
   createProject,
-  createProjectMilestone,
   deleteProjectMilestone,
   initializeDatabase,
   listClients,
   listMilestoneChecklistItemsByMilestoneIds,
   listProjectMilestones,
   listProjectsByClient,
-  listSessionsByProject,
-  updateMilestoneChecklistItem,
   updateClientHourlyRate,
   updateProjectMilestone,
   updateProjectPricing,
@@ -23,19 +20,14 @@ import {
   type PricingMode,
   type Project,
   type ProjectMilestone,
-  type Session,
 } from '@/database/db';
 import { useStableWindowDimensions } from '@/hooks/use-stable-window-dimensions';
 import { InlineNotice, type NoticeTone } from '@/components/inline-notice';
 import { PickerControl, PickerField } from '@/components/picker-field';
-import { buildNet7DueDateIso } from '@/services/invoice';
 import {
   applyProjectMilestoneTemplate,
-  completeMilestoneAndCreateInvoiceDraft,
   getPercentTotalWarning,
-  sumPercentMilestones,
 } from '@/services/project-pricing';
-import { createTime2PayClient } from '@/services/client-sync';
 import { showActionErrorAlert, showSystemConfirm, showValidationAlert } from '@/services/system-alert';
 
 // Motion budget: project rows use lightweight fade transitions around list mutations only.
@@ -55,7 +47,6 @@ type LastProjectsSelection = {
   projectId: string | null;
 };
 
-const CREATE_CLIENT = '__create_client__';
 const CREATE_PROJECT = '__create_project__';
 const LAST_PROJECTS_SELECTIONS_KEY = 'time2pay.projects.last-selection';
 
@@ -65,10 +56,6 @@ function createId(prefix: string): string {
 
 function onlyNumber(value: string): string {
   return value.replace(/[^0-9.\-]/g, '');
-}
-
-function toIsoDay(input: Date): string {
-  return input.toISOString().slice(0, 10);
 }
 
 function parseOptionalNonNegativeNumber(value: string): number | null {
@@ -138,19 +125,13 @@ export function ProjectsOverview() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [milestones, setMilestones] = useState<ProjectMilestone[]>([]);
   const [checklistByMilestoneId, setChecklistByMilestoneId] = useState<Record<string, MilestoneChecklistItem[]>>({});
-  const [sessions, setSessions] = useState<Session[]>([]);
 
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [sectionStatus, setSectionStatus] = useState<SectionStatusNotice | null>(null);
   const [isBusy, setIsBusy] = useState(false);
 
-  const [isCreatingClient, setIsCreatingClient] = useState(false);
   const [isCreatingProject, setIsCreatingProject] = useState(false);
-
-  const [newClientName, setNewClientName] = useState('');
-  const [newClientEmail, setNewClientEmail] = useState('');
-  const [newClientRate, setNewClientRate] = useState('');
 
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectPricingMode, setNewProjectPricingMode] = useState<PricingMode>('hourly');
@@ -160,11 +141,6 @@ export function ProjectsOverview() {
   const [projectFee, setProjectFee] = useState('');
   const [hourlyRate, setHourlyRate] = useState('');
 
-  const [newMilestoneTitle, setNewMilestoneTitle] = useState('');
-  const [newMilestoneAmountType, setNewMilestoneAmountType] = useState<MilestoneAmountType>('percent');
-  const [newMilestoneAmountValue, setNewMilestoneAmountValue] = useState('');
-  const [newMilestoneCompletionMode, setNewMilestoneCompletionMode] = useState<MilestoneCompletionMode>('toggle');
-  const [isAddingMilestone, setIsAddingMilestone] = useState(false);
   const [isEditingProjectPricing, setIsEditingProjectPricing] = useState(true);
   const [showPricingInfo, setShowPricingInfo] = useState(false);
 
@@ -176,12 +152,6 @@ export function ProjectsOverview() {
     useState<MilestoneCompletionMode>('toggle');
 
   const [newChecklistTextByMilestoneId, setNewChecklistTextByMilestoneId] = useState<Record<string, string>>({});
-  const [selectedSessionIds, setSelectedSessionIds] = useState<string[]>([]);
-  const [markAttachedSessionsInvoiced, setMarkAttachedSessionsInvoiced] = useState(true);
-  const [syncMercury, setSyncMercury] = useState(false);
-  const [mercuryCustomerEmail, setMercuryCustomerEmail] = useState('');
-  const [mercuryInvoiceDate, setMercuryInvoiceDate] = useState(toIsoDay(new Date()));
-  const [mercuryDueDate, setMercuryDueDate] = useState(buildNet7DueDateIso());
 
   const showStatus = useCallback((section: ProjectsStatusSection, notice: StatusNotice): void => {
     setSectionStatus({ section, ...notice });
@@ -197,7 +167,6 @@ export function ProjectsOverview() {
   );
 
   const percentWarning = useMemo(() => getPercentTotalWarning(milestones), [milestones]);
-  const completedSessions = useMemo(() => sessions.filter((session) => session.end_time !== null), [sessions]);
 
   async function loadProjects(clientId: string | null): Promise<void> {
     setEditingMilestoneId(null);
@@ -224,18 +193,12 @@ export function ProjectsOverview() {
     if (!projectId) {
       setMilestones([]);
       setChecklistByMilestoneId({});
-      setSessions([]);
-      setSelectedSessionIds([]);
       setEditingMilestoneId(null);
       return;
     }
 
-    const [nextMilestones, nextSessions] = await Promise.all([
-      listProjectMilestones(projectId),
-      listSessionsByProject({ projectId, uninvoicedOnly: true }),
-    ]);
+    const nextMilestones = await listProjectMilestones(projectId);
     setMilestones(nextMilestones);
-    setSessions(nextSessions);
 
     const checklistRows = await listMilestoneChecklistItemsByMilestoneIds(
       nextMilestones.map((milestone) => milestone.id),
@@ -249,11 +212,6 @@ export function ProjectsOverview() {
     }, {});
     setChecklistByMilestoneId(grouped);
 
-    setSelectedSessionIds((current) =>
-      current.filter((sessionId) =>
-        nextSessions.some((session) => session.id === sessionId && session.end_time !== null),
-      ),
-    );
   }
 
   useEffect(() => {
@@ -293,18 +251,13 @@ export function ProjectsOverview() {
           ? selectedProject.total_project_fee.toString()
           : '',
       );
-      if (selectedProject.pricing_mode === 'hourly') {
-        setNewMilestoneAmountType('fixed');
-      }
     } else {
       setProjectPricingMode('hourly');
       setProjectFee('');
       setShowPricingInfo(false);
-      setIsAddingMilestone(false);
       setIsEditingProjectPricing(false);
     }
 
-    setMercuryCustomerEmail(selectedClient?.email ?? '');
     setHourlyRate(selectedClient ? selectedClient.hourly_rate.toString() : '');
 
     loadProjectWorkspace(selectedProjectId).catch((error: unknown) => {
@@ -341,40 +294,6 @@ export function ProjectsOverview() {
     setEditMilestoneAmountType('percent');
     setEditMilestoneAmountValue('');
     setEditMilestoneCompletionMode('toggle');
-  }
-
-  async function handleCreateClient(): Promise<void> {
-    const name = newClientName.trim();
-    const email = newClientEmail.trim();
-    const hourlyRate = Number(newClientRate);
-    if (!name || !email) {
-      showValidationAlert('Customer name and email are required.');
-      return;
-    }
-    if (!Number.isFinite(hourlyRate) || hourlyRate < 0) {
-      showValidationAlert('Hourly rate must be a non-negative number.');
-      return;
-    }
-
-    setIsBusy(true);
-    try {
-      const clientId = createId('client');
-      await createTime2PayClient({ id: clientId, name, email, hourly_rate: hourlyRate });
-      const rows = await listClients();
-      setClients(rows);
-      setSelectedClientId(clientId);
-      setIsCreatingClient(false);
-      setNewClientName('');
-      setNewClientEmail('');
-      setNewClientRate('');
-      showStatus('customerProject', { message: 'Customer created.', tone: 'success' });
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to create customer.';
-      showActionErrorAlert(message);
-      showStatus('customerProject', { message, tone: 'error' });
-    } finally {
-      setIsBusy(false);
-    }
   }
 
   async function handleCreateProject(): Promise<void> {
@@ -525,9 +444,6 @@ export function ProjectsOverview() {
       }
 
       setProjectFee('');
-      if (newMilestoneAmountType === 'percent') {
-        setNewMilestoneAmountType('fixed');
-      }
     }
 
     setProjectPricingMode(mode);
@@ -552,59 +468,6 @@ export function ProjectsOverview() {
       const message = error instanceof Error ? error.message : 'Failed to apply milestone template.';
       showActionErrorAlert(message);
       showStatus('projectPricing', { message, tone: 'error' });
-    } finally {
-      setIsBusy(false);
-    }
-  }
-
-  async function handleCreateMilestone(): Promise<void> {
-    if (!selectedProject) {
-      showValidationAlert('Select a project first.');
-      return;
-    }
-
-    const title = newMilestoneTitle.trim();
-    const amountValue = parseOptionalNonNegativeNumber(newMilestoneAmountValue);
-    const amountType = projectPricingMode === 'hourly' ? 'fixed' : newMilestoneAmountType;
-    if (!title) {
-      showValidationAlert('Milestone title is required.');
-      return;
-    }
-    if (amountValue === null) {
-      showValidationAlert('Milestone amount must be a non-negative number.');
-      return;
-    }
-    if (projectPricingMode === 'milestone' && amountType === 'percent') {
-      const nextPercentTotal = sumPercentMilestones(milestones) + amountValue;
-      if (nextPercentTotal > 100.0001) {
-        showValidationAlert('Percent milestones cannot exceed 100%.');
-        return;
-      }
-    }
-
-    setIsBusy(true);
-    try {
-      await createProjectMilestone({
-        id: createId('milestone'),
-        project_id: selectedProject.id,
-        title,
-        amount_type: amountType,
-        amount_value: amountValue,
-        completion_mode: newMilestoneCompletionMode,
-        due_note: null,
-        sort_order: milestones.length,
-      });
-      await loadProjectWorkspace(selectedProject.id);
-      setNewMilestoneTitle('');
-      setNewMilestoneAmountType(projectPricingMode === 'hourly' ? 'fixed' : 'percent');
-      setNewMilestoneAmountValue('');
-      setNewMilestoneCompletionMode('toggle');
-      setIsAddingMilestone(false);
-      showStatus('addMilestone', { message: 'Milestone created.', tone: 'success' });
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to create milestone.';
-      showActionErrorAlert(message);
-      showStatus('addMilestone', { message, tone: 'error' });
     } finally {
       setIsBusy(false);
     }
@@ -764,101 +627,11 @@ export function ProjectsOverview() {
     }
   }
 
-  async function handleToggleChecklist(item: MilestoneChecklistItem): Promise<void> {
-    setIsBusy(true);
-    try {
-      const isCompleted = !Boolean(item.is_completed);
-      await updateMilestoneChecklistItem({
-        id: item.id,
-        label: item.label,
-        sort_order: item.sort_order,
-        is_completed: isCompleted,
-        completed_at: isCompleted ? new Date().toISOString() : null,
-      });
-      if (selectedProjectId) {
-        await loadProjectWorkspace(selectedProjectId);
-      }
-      showStatus('milestones', { message: 'Checklist updated.', tone: 'success' });
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to update checklist item.';
-      showActionErrorAlert(message);
-      showStatus('milestones', { message, tone: 'error' });
-    } finally {
-      setIsBusy(false);
-    }
-  }
-
-  async function handleCreateMilestoneInvoice(milestone: ProjectMilestone): Promise<void> {
-    if (!selectedClient || !selectedProject) {
-      showValidationAlert('Select a customer and project first.');
-      return;
-    }
-
-    if (syncMercury && !mercuryCustomerEmail.trim()) {
-      showValidationAlert('Customer email is required when Mercury sync is enabled.');
-      return;
-    }
-
-    const confirmed = await showSystemConfirm({
-      title: 'Create milestone draft invoice?',
-      message: 'This marks the milestone complete and creates an editable invoice draft (not finalized/sent).',
-      confirmLabel: 'Create Draft',
-      cancelLabel: 'Cancel',
-    });
-    if (!confirmed) {
-      return;
-    }
-
-    setIsBusy(true);
-    try {
-      const invoiceId = createId('invoice');
-      const result = await completeMilestoneAndCreateInvoiceDraft({
-        invoiceId,
-        clientId: selectedClient.id,
-        projectId: selectedProject.id,
-        projectName: selectedProject.name,
-        projectTotalFee: selectedProject.total_project_fee,
-        milestoneId: milestone.id,
-        sessionIds: selectedSessionIds,
-        markAttachedSessionsInvoiced,
-        hourlyRateForSessionAppendix: selectedClient.hourly_rate,
-        mercury: syncMercury
-          ? {
-              enabled: true,
-              customerName: selectedClient.name,
-              customerEmail: mercuryCustomerEmail.trim(),
-              dueDateIso: mercuryDueDate,
-              invoiceDateIso: mercuryInvoiceDate,
-            }
-          : undefined,
-      });
-      await loadProjectWorkspace(selectedProject.id);
-      showStatus('milestones', {
-        message: `Draft invoice ${invoiceId} created for ${milestone.title} ($${result.totalAmount.toFixed(2)}).`,
-        tone: result.mercuryWarning ? 'error' : 'success',
-      });
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to create milestone invoice.';
-      showActionErrorAlert(message);
-      showStatus('milestones', { message, tone: 'error' });
-    } finally {
-      setIsBusy(false);
-    }
-  }
-
-  function toggleSession(sessionId: string): void {
-    setSelectedSessionIds((current) =>
-      current.includes(sessionId)
-        ? current.filter((existing) => existing !== sessionId)
-        : [...current, sessionId],
-    );
-  }
-
   return (
     <View className="gap-3">
       <Text className="text-3xl font-extrabold text-heading">Projects</Text>
       <Text className="text-muted">
-        Milestone-based pricing with optional session attachments and Mercury sync.
+        Set up project pricing and administer milestones. Complete work and create invoice drafts from Dashboard and Invoices.
       </Text>
 
       <View className="items-center">
@@ -874,16 +647,12 @@ export function ProjectsOverview() {
                 value={selectedClientId}
                 options={clients.map((client) => ({ id: client.id, label: client.name }))}
                 placeholder="Select customer"
-                createValue={CREATE_CLIENT}
-                createLabel="+ Create customer"
                 large={isLarge}
                 disabled={isBusy}
                 onSelect={(value) => {
-                  setIsCreatingClient(false);
                   setIsCreatingProject(false);
                   setSelectedClientId(value);
                 }}
-                onCreateNew={() => setIsCreatingClient(true)}
               />
             </View>
 
@@ -912,50 +681,6 @@ export function ProjectsOverview() {
                 }}
               />
             </View>
-
-            {isCreatingClient ? (
-              <Animated.View
-                className="gap-2 rounded-md border border-border bg-background p-3"
-                entering={FadeIn.duration(160)}
-                exiting={FadeOut.duration(120)}
-              >
-                <TextInput
-                  value={newClientName}
-                  onChangeText={setNewClientName}
-                  placeholder="Customer name"
-                  className={formInputClassName}
-                  style={fullControlStyle}
-                />
-                <TextInput
-                  value={newClientEmail}
-                  onChangeText={setNewClientEmail}
-                  placeholder="Customer email"
-                  autoCapitalize="none"
-                  keyboardType="email-address"
-                  className={formInputClassName}
-                  style={fullControlStyle}
-                />
-                <TextInput
-                  value={newClientRate}
-                  onChangeText={(value) => setNewClientRate(onlyNumber(value))}
-                  placeholder="Hourly rate"
-                  keyboardType="decimal-pad"
-                  className={formInputClassName}
-                  style={fullControlStyle}
-                />
-                <View className="flex-row gap-2">
-                  <Pressable className="rounded-md bg-secondary px-3 py-2" onPress={handleCreateClient}>
-                    <Text className="font-semibold text-white">Save customer</Text>
-                  </Pressable>
-                  <Pressable
-                    className="rounded-md border border-border px-3 py-2"
-                    onPress={() => setIsCreatingClient(false)}
-                  >
-                    <Text className="font-semibold text-heading">Cancel</Text>
-                  </Pressable>
-                </View>
-              </Animated.View>
-            ) : null}
 
             {isCreatingProject ? (
               <Animated.View
@@ -1117,17 +842,8 @@ export function ProjectsOverview() {
               </View>
 
               <View className={milestonesPanelClassName}>
-                <View className="flex-row items-center justify-between gap-2 pt-1">
-                  <Text className={subsectionTitleClassName}>Milestones</Text>
-                  {selectedProject ? (
-                    <Pressable
-                      className="h-9 w-9 items-center justify-center rounded-md bg-secondary"
-                      onPress={() => setIsAddingMilestone(true)}
-                    >
-                      <Text className="text-xl font-bold text-white">+</Text>
-                    </Pressable>
-                  ) : null}
-                </View>
+                <Text className={subsectionTitleClassName}>Milestones</Text>
+                <Text className="text-xs text-muted">Create and complete milestones from the Dashboard.</Text>
                 {!selectedProject ? <Text className="text-sm text-muted">Select a project to manage milestones.</Text> : null}
                 {selectedProject && milestones.length === 0 ? <Text className="text-sm text-muted">No milestones yet.</Text> : null}
 
@@ -1255,11 +971,7 @@ export function ProjectsOverview() {
                           Checklist ({completedCount}/{checklist.length})
                         </Text>
                         {checklist.map((item) => (
-                          <Pressable
-                            key={item.id}
-                            className="flex-row items-center gap-2"
-                            onPress={() => handleToggleChecklist(item)}
-                          >
+                          <View key={item.id} className="flex-row items-center gap-2">
                             <View
                               className={
                                 item.is_completed
@@ -1276,7 +988,7 @@ export function ProjectsOverview() {
                             >
                               {item.label}
                             </Text>
-                          </Pressable>
+                          </View>
                         ))}
                         <View className="flex-row gap-2">
                           <TextInput
@@ -1300,19 +1012,6 @@ export function ProjectsOverview() {
                       </View>
                     ) : null}
 
-                    {!milestone.is_completed && !isEditing ? (
-                      <View className="gap-1">
-                        <Pressable
-                          className="self-start rounded-md bg-secondary px-3 py-2"
-                          onPress={() => handleCreateMilestoneInvoice(milestone)}
-                        >
-                          <Text className="font-semibold text-white">Complete + create draft invoice</Text>
-                        </Pressable>
-                        <Text className="text-xs text-muted">
-                          Draft means saved and editable before final send/export.
-                        </Text>
-                      </View>
-                    ) : null}
                   </Animated.View>
                         );
                       })
@@ -1320,183 +1019,12 @@ export function ProjectsOverview() {
                 {sectionStatus?.section === 'milestones' ? (
                   <InlineNotice tone={sectionStatus.tone} message={sectionStatus.message} />
                 ) : null}
-                {sectionStatus?.section === 'addMilestone' ? (
-                  <InlineNotice tone={sectionStatus.tone} message={sectionStatus.message} />
-                ) : null}
               </View>
             </View>
           </Animated.View>
 
-          {selectedProject ? (
-            <Animated.View className={sectionCardClassName}>
-              <Text className={subsectionTitleClassName}>Invoice options</Text>
-              <Pressable
-                className="flex-row items-center gap-2"
-                onPress={() => setMarkAttachedSessionsInvoiced((current) => !current)}
-              >
-                <View
-                  className={
-                    markAttachedSessionsInvoiced
-                      ? 'h-4 w-4 items-center justify-center rounded border border-secondary bg-secondary'
-                      : 'h-4 w-4 rounded border border-border bg-background'
-                  }
-                >
-                  {markAttachedSessionsInvoiced ? <Text className="text-[10px] text-white">v</Text> : null}
-                </View>
-                <Text className="text-sm text-foreground">Mark attached sessions invoiced</Text>
-              </Pressable>
-
-              <Pressable className="flex-row items-center gap-2" onPress={() => setSyncMercury((current) => !current)}>
-                <View
-                  className={
-                    syncMercury
-                      ? 'h-4 w-4 items-center justify-center rounded border border-secondary bg-secondary'
-                      : 'h-4 w-4 rounded border border-border bg-background'
-                  }
-                >
-                  {syncMercury ? <Text className="text-[10px] text-white">v</Text> : null}
-                </View>
-                <Text className="text-sm text-foreground">Create matching invoice in Mercury</Text>
-              </Pressable>
-              <Text className="text-xs text-muted">
-                This also creates the same invoice in Mercury AR. If Mercury fails, your local draft still saves.
-              </Text>
-
-              {syncMercury ? (
-                <View className="gap-2 rounded-md border border-border bg-background p-3">
-                  <Text className="text-xs uppercase tracking-wide text-muted">Customer email</Text>
-                  <TextInput
-                    value={mercuryCustomerEmail}
-                    onChangeText={setMercuryCustomerEmail}
-                    placeholder="Customer email"
-                    autoCapitalize="none"
-                    keyboardType="email-address"
-                    className={formInputClassName}
-                    style={fullControlStyle}
-                  />
-                  <Text className="text-xs uppercase tracking-wide text-muted">Invoice date</Text>
-                  <TextInput
-                    value={mercuryInvoiceDate}
-                    onChangeText={setMercuryInvoiceDate}
-                    placeholder="Invoice date YYYY-MM-DD"
-                    className={formInputClassName}
-                    style={fullControlStyle}
-                  />
-                  <Text className="text-xs uppercase tracking-wide text-muted">Due date</Text>
-                  <TextInput
-                    value={mercuryDueDate}
-                    onChangeText={setMercuryDueDate}
-                    placeholder="Due date YYYY-MM-DD"
-                    className={formInputClassName}
-                    style={fullControlStyle}
-                  />
-                </View>
-              ) : null}
-
-              <Text className="text-sm font-semibold text-heading">Attach sessions (optional)</Text>
-              {completedSessions.length === 0 ? (
-                <Text className="text-sm text-muted">No completed uninvoiced sessions for this project.</Text>
-              ) : null}
-              {completedSessions.map((session) => {
-                const active = selectedSessionIds.includes(session.id);
-                return (
-                  <Pressable
-                    key={session.id}
-                    className="flex-row items-start gap-2 rounded-md border border-border bg-background px-3 py-2"
-                    onPress={() => toggleSession(session.id)}
-                  >
-                    <View
-                      className={
-                        active
-                          ? 'mt-0.5 h-4 w-4 items-center justify-center rounded border border-secondary bg-secondary'
-                          : 'mt-0.5 h-4 w-4 rounded border border-border bg-card'
-                      }
-                    >
-                      {active ? <Text className="text-[10px] text-white">v</Text> : null}
-                    </View>
-                    <View className="flex-1">
-                      <Text className="text-sm text-foreground">
-                        {session.task_name ?? session.task_id ?? 'Task'} -{' '}
-                        {session.duration ? `${(session.duration / 3600).toFixed(2)}h` : '0.00h'}
-                      </Text>
-                      <Text className="text-xs text-muted">{new Date(session.start_time).toLocaleString()}</Text>
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </Animated.View>
-          ) : null}
-
         </View>
       </View>
-      <Modal
-        visible={isAddingMilestone && Boolean(selectedProject)}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setIsAddingMilestone(false)}
-      >
-        <View className="flex-1 items-center justify-center bg-black/55 px-4">
-          <Animated.View className="w-full max-w-2xl gap-3 rounded-xl bg-card p-4">
-            <View className="flex-row items-center justify-between">
-              <Text className={subsectionTitleClassName}>Add milestone</Text>
-              <Pressable className="rounded-md border border-border px-2 py-1" onPress={() => setIsAddingMilestone(false)}>
-                <Text className="font-semibold text-heading">x</Text>
-              </Pressable>
-            </View>
-
-            <TextInput
-              value={newMilestoneTitle}
-              onChangeText={setNewMilestoneTitle}
-              placeholder="Milestone title"
-              className={formInputClassName}
-              style={fullControlStyle}
-            />
-            <PickerControl
-              selectedValue={newMilestoneAmountType}
-              items={[
-                ...(projectPricingMode === 'milestone' ? [{ label: 'Percent', value: 'percent' }] : []),
-                { label: 'Fixed', value: 'fixed' },
-              ]}
-              large={isLarge}
-              containerStyle={fullFieldStyle}
-              onValueChange={(value) => setNewMilestoneAmountType(value as MilestoneAmountType)}
-            />
-            {projectPricingMode === 'hourly' ? (
-              <Text className="text-xs text-muted">Hourly pricing supports fixed milestones only.</Text>
-            ) : null}
-            <TextInput
-              value={newMilestoneAmountValue}
-              onChangeText={(value) => setNewMilestoneAmountValue(onlyNumber(value))}
-              placeholder="Amount"
-              keyboardType="decimal-pad"
-              className={formInputClassName}
-              style={fullControlStyle}
-            />
-            <PickerControl
-              selectedValue={newMilestoneCompletionMode}
-              items={[
-                { label: 'Toggle', value: 'toggle' },
-                { label: 'Checklist', value: 'checklist' },
-              ]}
-              large={isLarge}
-              containerStyle={fullFieldStyle}
-              onValueChange={(value) => setNewMilestoneCompletionMode(value as MilestoneCompletionMode)}
-            />
-
-            <View className="flex-row gap-2">
-              <Pressable
-                className="rounded-md bg-secondary px-3 py-2"
-                onPress={() => handleCreateMilestone().catch(() => undefined)}
-              >
-                <Text className="font-semibold text-white">Add milestone</Text>
-              </Pressable>
-              <Pressable className="rounded-md border border-border px-3 py-2" onPress={() => setIsAddingMilestone(false)}>
-                <Text className="font-semibold text-heading">Cancel</Text>
-              </Pressable>
-            </View>
-          </Animated.View>
-        </View>
-      </Modal>
     </View>
   );
 }
