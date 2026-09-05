@@ -33,8 +33,7 @@ export function MercuryOverview() {
     <View className="gap-3">
       <Text className="text-3xl font-extrabold text-heading">Mercury</Text>
       <Text className="text-muted">
-        Mercury checking and send-money tools in one place. Bank confirms account context; Payments
-        moves money to recipients.
+        Mercury checking and send-money tools in one place.
       </Text>
       <View className="flex-row flex-wrap gap-2">
         <Pressable
