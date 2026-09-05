@@ -76,6 +76,50 @@ export async function updateClientInvoiceContact(input: {
   }
 }
 
+export async function updateClientDetails(input: {
+  id: string;
+  name: string;
+  email?: string | null;
+  phone?: string | null;
+  hourly_rate: number;
+  github_org?: string | null;
+}): Promise<void> {
+  const name = input.name.trim();
+  if (!name) {
+    throw new Error('Customer name is required.');
+  }
+  if (!Number.isFinite(input.hourly_rate) || input.hourly_rate < 0) {
+    throw new Error('Hourly rate must be a non-negative number.');
+  }
+  if (input.email?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.email.trim())) {
+    throw new Error('Enter a valid customer email address.');
+  }
+
+  const db = await getDb();
+  const result = await db.runAsync(
+    `UPDATE clients
+       SET name = ?,
+           email = ?,
+           phone = ?,
+           hourly_rate = ?,
+           github_org = ?,
+           updated_at = ?
+     WHERE id = ?
+       AND deleted_at IS NULL`,
+    name,
+    input.email?.trim() || null,
+    input.phone?.trim() || null,
+    input.hourly_rate,
+    input.github_org?.trim() || null,
+    nowIso(),
+    input.id,
+  );
+
+  if (result.changes === 0) {
+    throw new Error('Customer not found.');
+  }
+}
+
 export async function updateClientHourlyRate(input: {
   id: string;
   hourly_rate: number;

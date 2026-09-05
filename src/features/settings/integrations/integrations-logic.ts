@@ -266,7 +266,7 @@ export function useIntegrationsScreen() {
       const nextStatus = await setMercuryArAccess(enabled);
       setMercuryCredentialStatus(nextStatus);
       const message = enabled
-        ? 'Mercury invoicing enabled. The Mercury Invoice Builder is now available.'
+        ? 'Mercury invoicing enabled. Mercury is now available on Invoices.'
         : 'Mercury invoicing disabled.';
       setMercuryStatus({ message, tone: 'success' });
     } catch (error: unknown) {

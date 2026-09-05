@@ -619,9 +619,12 @@ export default function RootLayout() {
         <Stack.Protected guard={routeGate.canMountAccountRoutes}>
           <Stack.Screen name="settings" options={{ title: 'Settings' }} />
           <Stack.Screen name="access-required" options={{ title: 'Hosted Access' }} />
-          <Stack.Screen name="referral-status" options={{ title: 'Mercury Referral' }} />
           <Stack.Screen name="settings/billing" options={{ title: 'Billing' }} />
           <Stack.Screen name="settings/integrations" options={{ title: 'Integrations' }} />
+          <Stack.Screen name="settings/customers-projects" options={{ title: 'Customers & Projects' }} />
+          <Stack.Screen name="settings/customers" options={{ title: 'Customers' }} />
+          <Stack.Screen name="settings/customers/new" options={{ title: 'New Customer' }} />
+          <Stack.Screen name="settings/customers/[id]" options={{ title: 'Customer Details' }} />
         </Stack.Protected>
         <Stack.Protected guard={routeGate.canMountAppRoutes}>
           <Stack.Screen name="(tabs)" options={{ title: 'Time2Pay' }} />

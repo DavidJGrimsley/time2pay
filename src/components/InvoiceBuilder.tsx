@@ -25,6 +25,8 @@ import {
   type WeekOption,
 } from '@/components/session-invoice-source-panel';
 import { showActionErrorAlert, showValidationAlert } from '@/services/system-alert';
+import { CompletedMilestoneSourcePanel } from '@/components/completed-milestone-source-panel';
+import { useInvoiceMilestoneSources } from '@/hooks/use-invoice-milestone-sources';
 
 type InvoiceBuilderProps = {
   onInvoiceCreated?: () => void;
@@ -84,6 +86,7 @@ export function InvoiceBuilder({ onInvoiceCreated, refreshKey }: InvoiceBuilderP
     () => selectedSessions.map((session) => session.id),
     [selectedSessions],
   );
+  const milestoneSources = useInvoiceMilestoneSources(selectedClientId, selectedProjectId, refreshKey);
 
   const preview: InvoiceComputation | null = useMemo(() => {
     if (!selectedClient || selectedSessions.length === 0) {
@@ -215,15 +218,8 @@ export function InvoiceBuilder({ onInvoiceCreated, refreshKey }: InvoiceBuilderP
   }, [projectsClientId, refreshKey, selectedClientId, selectedProjectId]);
 
   async function handleCreateInvoice(): Promise<void> {
-    if (!selectedClient || selectedWeeks.length === 0 || !preview) {
-      const message = 'Select a client and at least one week with uninvoiced sessions.';
-      showValidationAlert(message);
-      setInvoiceStatus({ message, tone: 'error' });
-      return;
-    }
-
-    if (selectedSessions.length === 0) {
-      const message = 'No sessions available for the selected weeks.';
+    if (!selectedClient || (selectedWeeks.length === 0 && milestoneSources.selectedSources.length === 0)) {
+      const message = 'Select at least one uninvoiced week or completed milestone.';
       showValidationAlert(message);
       setInvoiceStatus({ message, tone: 'error' });
       return;
@@ -239,6 +235,12 @@ export function InvoiceBuilder({ onInvoiceCreated, refreshKey }: InvoiceBuilderP
         clientId: selectedClient.id,
         sessionIds: selectedSessionIds,
         hourlyRate: selectedClient.hourly_rate,
+        milestoneSources: milestoneSources.selectedSources.map((source) => ({
+          milestoneId: source.milestone.id,
+          projectId: source.projectId,
+          projectName: source.projectName,
+          projectTotalFee: source.projectTotalFee,
+        })),
       });
 
       setInvoiceStatus({
@@ -264,7 +266,7 @@ export function InvoiceBuilder({ onInvoiceCreated, refreshKey }: InvoiceBuilderP
     <View className="gap-3 rounded-xl bg-card p-4">
       <Text className="text-xl font-bold text-heading">Invoice Builder</Text>
       <Text className="text-muted">
-        Standard Time2Pay invoice flow. This creates the local invoice record and keeps the PDF-based workflow intact.
+        Select any uninvoiced weeks and completed milestones. Both become line items in the draft.
       </Text>
 
       <SessionInvoiceSourcePanel
@@ -288,11 +290,16 @@ export function InvoiceBuilder({ onInvoiceCreated, refreshKey }: InvoiceBuilderP
         groupedLineItems={groupedLineItems}
         previewBreaksBySessionId={previewBreaksBySessionId}
       />
+      <CompletedMilestoneSourcePanel
+        sources={milestoneSources.sources}
+        selectedIds={milestoneSources.selectedIds}
+        onToggle={milestoneSources.toggleMilestone}
+      />
 
       <Pressable
         className="rounded-md bg-secondary px-4 py-2"
         onPress={handleCreateInvoice}
-        disabled={isCreatingInvoice || !selectedClient || selectedWeekKeys.length === 0}
+        disabled={isCreatingInvoice || !selectedClient || (selectedWeekKeys.length === 0 && milestoneSources.selectedIds.length === 0)}
       >
         <Text className="text-center font-semibold text-white">
           {isCreatingInvoice ? 'Creating...' : 'Create Invoice'}

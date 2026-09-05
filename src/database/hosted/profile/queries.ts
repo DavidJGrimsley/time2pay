@@ -15,7 +15,7 @@ export async function getUserProfile(): Promise<UserProfile> {
 
   const { data, error } = await supabase
     .from('user_profiles')
-    .select('auth_user_id,id,company_name,logo_url,full_name,phone,email,github_pat,created_at,updated_at')
+    .select('auth_user_id,id,company_name,logo_url,full_name,phone,email,github_pat,invoice_builder_mode,created_at,updated_at')
     .eq('auth_user_id', userId)
     .maybeSingle();
 
@@ -37,6 +37,7 @@ export async function upsertUserProfile(input: {
   phone?: string | null;
   email?: string | null;
   github_pat?: string | null;
+  invoice_builder_mode?: 't2p' | 'mercury';
 }): Promise<void> {
   const supabase = getSupabaseClient();
   const userId = await requireHostedUserId();
@@ -52,6 +53,10 @@ export async function upsertUserProfile(input: {
       phone: input.phone === undefined ? existing.phone : input.phone,
       email: input.email === undefined ? existing.email : input.email,
       github_pat: input.github_pat === undefined ? existing.github_pat : input.github_pat,
+      invoice_builder_mode:
+        input.invoice_builder_mode === undefined
+          ? existing.invoice_builder_mode
+          : input.invoice_builder_mode,
       updated_at: timestamp,
     })
     .eq('auth_user_id', userId);

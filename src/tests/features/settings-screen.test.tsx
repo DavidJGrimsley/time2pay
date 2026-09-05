@@ -148,7 +148,7 @@ describe('SettingsScreen', () => {
     ).toBeTruthy();
   });
 
-  it('uses arrow-only indicators for linked Billing and Integrations cards', async () => {
+  it('uses arrow-only indicators for linked Billing, Customers, and Integrations cards', async () => {
     const { SettingsScreen } = await import('@/features/settings/settings-screen');
 
     let root!: renderer.ReactTestRenderer;
@@ -163,7 +163,7 @@ describe('SettingsScreen', () => {
           node.props.children === '→' &&
           node.props.className === 'text-3xl leading-none text-secondary',
       ),
-    ).toHaveLength(2);
+    ).toHaveLength(3);
     expect(
       root.root.findAll(
         (node: renderer.ReactTestInstance) =>
@@ -175,12 +175,14 @@ describe('SettingsScreen', () => {
         (node: renderer.ReactTestInstance) =>
           String(node.type) === 'Pressable' &&
           ((node.props.accessibilityLabel === 'Billing settings' &&
-            node.props.accessibilityHint === 'Manage your plan, payment method, and invoices.') ||
+            node.props.accessibilityHint === 'Manage your plan, payment method, invoices, and referral rewards.') ||
+            (node.props.accessibilityLabel === 'Customers and projects management' &&
+              node.props.accessibilityHint === 'Manage customers, projects, pricing, and milestones.') ||
             (node.props.accessibilityLabel === 'Integrations settings' &&
               node.props.accessibilityHint ===
                 'Connect GitHub repositories and your Mercury account.')),
       ),
-    ).toHaveLength(2);
+    ).toHaveLength(3);
   });
 
   it('shows the Sign Out action for an authenticated hosted account', async () => {
@@ -230,7 +232,7 @@ describe('SettingsScreen', () => {
       root.root.find(
         (node: renderer.ReactTestInstance) =>
           String(node.type) === 'Text' &&
-          node.props.children === 'Add your name, phone, and email in Your Business below to start tracking time and invoicing.',
+          node.props.children === 'Add your name, phone, and email in My Business below to start tracking time and invoicing.',
       ),
     ).toBeTruthy();
 

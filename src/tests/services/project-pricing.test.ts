@@ -7,29 +7,27 @@ const {
   getProjectMilestoneByIdMock,
   listProjectMilestonesMock,
   setProjectMilestoneCompletionMock,
-  createMilestoneInvoiceMock,
+  listInvoicesMock,
 } = vi.hoisted(() => ({
   areMilestoneChecklistItemsCompleteMock: vi.fn(),
   createProjectMilestoneMock: vi.fn(),
   getProjectMilestoneByIdMock: vi.fn(),
   listProjectMilestonesMock: vi.fn(),
   setProjectMilestoneCompletionMock: vi.fn(),
-  createMilestoneInvoiceMock: vi.fn(),
+  listInvoicesMock: vi.fn(),
 }));
 
 vi.mock('@/database/db', () => ({
   areMilestoneChecklistItemsComplete: areMilestoneChecklistItemsCompleteMock,
   createProjectMilestone: createProjectMilestoneMock,
   getProjectMilestoneById: getProjectMilestoneByIdMock,
+  listInvoices: listInvoicesMock,
   listProjectMilestones: listProjectMilestonesMock,
   setProjectMilestoneCompletion: setProjectMilestoneCompletionMock,
 }));
 
-vi.mock('@/services/invoice', () => ({
-  createMilestoneInvoice: createMilestoneInvoiceMock,
-}));
 import {
-  completeMilestoneAndCreateInvoiceDraft,
+  setDashboardMilestoneCompletion,
   canMilestoneBeCompleted,
   getPercentTotalWarning,
   sumPercentMilestones,
@@ -42,7 +40,7 @@ beforeEach(() => {
   getProjectMilestoneByIdMock.mockReset();
   listProjectMilestonesMock.mockReset();
   setProjectMilestoneCompletionMock.mockReset();
-  createMilestoneInvoiceMock.mockReset();
+  listInvoicesMock.mockReset();
 });
 
 function buildMilestone(overrides: Partial<ProjectMilestone> = {}): ProjectMilestone {
@@ -135,22 +133,24 @@ describe('canMilestoneBeCompleted', () => {
   });
 });
 
-describe('completeMilestoneAndCreateInvoiceDraft', () => {
-  it('rejects duplicate draft creation when milestone is already completed', async () => {
+describe('setDashboardMilestoneCompletion', () => {
+  it('refuses to reopen a completed milestone once a draft exists', async () => {
     getProjectMilestoneByIdMock.mockResolvedValue(buildMilestone({ is_completed: 1 }));
+    listInvoicesMock.mockResolvedValue([{ source_milestone_id: 'milestone_1' }]);
 
     await expect(
-      completeMilestoneAndCreateInvoiceDraft({
-        invoiceId: 'invoice_1',
-        clientId: 'client_1',
-        projectId: 'project_1',
-        projectName: 'Website refresh',
-        projectTotalFee: 5000,
-        milestoneId: 'milestone_1',
-      }),
-    ).rejects.toThrow('already completed');
+      setDashboardMilestoneCompletion({ milestoneId: 'milestone_1', isCompleted: false }),
+    ).rejects.toThrow('cannot reopen');
 
     expect(setProjectMilestoneCompletionMock).not.toHaveBeenCalled();
-    expect(createMilestoneInvoiceMock).not.toHaveBeenCalled();
+  });
+
+  it('requires every checklist item before marking a milestone complete', async () => {
+    getProjectMilestoneByIdMock.mockResolvedValue(buildMilestone({ completion_mode: 'checklist' }));
+    areMilestoneChecklistItemsCompleteMock.mockResolvedValue(false);
+
+    await expect(
+      setDashboardMilestoneCompletion({ milestoneId: 'milestone_1', isCompleted: true }),
+    ).rejects.toThrow('Complete all checklist items');
   });
 });

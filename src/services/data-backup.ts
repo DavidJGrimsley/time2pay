@@ -228,6 +228,9 @@ function parseUserProfile(value: unknown, path: string): UserProfile {
     full_name: readNullableString(getRequiredField(record, 'full_name', path), `${path}.full_name`),
     phone: readNullableString(getRequiredField(record, 'phone', path), `${path}.phone`),
     email: readNullableString(getRequiredField(record, 'email', path), `${path}.email`),
+    github_pat: readNullableString(getOptionalField(record, 'github_pat') ?? null, `${path}.github_pat`),
+    invoice_builder_mode:
+      getOptionalField(record, 'invoice_builder_mode') === 'mercury' ? 'mercury' : 't2p',
     created_at: readIsoTimestamp(getRequiredField(record, 'created_at', path), `${path}.created_at`),
     updated_at: readIsoTimestamp(getRequiredField(record, 'updated_at', path), `${path}.updated_at`),
   };
@@ -370,7 +373,7 @@ function parseInvoice(value: unknown, path: string): Invoice {
     invoiceTypeRaw === undefined || invoiceTypeRaw === null
       ? 'hourly'
       : readString(invoiceTypeRaw, `${path}.invoice_type`);
-  if (invoiceType !== 'hourly' && invoiceType !== 'milestone') {
+  if (invoiceType !== 'hourly' && invoiceType !== 'milestone' && invoiceType !== 'combined') {
     throw new Error(`Invalid invoice type at ${path}.invoice_type`);
   }
 
@@ -795,16 +798,20 @@ async function insertBackupData(data: BackupDataTables): Promise<void> {
         full_name,
         phone,
         email,
+        github_pat,
+        invoice_builder_mode,
         created_at,
         updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       profile.id,
       profile.company_name,
       profile.logo_url,
       profile.full_name,
       profile.phone,
       profile.email,
+      profile.github_pat ?? null,
+      profile.invoice_builder_mode,
       profile.created_at,
       profile.updated_at,
     );
@@ -1153,6 +1160,8 @@ export async function createBackupSnapshot(): Promise<Time2PayBackup> {
         full_name,
         phone,
         email,
+        github_pat,
+        invoice_builder_mode,
         created_at,
         updated_at
       FROM user_profile

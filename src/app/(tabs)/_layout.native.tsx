@@ -111,10 +111,6 @@ export default function TabsLayoutNative() {
           <NativeTabs.Trigger.Icon sf="clock.fill" md="schedule" />
           <NativeTabs.Trigger.Label>Sessions</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
-        <NativeTabs.Trigger name="projects">
-          <NativeTabs.Trigger.Icon sf="folder.fill" md="folder" />
-          <NativeTabs.Trigger.Label>Projects</NativeTabs.Trigger.Label>
-        </NativeTabs.Trigger>
         <NativeTabs.Trigger name="invoices">
           <NativeTabs.Trigger.Icon sf="doc.text.fill" md="description" />
           <NativeTabs.Trigger.Label>Invoices</NativeTabs.Trigger.Label>

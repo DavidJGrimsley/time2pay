@@ -68,12 +68,12 @@ async function buildExportableInvoice(invoice: InvoiceWithClient): Promise<{
   const sessionBreaks = await listSessionBreaksBySessionIds(sessions.map((session) => session.id));
   const userProfile = await getUserProfile();
   const hourlyRate =
-    invoice.invoice_type === 'milestone'
+    invoice.invoice_type === 'milestone' || invoice.invoice_type === 'combined'
       ? invoice.source_session_hourly_rate ?? invoice.client_hourly_rate ?? 0
       : invoice.client_hourly_rate ?? 0;
   const totals = computeInvoiceTotals(sessions, hourlyRate);
   const effectiveTotals: InvoiceComputation =
-    invoice.invoice_type === 'milestone'
+    invoice.invoice_type === 'milestone' || invoice.invoice_type === 'combined'
       ? {
           ...totals,
           totalAmount: invoice.total,
@@ -303,9 +303,9 @@ export function InvoiceHistory({ refreshKey, onInvoiceDeleted }: InvoiceHistoryP
             <Text className="text-sm text-muted">Created: {formatDateTime(invoice.created_at)}</Text>
             <Text className="text-sm text-muted">Status: {invoice.status}</Text>
             <Text className="text-sm text-muted">
-              Type: {invoice.invoice_type === 'milestone' ? 'Milestone' : 'Hourly'}
+              Type: {invoice.invoice_type === 'milestone' ? 'Milestone' : invoice.invoice_type === 'combined' ? 'Combined' : 'Hourly'}
             </Text>
-            {invoice.invoice_type === 'milestone' ? (
+            {invoice.invoice_type === 'milestone' || invoice.invoice_type === 'combined' ? (
               <Text className="text-sm text-muted">
                 {invoice.source_project_name ?? invoice.source_project_id ?? 'Project'} -{' '}
                 {invoice.source_milestone_title ?? invoice.source_milestone_id ?? 'Milestone'}

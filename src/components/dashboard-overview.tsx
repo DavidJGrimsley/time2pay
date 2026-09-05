@@ -8,6 +8,7 @@ import {
 } from '@/services/profile-completion';
 import { InlineNotice } from '@/components/inline-notice';
 import { GitHubStartModal, type GitHubStartSelection } from './GitHubStartModal';
+import { DashboardMilestoneSheet } from './dashboard-milestone-sheet';
 import { Timer, type TimerSelectionHandoff } from './Timer';
 import { useResolvedDataMode } from '@/hooks/use-resolved-data-mode';
 import { useAuthUiStore } from '@/stores/auth-ui-store';
@@ -26,6 +27,10 @@ export function DashboardOverview() {
   const [timerSelectionHandoff, setTimerSelectionHandoff] = useState<TimerSelectionHandoff | null>(
     null,
   );
+  const [milestoneSelection, setMilestoneSelection] = useState<{
+    clientId: string | null;
+    projectId: string | null;
+  } | null>(null);
 
   const refreshGate = useCallback(async (options?: { showLoading?: boolean }): Promise<void> => {
     const showLoading = options?.showLoading ?? true;
@@ -87,7 +92,7 @@ export function DashboardOverview() {
   return (
     <View className="gap-3">
       <Text className="text-3xl font-extrabold text-heading">Dashboard</Text>
-      <Text className="text-muted">Clock-in and out or create work sessions manually.</Text>
+      <Text className="text-muted">Keep work moving: set context, run the timer, and complete milestones.</Text>
 
       {locked ? (
         <View className="gap-2 rounded-xl border border-border bg-background p-4">
@@ -109,11 +114,17 @@ export function DashboardOverview() {
         gate={{ locked, missingFields }}
         selectionHandoff={timerSelectionHandoff}
         onOpenGitHubStart={() => setIsGitHubStartModalVisible(true)}
+        onOpenMilestones={(selection) => setMilestoneSelection(selection)}
       />
       <GitHubStartModal
         visible={isGitHubStartModalVisible}
         onClose={() => setIsGitHubStartModalVisible(false)}
         onComplete={handleGitHubStartComplete}
+      />
+      <DashboardMilestoneSheet
+        visible={milestoneSelection !== null}
+        initialSelection={milestoneSelection}
+        onDismiss={() => setMilestoneSelection(null)}
       />
     </View>
   );

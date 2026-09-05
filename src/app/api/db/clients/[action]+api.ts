@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { handleDbWrite } from '@/server/db/_shared/route';
 import {
   createClient,
+  updateClientDetails,
   updateClientContact,
   updateClientHourlyRate,
 } from '@/server/db/_queries/clients';
@@ -40,6 +41,21 @@ const updateClientHourlyRateSchema = clientInsertSchema
   })
   .strict();
 
+const updateClientDetailsSchema = clientInsertSchema
+  .pick({
+    id: true,
+    name: true,
+    email: true,
+    phone: true,
+    hourlyRate: true,
+    githubOrg: true,
+  })
+  .extend({
+    hourlyRate: z.coerce.number().min(0),
+    email: z.string().email().nullable().optional(),
+  })
+  .strict();
+
 function getRequestAction(request: Request, params?: { action?: string }): string | undefined {
   const routeAction = params?.action;
   if (typeof routeAction === 'string' && routeAction.trim()) {
@@ -65,6 +81,8 @@ export async function POST(
       return handleDbWrite(request, createClientSchema, createClient);
     case 'update-contact':
       return handleDbWrite(request, updateClientContactSchema, updateClientContact);
+    case 'update-details':
+      return handleDbWrite(request, updateClientDetailsSchema, updateClientDetails);
     case 'update-hourly-rate':
       return handleDbWrite(request, updateClientHourlyRateSchema, updateClientHourlyRate);
     default:

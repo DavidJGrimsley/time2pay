@@ -84,6 +84,10 @@ vi.mock('../components/projects-overview', () => ({
   ProjectsOverview: () => null,
 }));
 
+vi.mock('@/features/settings/customers-projects-screen', () => ({
+  CustomersProjectsScreen: () => null,
+}));
+
 describe('web route smoke tests', () => {
   it('renders the Payments route shell', async () => {
     const { default: PaymentsRoute } = await import('../app/(tabs)/payments');
@@ -95,9 +99,9 @@ describe('web route smoke tests', () => {
     expect(() => renderer.create(<InvoicesRoute />)).not.toThrow();
   });
 
-  it('renders the Projects route shell', async () => {
-    const { default: ProjectsRoute } = await import('../app/(tabs)/projects');
-    expect(() => renderer.create(<ProjectsRoute />)).not.toThrow();
+  it('renders the Customers & Projects route shell', async () => {
+    const { default: CustomersProjectsRoute } = await import('../app/settings/customers-projects');
+    expect(() => renderer.create(<CustomersProjectsRoute />)).not.toThrow();
   });
 
   it('renders the root Settings route shell', async () => {

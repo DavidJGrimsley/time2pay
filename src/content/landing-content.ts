@@ -35,7 +35,7 @@ export type LandingSection = {
 export const TIME2PAY_GITHUB_URL = 'https://github.com/DavidJGrimsley/time2pay';
 export const DAVID_GRIMSLEY_PORTFOLIO_URL = 'https://DavidJGrimsley.com';
 export const MERCURY_REFERRAL_URL = 'https://mercury.com/partner/time2pay';
-export const MERCURY_REFERRAL_STATUS_PATH = '/referral-status';
+export const MERCURY_REFERRAL_STATUS_PATH = '/settings/billing';
 export const TIME2PAY_SOCIAL_IMAGE_PATH = '/images/time2payLogo.png';
 
 export const LANDING_SEO_TITLE =
