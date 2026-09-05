@@ -8,7 +8,7 @@ import {
 } from 'react-native-reanimated';
 import { tabHighlightDuration } from '@/components/workspace-tab-highlight';
 
-const EASE_IN_OUT = Easing.bezier(0.77, 0, 0.175, 1);
+const EASE_IN_OUT_CUBIC = Easing.inOut(Easing.cubic);
 const EASE_OUT = Easing.bezier(0.23, 1, 0.32, 1);
 
 export function useTravelingTabProgress(activeIndex: number): {
@@ -22,11 +22,11 @@ export function useTravelingTabProgress(activeIndex: number): {
 
   useEffect(() => {
     if (activeIndex < 0) {
-      enabled.set(reduced ? 0 : withTiming(0, { duration: 140, easing: EASE_OUT }));
+      enabled.set(reduced ? 0 : withTiming(0, { duration: 168, easing: EASE_OUT }));
       return;
     }
 
-    enabled.set(reduced ? 1 : withTiming(1, { duration: 140, easing: EASE_OUT }));
+    enabled.set(reduced ? 1 : withTiming(1, { duration: 168, easing: EASE_OUT }));
 
     const fromIndex = previousIndex.current;
     previousIndex.current = activeIndex;
@@ -39,7 +39,7 @@ export function useTravelingTabProgress(activeIndex: number): {
     progress.set(
       withTiming(activeIndex, {
         duration: tabHighlightDuration(fromIndex, activeIndex),
-        easing: EASE_IN_OUT,
+        easing: EASE_IN_OUT_CUBIC,
       }),
     );
   }, [activeIndex, enabled, progress, reduced]);

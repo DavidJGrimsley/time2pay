@@ -45,8 +45,8 @@ describe('resolvePrimaryTabIndex', () => {
 
 describe('tabHighlightDuration', () => {
   it('takes longer when the highlight has to travel through more pills', () => {
-    expect(tabHighlightDuration(0, 1)).toBe(160);
+    expect(tabHighlightDuration(0, 1)).toBe(192);
     expect(tabHighlightDuration(0, 3)).toBeGreaterThan(tabHighlightDuration(0, 1));
-    expect(tabHighlightDuration(0, 3)).toBeLessThanOrEqual(280);
+    expect(tabHighlightDuration(0, 3)).toBeLessThanOrEqual(336);
   });
 });

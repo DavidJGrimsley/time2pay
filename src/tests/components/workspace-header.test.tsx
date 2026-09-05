@@ -58,7 +58,7 @@ vi.mock('react-native-reanimated', async () => {
       Text: ({ children, ...props }: { children?: React.ReactNode }) =>
         ReactModule.createElement('AnimatedText', props, children),
     },
-    Easing: { bezier: () => undefined },
+    Easing: { bezier: () => undefined, cubic: 'cubic', inOut: () => undefined },
     interpolateColor: () => '#ffffff',
     useReducedMotion: () => false,
     useSharedValue: (value: number) => ({ get: () => value, set: vi.fn() }),

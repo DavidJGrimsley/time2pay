@@ -24,9 +24,9 @@ export function resolvePrimaryTabIndex(pathname: string): number {
 export function tabHighlightDuration(fromIndex: number, toIndex: number): number {
   const distance = Math.abs(toIndex - fromIndex);
   if (distance <= 1) {
-    return 160;
+    return 192;
   }
-  return Math.min(280, 120 + distance * 80);
+  return Math.min(336, 144 + distance * 96);
 }
 
 /**

@@ -43,17 +43,13 @@ export function WorkspaceTabPill({
   const palette = TAB_PILL[theme === 'dark' ? 'dark' : 'light'];
   const [pressed, setPressed] = useState(false);
 
-  const fillStyle = useAnimatedStyle(() => {
+  const travelStyle = useAnimatedStyle(() => {
     const { left, width } = tabFillRange(progress.get(), index, enabled.get());
     return {
       left: `${left * 100}%`,
       width: `${width * 100}%`,
+      opacity: width > 0 ? 1 : 0,
     };
-  });
-
-  const glowStyle = useAnimatedStyle(() => {
-    const { width } = tabFillRange(progress.get(), index, enabled.get());
-    return { opacity: width };
   });
 
   const labelStyle = useAnimatedStyle(() => {
@@ -107,13 +103,11 @@ export function WorkspaceTabPill({
           {
             position: 'absolute',
             top: 0,
-            right: 0,
             bottom: 0,
-            left: 0,
             borderRadius: 999,
             boxShadow: palette.glow,
           },
-          glowStyle,
+          travelStyle,
         ]}
       />
       <View
@@ -129,7 +123,7 @@ export function WorkspaceTabPill({
               bottom: 0,
               backgroundColor: palette.active,
             },
-            fillStyle,
+            travelStyle,
           ]}
         />
         <View className="h-3.5 w-3.5 items-center justify-center">
