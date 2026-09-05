@@ -20,6 +20,7 @@ import { getSupabaseSession, onSupabaseAuthStateChange } from '@/services/supaba
 import { ensureTourDemoData } from '@/services/tour-demo';
 import { useAppearanceUiStore } from '@/stores/appearance-store';
 import { useAuthUiStore } from '@/stores/auth-ui-store';
+import { SettingsGearButton } from '@/components/settings-gear-button';
 import { AppThemeProvider } from '@/theme/provider';
 import {
   loadTime2PayOnboardingGateSnapshot,
@@ -617,14 +618,42 @@ export default function RootLayout() {
         <Stack.Screen name="onboarding/auth" options={{ title: 'Time2Pay Account' }} />
         <Stack.Screen name="onboarding/legal" options={{ title: 'Time2Pay Legal' }} />
         <Stack.Protected guard={routeGate.canMountAccountRoutes}>
-          <Stack.Screen name="settings" options={{ title: 'Settings' }} />
+          <Stack.Screen
+            name="settings"
+            options={{
+              title: 'Settings',
+              headerShown: Platform.OS !== 'web',
+            }}
+          />
           <Stack.Screen name="access-required" options={{ title: 'Hosted Access' }} />
           <Stack.Screen name="referral-status" options={{ title: 'Mercury Referral' }} />
-          <Stack.Screen name="settings/billing" options={{ title: 'Billing' }} />
-          <Stack.Screen name="settings/integrations" options={{ title: 'Integrations' }} />
+          <Stack.Screen
+            name="settings/billing"
+            options={{
+              title: 'Billing',
+              headerShown: Platform.OS !== 'web',
+            }}
+          />
+          <Stack.Screen
+            name="settings/integrations"
+            options={{
+              title: 'Integrations',
+              headerShown: Platform.OS !== 'web',
+            }}
+          />
         </Stack.Protected>
         <Stack.Protected guard={routeGate.canMountAppRoutes}>
           <Stack.Screen name="(tabs)" options={{ title: 'Time2Pay' }} />
+          <Stack.Screen
+            name="projects"
+            options={{
+              title: 'Projects',
+              headerShown: Platform.OS !== 'web',
+              headerRight: () => <SettingsGearButton />,
+            }}
+          />
+          <Stack.Screen name="bank" options={{ headerShown: false }} />
+          <Stack.Screen name="payments" options={{ headerShown: false }} />
         </Stack.Protected>
         <Stack.Screen name="+not-found" options={{ title: 'Not Found' }} />
       </Stack>

@@ -70,7 +70,7 @@ describe('classifyTime2PayRoute', () => {
     },
   );
 
-  it.each(['/dashboard', '/sessions', '/projects', '/invoices', '/bank', '/payments'])(
+  it.each(['/dashboard', '/sessions', '/projects', '/invoices', '/bank', '/payments', '/mercury'])(
     'classifies tab route %s as protected app content',
     (pathname) => {
       const route = classifyTime2PayRoute(pathname);
@@ -83,7 +83,7 @@ describe('classifyTime2PayRoute', () => {
 });
 
 describe('resolveHostedRouteGate direct URL access', () => {
-  it.each(['/dashboard', '/sessions', '/projects', '/invoices', '/bank', '/payments'])(
+  it.each(['/dashboard', '/sessions', '/projects', '/invoices', '/bank', '/payments', '/mercury'])(
     'sends signed-out app route %s to sign-in',
     (pathname) => {
       const decision = gate({ pathname });

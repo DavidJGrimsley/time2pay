@@ -31,14 +31,50 @@ body {
   margin: 0;
 }
 
+html.dark,
+html.dark body,
+html.dark #root {
+  background: #1a1f16;
+  color-scheme: dark;
+}
+
+html.light,
+html.light body,
+html.light #root {
+  background: #f8f7f3;
+  color-scheme: light;
+}
+
 @media (prefers-color-scheme: dark) {
-  html,
-  body,
-  #root {
+  html:not(.light):not(.dark),
+  html:not(.light):not(.dark) body,
+  html:not(.light):not(.dark) #root {
     background: #1a1f16;
     color-scheme: dark;
   }
 }
+`;
+
+const APPEARANCE_BOOTSTRAP_SCRIPT = `
+(function applyTime2PayAppearance() {
+  try {
+    var stored = null;
+    try {
+      stored = window.localStorage.getItem('time2pay.settings.appearance-preference');
+    } catch (error) {}
+    var theme = stored === 'light' || stored === 'dark' ? stored : null;
+    if (!theme) {
+      theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+        ? 'dark'
+        : 'light';
+    }
+    var root = document.documentElement;
+    root.classList.remove('light', 'dark');
+    root.classList.add(theme);
+    root.style.colorScheme = theme;
+    root.style.background = theme === 'dark' ? '#1a1f16' : '#f8f7f3';
+  } catch (error) {}
+})();
 `;
 
 export default function RootHtml({ children }: PropsWithChildren) {
@@ -54,6 +90,7 @@ export default function RootHtml({ children }: PropsWithChildren) {
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="Time2Pay" />
         <style dangerouslySetInnerHTML={{ __html: CRITICAL_BACKGROUND_CSS }} />
+        <script dangerouslySetInnerHTML={{ __html: APPEARANCE_BOOTSTRAP_SCRIPT }} />
         <script src="/__time2pay_runtime_config__" />
         <script dangerouslySetInnerHTML={{ __html: PWA_BOOTSTRAP_SCRIPT }} />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
