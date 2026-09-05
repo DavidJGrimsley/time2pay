@@ -4,7 +4,7 @@ import { isTourMode } from '@/services/runtime-mode';
 
 const DB_NAME = 'time2pay.db';
 const IN_MEMORY_DB_NAME = ':memory:';
-const SCHEMA_VERSION = 12;
+const SCHEMA_VERSION = 13;
 export const USER_PROFILE_ID = 'me';
 
 const MIGRATIONS: { version: number; upSql: string }[] = [
@@ -245,6 +245,44 @@ const MIGRATIONS: { version: number; upSql: string }[] = [
       ALTER TABLE sessions ADD COLUMN pr_url TEXT;
       ALTER TABLE sessions ADD COLUMN pr_number INTEGER;
       CREATE INDEX IF NOT EXISTS idx_sessions_pr_number ON sessions(pr_number);
+    `,
+  },
+  {
+    version: 13,
+    upSql: `
+      ALTER TABLE user_profile ADD COLUMN invoice_builder_mode TEXT NOT NULL DEFAULT 't2p';
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_active_source_milestone
+        ON invoices(source_milestone_id)
+        WHERE source_milestone_id IS NOT NULL AND deleted_at IS NULL;
+    `,
+  },
+  {
+    version: 14,
+    upSql: `
+      CREATE TABLE IF NOT EXISTS invoice_milestone_links (
+        id TEXT PRIMARY KEY NOT NULL,
+        invoice_id TEXT NOT NULL,
+        milestone_id TEXT NOT NULL,
+        project_id TEXT NOT NULL,
+        project_name TEXT,
+        title TEXT NOT NULL,
+        amount REAL NOT NULL,
+        amount_type TEXT NOT NULL,
+        amount_value REAL NOT NULL,
+        completion_mode TEXT NOT NULL,
+        completed_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        deleted_at TEXT,
+        UNIQUE (invoice_id, milestone_id),
+        FOREIGN KEY (invoice_id) REFERENCES invoices(id),
+        FOREIGN KEY (milestone_id) REFERENCES project_milestones(id)
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_invoice_milestone_links_active_milestone
+        ON invoice_milestone_links(milestone_id)
+        WHERE deleted_at IS NULL;
+      CREATE INDEX IF NOT EXISTS idx_invoice_milestone_links_invoice_id
+        ON invoice_milestone_links(invoice_id);
     `,
   },
 ];
@@ -501,11 +539,12 @@ export async function ensureUserProfileRow(db: SQLite.SQLiteDatabase): Promise<v
        full_name,
        phone,
        email,
+       invoice_builder_mode,
        tour_seed_version,
        created_at,
        updated_at
      )
-     VALUES (?, NULL, NULL, NULL, NULL, NULL, 0, ?, ?)`,
+     VALUES (?, NULL, NULL, NULL, NULL, NULL, 't2p', 0, ?, ?)`,
     USER_PROFILE_ID,
     timestamp,
     timestamp,

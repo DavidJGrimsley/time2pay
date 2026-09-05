@@ -18,6 +18,7 @@ export async function getUserProfile(): Promise<UserProfile> {
        phone,
        email,
        github_pat,
+       invoice_builder_mode,
        created_at,
        updated_at
      FROM user_profile
@@ -39,6 +40,7 @@ export async function upsertUserProfile(input: {
   phone?: string | null;
   email?: string | null;
   github_pat?: string | null;
+  invoice_builder_mode?: 't2p' | 'mercury';
 }): Promise<void> {
   const db = await getDb();
   await ensureUserProfileRow(db);
@@ -50,6 +52,13 @@ export async function upsertUserProfile(input: {
   const nextPhone = input.phone === undefined ? existing.phone : input.phone;
   const nextEmail = input.email === undefined ? existing.email : input.email;
   const nextGithubPat = input.github_pat === undefined ? existing.github_pat : input.github_pat;
+  const nextInvoiceBuilderMode =
+    input.invoice_builder_mode === undefined
+      ? existing.invoice_builder_mode
+      : input.invoice_builder_mode;
+  if (nextInvoiceBuilderMode !== 't2p' && nextInvoiceBuilderMode !== 'mercury') {
+    throw new Error('Invalid invoice builder mode.');
+  }
 
   await db.runAsync(
     `UPDATE user_profile
@@ -59,6 +68,7 @@ export async function upsertUserProfile(input: {
            phone = ?,
            email = ?,
            github_pat = ?,
+           invoice_builder_mode = ?,
            updated_at = ?
      WHERE id = ?`,
     nextCompanyName ?? null,
@@ -67,6 +77,7 @@ export async function upsertUserProfile(input: {
     nextPhone ?? null,
     nextEmail ?? null,
     nextGithubPat ?? null,
+    nextInvoiceBuilderMode,
     timestamp,
     USER_PROFILE_ID,
   );

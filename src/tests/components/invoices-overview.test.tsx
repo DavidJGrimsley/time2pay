@@ -90,6 +90,11 @@ vi.mock('@/services/mercury-ui-adapters', () => ({
   mercuryUiAdapter: {},
 }));
 
+vi.mock('@/database/db', () => ({
+  getUserProfile: vi.fn().mockResolvedValue({ invoice_builder_mode: 't2p' }),
+  upsertUserProfile: vi.fn().mockResolvedValue(undefined),
+}));
+
 describe('InvoicesOverview', () => {
   it('renders the explicit invoice builder toggle', async () => {
     const { InvoicesOverview } = await import('../../components/invoices-overview');
@@ -100,7 +105,7 @@ describe('InvoicesOverview', () => {
     const tree = instanceRef.current?.toJSON();
 
     const rendered = JSON.stringify(tree);
-    expect(rendered).toContain('T2P Invoice Builder');
-    expect(rendered).toContain('Mercury Invoice Builder');
+    expect(rendered).toContain('Time2Pay');
+    expect(rendered).toContain('Mercury');
   });
 });

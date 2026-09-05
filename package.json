@@ -30,6 +30,7 @@
     "doctor": "npx expo-doctor@1.20.1"
   },
   "dependencies": {
+    "@expo/ui": "~57.0.16",
     "@expo/vector-icons": "^15.0.2",
     "@lottiefiles/dotlottie-react": "^0.13.5",
     "@mr.dj2u/mercury": "0.1.0",

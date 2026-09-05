@@ -59,7 +59,7 @@ describe('classifyTime2PayRoute', () => {
     },
   );
 
-  it.each(['/settings', '/settings/billing', '/access-required', '/referral-status'])(
+  it.each(['/settings', '/settings/billing', '/settings/customers-projects', '/access-required'])(
     'classifies %s as a signed-in account route',
     (pathname) => {
       const route = classifyTime2PayRoute(pathname);
@@ -94,7 +94,7 @@ describe('resolveHostedRouteGate direct URL access', () => {
     },
   );
 
-  it.each(['/settings', '/settings/billing', '/access-required', '/referral-status'])(
+  it.each(['/settings', '/settings/billing', '/settings/customers-projects', '/access-required'])(
     'sends signed-out account route %s to sign-in',
     (pathname) => {
       const decision = gate({ pathname });
@@ -245,7 +245,7 @@ describe('resolveHostedRouteGate paywall and hosted access gating', () => {
     expect(decision.canAccessAppRoutes).toBe(false);
   });
 
-  it.each(['/access-required', '/settings', '/settings/billing', '/referral-status'])(
+  it.each(['/access-required', '/settings', '/settings/billing', '/settings/customers-projects'])(
     'keeps %s reachable without hosted access',
     (pathname) => {
       const decision = signedInComplete({

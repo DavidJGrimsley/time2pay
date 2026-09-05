@@ -99,6 +99,24 @@ export function updateClientInvoiceContact(input: {
   return callHostedWriteRoute('/api/db/clients/update-contact', input);
 }
 
+export function updateClientDetails(input: {
+  id: string;
+  name: string;
+  email?: string | null;
+  phone?: string | null;
+  hourly_rate: number;
+  github_org?: string | null;
+}): Promise<void> {
+  return callHostedWriteRoute('/api/db/clients/update-details', {
+    id: input.id,
+    name: input.name,
+    email: input.email,
+    phone: input.phone,
+    hourlyRate: input.hourly_rate,
+    githubOrg: input.github_org,
+  });
+}
+
 export function updateClientHourlyRate(input: {
   id: string;
   hourly_rate: number;

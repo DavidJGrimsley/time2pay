@@ -50,6 +50,20 @@
       "when": 1786475011212,
       "tag": "0006_melodic_maelstrom",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1788578772313,
+      "tag": "0007_fixed_pete_wisdom",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1788578772314,
+      "tag": "0008_unified_invoice_sources",
+      "breakpoints": true
     }
   ]
 }

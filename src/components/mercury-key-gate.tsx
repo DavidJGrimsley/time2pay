@@ -123,7 +123,7 @@ export function MercuryKeyGate({ children, requireArAccess = false }: MercuryKey
         title="Mercury not connected"
         message="Save your Mercury production API key in Settings to unlock banking and payment features."
         ctaLabel="Open Settings"
-        ctaHref="/settings"
+        ctaHref="/settings/integrations"
       />
     );
   }
@@ -138,7 +138,7 @@ export function MercuryKeyGate({ children, requireArAccess = false }: MercuryKey
         title="Mercury invoicing requires Plus plan"
         message="Mercury invoicing (the AR API) is only available on Mercury Plus or higher. If you have a Plus plan, open Settings and click 'Enable Mercury Invoicing' to turn it on."
         ctaLabel="Open Settings"
-        ctaHref="/settings"
+        ctaHref="/settings/integrations"
       />
     );
   }

@@ -7,9 +7,9 @@ import {
   type RequiredProfileField,
 } from '@/services/profile-completion';
 import { InlineNotice } from '@/components/inline-notice';
-import { DashboardMilestones } from './dashboard-milestones';
 import { GitHubStartModal, type GitHubStartSelection } from './GitHubStartModal';
-import { Timer, type TimerSelection, type TimerSelectionHandoff } from './Timer';
+import { DashboardMilestoneSheet } from './dashboard-milestone-sheet';
+import { Timer, type TimerSelectionHandoff } from './Timer';
 import { useResolvedDataMode } from '@/hooks/use-resolved-data-mode';
 import { useAuthUiStore } from '@/stores/auth-ui-store';
 
@@ -27,13 +27,10 @@ export function DashboardOverview() {
   const [timerSelectionHandoff, setTimerSelectionHandoff] = useState<TimerSelectionHandoff | null>(
     null,
   );
-  const [selectedProject, setSelectedProject] = useState<{ id: string | null; name: string | null }>({
-    id: null,
-    name: null,
-  });
-  const handleTimerSelectionChange = useCallback((selection: TimerSelection) => {
-    setSelectedProject({ id: selection.projectId, name: selection.projectName });
-  }, []);
+  const [milestoneSelection, setMilestoneSelection] = useState<{
+    clientId: string | null;
+    projectId: string | null;
+  } | null>(null);
 
   const refreshGate = useCallback(async (options?: { showLoading?: boolean }): Promise<void> => {
     const showLoading = options?.showLoading ?? true;
@@ -95,6 +92,8 @@ export function DashboardOverview() {
   return (
     <View className="gap-3">
       <Text className="text-3xl font-extrabold text-heading">Dashboard</Text>
+      <Text className="text-muted">Keep work moving: set context, run the timer, and complete milestones.</Text>
+
       {locked ? (
         <View className="gap-2 rounded-xl border border-border bg-background p-4">
           <Text className="text-sm font-semibold text-heading">
@@ -115,13 +114,17 @@ export function DashboardOverview() {
         gate={{ locked, missingFields }}
         selectionHandoff={timerSelectionHandoff}
         onOpenGitHubStart={() => setIsGitHubStartModalVisible(true)}
-        onSelectionChange={handleTimerSelectionChange}
+        onOpenMilestones={(selection) => setMilestoneSelection(selection)}
       />
-      <DashboardMilestones projectId={selectedProject.id} projectName={selectedProject.name} />
       <GitHubStartModal
         visible={isGitHubStartModalVisible}
         onClose={() => setIsGitHubStartModalVisible(false)}
         onComplete={handleGitHubStartComplete}
+      />
+      <DashboardMilestoneSheet
+        visible={milestoneSelection !== null}
+        initialSelection={milestoneSelection}
+        onDismiss={() => setMilestoneSelection(null)}
       />
     </View>
   );

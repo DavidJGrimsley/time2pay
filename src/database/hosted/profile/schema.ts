@@ -13,6 +13,7 @@ export const userProfiles = pgTable(
     phone: text('phone'),
     email: text('email'),
     githubPat: text('github_pat'),
+    invoiceBuilderMode: text('invoice_builder_mode').notNull().default('t2p'),
     ...lifecycleColumns,
   },
   (table) => ({

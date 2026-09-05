@@ -76,6 +76,7 @@ export async function importBackupIntoHostedAccount(
       created_at: profile?.created_at ?? timestamp,
       updated_at: timestamp,
       github_pat: profile?.github_pat ?? null,
+      invoice_builder_mode: profile?.invoice_builder_mode ?? 't2p',
     },
     {
       onConflict: 'auth_user_id',
