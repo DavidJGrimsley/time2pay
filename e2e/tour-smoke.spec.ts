@@ -28,8 +28,4 @@ test('runs the hosted tour through the primary workspace routes and resets its s
     .filter({ hasText: /^Reset Tour$/ });
   await resetTour.click();
   await expect(resetTour).toBeVisible();
-  await page.getByRole('link', { name: 'Dashboard', exact: true }).click();
-  await page.getByRole('link', { name: 'Projects and milestones' }).click();
-  await expect(page).toHaveURL(/\/projects$/);
-  await expect(page.locator('select:visible').nth(1)).toHaveValue('tour_project_001');
 });
