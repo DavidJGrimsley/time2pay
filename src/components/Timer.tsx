@@ -1,7 +1,7 @@
 import { Octicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
-import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
+import { Image, Pressable, Text, TextInput, View } from 'react-native';
+import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 import {
   createProject,
   createTask,
@@ -38,6 +38,7 @@ import {
 } from '@/services/profile-completion';
 import { prettifyBranchName } from '@/services/github';
 import { showActionErrorAlert, showBlockedAlert, showValidationAlert } from '@/services/system-alert';
+import { CollapsibleSection } from '@/features/settings/collapsible-section';
 
 // Motion budget: timer state changes use short fade transitions and avoid scroll-linked work.
 const LAST_SELECTIONS_KEY = 'time2pay.timer.last-selection';
@@ -63,61 +64,23 @@ export type TimerSelectionHandoff = {
   taskId: string;
 };
 
+export type TimerSelection = {
+  clientId: string | null;
+  projectId: string | null;
+  projectName: string | null;
+};
+
 type TimerProps = {
   gate?: TimerGateState;
   selectionHandoff?: TimerSelectionHandoff | null;
   onOpenGitHubStart?: (() => void) | null;
+  onSelectionChange?: (selection: TimerSelection) => void;
 };
 
 type StatusNotice = {
   text: string;
   tone: NoticeTone;
 };
-
-function ClockIcon({ color = '#ffffff', size = 16 }: { color?: string; size?: number }) {
-  const stroke = Math.max(2, Math.round(size * 0.12));
-  const center = size / 2;
-  const minuteHandHeight = Math.max(4, Math.round(size * 0.3));
-  const hourHandWidth = Math.max(4, Math.round(size * 0.26));
-
-  return (
-    <View style={{ width: size + 6, height: size + 6 }} className="items-center justify-center">
-      <View
-        style={{
-          width: size,
-          height: size,
-          borderWidth: stroke,
-          borderColor: color,
-          borderRadius: 999,
-          position: 'relative',
-        }}
-      >
-        <View
-          style={{
-            position: 'absolute',
-            left: center - stroke / 2,
-            top: stroke,
-            width: stroke,
-            height: minuteHandHeight,
-            borderRadius: 2,
-            backgroundColor: color,
-          }}
-        />
-        <View
-          style={{
-            position: 'absolute',
-            left: center - stroke / 2,
-            top: center - stroke / 2,
-            width: hourHandWidth,
-            height: stroke,
-            borderRadius: 2,
-            backgroundColor: color,
-          }}
-        />
-      </View>
-    </View>
-  );
-}
 
 function formatSeconds(totalSeconds: number): string {
   const safe = Math.max(0, Math.floor(totalSeconds));
@@ -333,7 +296,7 @@ function saveLastSelection(selection: LastSelection): void {
   localStorage.setItem(LAST_SELECTIONS_KEY, JSON.stringify(selection));
 }
 
-export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps) {
+export function Timer({ gate, selectionHandoff, onOpenGitHubStart, onSelectionChange }: TimerProps) {
   const { width: viewportWidth } = useStableWindowDimensions();
   const defaults = loadLastSelection();
   const [clients, setClients] = useState<Client[]>([]);
@@ -443,6 +406,14 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
     () => tasks.find((task) => task.id === selectedTaskId) ?? null,
     [tasks, selectedTaskId],
   );
+
+  useEffect(() => {
+    onSelectionChange?.({
+      clientId: selectedClientId,
+      projectId: selectedProjectId,
+      projectName: selectedProject?.name ?? null,
+    });
+  }, [onSelectionChange, selectedClientId, selectedProjectId, selectedProject?.name]);
 
   useEffect(() => {
     if (!selectionHandoff) {
@@ -1010,7 +981,6 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
   const actionButtonLabelClassName = isLargeScreen
     ? 'text-center text-3xl font-semibold'
     : 'text-center font-semibold';
-  const actionIconSize = isLargeScreen ? 28 : 16;
   const timerContainerClassName = isLargeScreen ? 'gap-4 rounded-xl bg-card p-6' : 'gap-3 rounded-xl bg-card p-4';
   const timerHeaderTitleClassName = isLargeScreen
     ? 'text-3xl font-bold text-heading'
@@ -1027,51 +997,18 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
 
   return (
     <Animated.View className="items-center">
-      <Animated.View className={timerContainerClassName} style={containerWidthStyle}>
-      <View
-        className={
-          isLargeScreen
-            ? 'mb-1 flex-row items-center'
-            : 'mb-1 flex-row items-center justify-between'
-        }
-        style={isLargeScreen ? { gap: 16, minHeight: 64 } : undefined}
+      <Animated.View
+        className={timerContainerClassName}
+        layout={LinearTransition.duration(260)}
+        style={containerWidthStyle}
       >
-        <View style={isLargeScreen ? { flex: 1 } : undefined}>
-          <Text className={timerHeaderTitleClassName}>
-            {isClockedIn ? (isPaused ? 'Currently paused' : 'Currently clocked in') : 'Currently clocked out'}
-          </Text>
-        </View>
-        {onOpenGitHubStart ? (
-          <View
-            className={isLargeScreen ? 'items-center' : 'items-end'}
-            style={isLargeScreen ? { flex: 1 } : undefined}
-          >
-            <Pressable
-              className={`rounded-full border px-6 py-3 ${isInteractionLocked ? 'opacity-60' : ''}`}
-              style={{ borderColor: '#ffffff', backgroundColor: '#24292f' }}
-              onPress={() => {
-                if (isInteractionLocked) {
-                  showBlockedMessage(lockReason);
-                  return;
-                }
-                onOpenGitHubStart();
-              }}
-              disabled={isInteractionLocked}
-            >
-              <View className="flex-row items-center gap-2.5">
-                <Octicons name="mark-github" size={20} color="#ffffff" />
-                <Text className="text-base font-semibold" style={{ color: '#ffffff' }}>
-                  Start from GitHub
-                </Text>
-              </View>
-            </Pressable>
-          </View>
-        ) : null}
-      </View>
+      <Text className={timerHeaderTitleClassName}>Time tracker</Text>
       <Animated.View
         className="gap-3"
+        layout={LinearTransition.duration(260)}
         style={isLargeScreen ? { flexDirection: 'row', alignItems: 'stretch', gap: 16 } : undefined}
       >
+        <CollapsibleSection title="Customer" defaultExpanded>
         <Animated.View className="gap-3" style={isLargeScreen ? { flex: 1 } : undefined}>
           <PickerField
             label="Customer"
@@ -1138,6 +1075,20 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
             <Pressable className="rounded-md bg-secondary px-3 py-2" onPress={() => handleCreateClient()}>
               <Text className="font-semibold text-white">Save Customer</Text>
             </Pressable>
+            {onOpenGitHubStart ? (
+              <Pressable
+                className="rounded-md border px-3 py-2"
+                style={{ borderColor: '#F8F7F3', backgroundColor: '#F8F7F3' }}
+                onPress={() => onOpenGitHubStart()}
+              >
+                <View className="flex-row items-center gap-2">
+                  <Octicons name="mark-github" size={16} color="#1A1F16" />
+                  <Text className="font-semibold" style={{ color: '#1A1F16' }}>
+                    Start from GitHub
+                  </Text>
+                </View>
+              </Pressable>
+            ) : null}
             <Pressable
               className="rounded-md border border-border px-3 py-2"
               onPress={() => setIsCreatingClient(false)}
@@ -1250,6 +1201,8 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
               setIsTaskNameAutoFilled(false);
             }}
             placeholder="Task name"
+            returnKeyType="done"
+            onSubmitEditing={() => handleCreateTask().catch(() => undefined)}
             className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
           />
           {isTaskNameAutoFilled ? (
@@ -1305,12 +1258,22 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
         />
       </View>
         </Animated.View>
+        </CollapsibleSection>
 
         <Animated.View
           className={`gap-2 ${isLargeScreen ? 'rounded-xl border border-border bg-background p-4' : ''}`}
+          layout={LinearTransition.duration(260)}
           style={isLargeScreen ? { flex: 1, justifyContent: 'space-between' } : undefined}
         >
           <Text className={timerValueClassName}>{formatSeconds(elapsedSeconds)}</Text>
+          <View className="items-center">
+            <Image
+              source={{ uri: '/images/time2payLogo.png' }}
+              style={{ width: 72, height: 24 }}
+              resizeMode="contain"
+              accessibilityLabel="Time2Pay logo"
+            />
+          </View>
 
       {isClockedIn ? (
         <View className="flex-row gap-2">
@@ -1322,7 +1285,6 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
             >
               <View className="flex-row items-center justify-center gap-2">
                 {isResuming && <Text className={`${actionButtonLabelClassName} text-white animate-pulse`}>⏳</Text>}
-                <ClockIcon size={actionIconSize} />
                 <Text className={`${actionButtonLabelClassName} text-white`}>{isResuming ? 'Resuming...' : 'Resume'}</Text>
               </View>
             </Pressable>
@@ -1334,7 +1296,6 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
             >
               <View className="flex-row items-center justify-center gap-2">
                 {isPausing && <Text className={`${actionButtonLabelClassName} text-heading animate-pulse`}>⏳</Text>}
-                <ClockIcon size={actionIconSize} />
                 <Text className={`${actionButtonLabelClassName} text-heading`}>{isPausing ? 'Pausing...' : 'Pause'}</Text>
               </View>
             </Pressable>
@@ -1346,7 +1307,6 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
           >
             <View className="flex-row items-center justify-center gap-2">
               {isClockingOut && <Text className={`${actionButtonLabelClassName} text-white animate-pulse`}>⏳</Text>}
-              <ClockIcon size={actionIconSize} />
               <Text className={`${actionButtonLabelClassName} text-white`}>{isClockingOut ? 'Clocking Out...' : 'Clock Out'}</Text>
             </View>
           </Pressable>
@@ -1359,7 +1319,6 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart }: TimerProps)
         >
           <View className="flex-row items-center justify-center gap-2">
             {isClockingIn && <Text className={`${actionButtonLabelClassName} text-white animate-pulse`}>⏳</Text>}
-            <ClockIcon size={actionIconSize} />
             <Text className={`${actionButtonLabelClassName} text-white`}>{isClockingIn ? 'Clocking In...' : 'Clock In'}</Text>
           </View>
         </Pressable>
