@@ -1,7 +1,7 @@
 import { Octicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Pressable, Text, TextInput, View } from 'react-native';
-import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 import {
   createProject,
   createTask,
@@ -997,10 +997,15 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart, onSelectionCh
 
   return (
     <Animated.View className="items-center">
-      <Animated.View className={timerContainerClassName} style={containerWidthStyle}>
+      <Animated.View
+        className={timerContainerClassName}
+        layout={LinearTransition.duration(260)}
+        style={containerWidthStyle}
+      >
       <Text className={timerHeaderTitleClassName}>Time tracker</Text>
       <Animated.View
         className="gap-3"
+        layout={LinearTransition.duration(260)}
         style={isLargeScreen ? { flexDirection: 'row', alignItems: 'stretch', gap: 16 } : undefined}
       >
         <CollapsibleSection title="Customer" defaultExpanded>
@@ -1257,6 +1262,7 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart, onSelectionCh
 
         <Animated.View
           className={`gap-2 ${isLargeScreen ? 'rounded-xl border border-border bg-background p-4' : ''}`}
+          layout={LinearTransition.duration(260)}
           style={isLargeScreen ? { flex: 1, justifyContent: 'space-between' } : undefined}
         >
           <Text className={timerValueClassName}>{formatSeconds(elapsedSeconds)}</Text>
