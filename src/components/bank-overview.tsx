@@ -11,7 +11,7 @@ import {
 } from '@/services/mercury-ui-adapters';
 import { showActionErrorAlert } from '@/services/system-alert';
 
-export function BankOverview() {
+export function BankOverview({ showHeader = true }: { showHeader?: boolean }) {
   const { width } = useStableWindowDimensions();
   const isLargeScreen = width >= 1200;
   const isTablet = width >= 768 && width < 1200;
@@ -23,10 +23,14 @@ export function BankOverview() {
 
   return (
     <View className="gap-3">
-      <Text className="text-3xl font-extrabold text-heading">Bank</Text>
-      <Text className="text-muted">
-        Mercury checking visibility. Use this to confirm your account context before sending invoices.
-      </Text>
+      {showHeader ? (
+        <>
+          <Text className="text-3xl font-extrabold text-heading">Bank</Text>
+          <Text className="text-muted">
+            Mercury checking visibility. Use this to confirm your account context before sending invoices.
+          </Text>
+        </>
+      ) : null}
 
       <View className="items-center">
         <View className="w-full" style={contentWidthStyle}>

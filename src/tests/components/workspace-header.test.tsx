@@ -29,10 +29,47 @@ vi.mock('react-native', () => ({
   View: makeComponent('View'),
 }));
 
+vi.mock('@expo/vector-icons', () => ({
+  Octicons: makeComponent('Octicons'),
+}));
+
 vi.mock('expo-router', () => ({
   Link: ({ children }: { children?: React.ReactNode }) =>
     React.createElement(React.Fragment, null, children),
   usePathname: () => mocks.pathname,
+}));
+
+vi.mock('uniwind', () => ({
+  useUniwind: () => ({ theme: 'light', hasAdaptiveThemes: true }),
+}));
+
+vi.mock('react-native-reanimated', async () => {
+  const ReactModule = await import('react');
+
+  function passthroughStyle(style: unknown) {
+    return style;
+  }
+
+  return {
+    __esModule: true,
+    default: {
+      View: ({ children, ...props }: { children?: React.ReactNode }) =>
+        ReactModule.createElement('AnimatedView', props, children),
+      Text: ({ children, ...props }: { children?: React.ReactNode }) =>
+        ReactModule.createElement('AnimatedText', props, children),
+    },
+    Easing: { bezier: () => undefined, cubic: 'cubic', inOut: () => undefined },
+    interpolateColor: () => '#ffffff',
+    useReducedMotion: () => false,
+    useSharedValue: (value: number) => ({ get: () => value, set: vi.fn() }),
+    useAnimatedStyle: (fn: () => unknown) => passthroughStyle(fn()),
+    withTiming: (value: number) => value,
+  };
+});
+
+vi.mock('expo-router/ui', () => ({
+  TabTrigger: ({ children }: { children?: React.ReactNode }) =>
+    React.createElement(React.Fragment, null, children),
 }));
 
 vi.mock('@/hooks/use-resolved-data-mode', () => ({
@@ -69,7 +106,14 @@ function findText(root: renderer.ReactTestRenderer, text: string) {
   );
 }
 
-describe('RouteNav mode banner', () => {
+function pressableLabels(root: renderer.ReactTestRenderer): string[] {
+  return root.root
+    .findAll((node: renderer.ReactTestInstance) => String(node.type) === 'Pressable')
+    .map((node) => node.props.accessibilityLabel)
+    .filter((label): label is string => typeof label === 'string');
+}
+
+describe('WorkspaceHeader', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.pathname = '/dashboard';
@@ -80,15 +124,31 @@ describe('RouteNav mode banner', () => {
     mocks.tourInitError = null;
   });
 
+  it('shows the four primary tabs and a Settings gear, not Projects/Bank/Payments', async () => {
+    const { WorkspaceHeader } = await import('@/components/workspace-header');
+
+    let root!: renderer.ReactTestRenderer;
+    await act(async () => {
+      root = renderer.create(<WorkspaceHeader />);
+    });
+
+    const labels = pressableLabels(root);
+    expect(labels).toEqual(expect.arrayContaining(['Dashboard', 'Sessions', 'Invoices', 'Mercury', 'Settings']));
+    expect(labels).not.toEqual(expect.arrayContaining(['Projects', 'Bank', 'Payments']));
+    expect(findText(root, 'Projects')).toHaveLength(0);
+    expect(findText(root, 'Bank')).toHaveLength(0);
+    expect(findText(root, 'Payments')).toHaveLength(0);
+  });
+
   it('shows Sign In while touring in local mode (not hosted)', async () => {
     mocks.hostedMode = false;
     mocks.tourModeEnabled = true;
     mocks.isAuthenticated = false;
-    const { RouteNav } = await import('@/components/route-nav');
+    const { WorkspaceHeader } = await import('@/components/workspace-header');
 
     let root!: renderer.ReactTestRenderer;
     await act(async () => {
-      root = renderer.create(<RouteNav />);
+      root = renderer.create(<WorkspaceHeader />);
     });
 
     expect(findText(root, 'Sign In')).toHaveLength(1);
@@ -99,11 +159,11 @@ describe('RouteNav mode banner', () => {
     mocks.hostedMode = true;
     mocks.tourModeEnabled = true;
     mocks.isAuthenticated = false;
-    const { RouteNav } = await import('@/components/route-nav');
+    const { WorkspaceHeader } = await import('@/components/workspace-header');
 
     let root!: renderer.ReactTestRenderer;
     await act(async () => {
-      root = renderer.create(<RouteNav />);
+      root = renderer.create(<WorkspaceHeader />);
     });
 
     expect(findText(root, 'Sign In')).toHaveLength(1);
@@ -113,11 +173,11 @@ describe('RouteNav mode banner', () => {
     mocks.hostedMode = true;
     mocks.tourModeEnabled = false;
     mocks.isAuthenticated = true;
-    const { RouteNav } = await import('@/components/route-nav');
+    const { WorkspaceHeader } = await import('@/components/workspace-header');
 
     let root!: renderer.ReactTestRenderer;
     await act(async () => {
-      root = renderer.create(<RouteNav />);
+      root = renderer.create(<WorkspaceHeader />);
     });
 
     expect(findText(root, 'Sign In')).toHaveLength(0);
@@ -128,11 +188,11 @@ describe('RouteNav mode banner', () => {
     mocks.hostedMode = true;
     mocks.tourModeEnabled = false;
     mocks.isAuthenticated = false;
-    const { RouteNav } = await import('@/components/route-nav');
+    const { WorkspaceHeader } = await import('@/components/workspace-header');
 
     let root!: renderer.ReactTestRenderer;
     await act(async () => {
-      root = renderer.create(<RouteNav />);
+      root = renderer.create(<WorkspaceHeader />);
     });
 
     expect(findText(root, 'Sign In')).toHaveLength(1);
@@ -143,11 +203,11 @@ describe('RouteNav mode banner', () => {
     mocks.hostedMode = false;
     mocks.tourModeEnabled = false;
     mocks.isAuthenticated = false;
-    const { RouteNav } = await import('@/components/route-nav');
+    const { WorkspaceHeader } = await import('@/components/workspace-header');
 
     let root!: renderer.ReactTestRenderer;
     await act(async () => {
-      root = renderer.create(<RouteNav />);
+      root = renderer.create(<WorkspaceHeader />);
     });
 
     expect(findText(root, 'Sign In')).toHaveLength(0);

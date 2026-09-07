@@ -1,11 +1,11 @@
 import React from 'react';
-import { PaymentsOverview } from '@/components/payments-overview';
+import { MercuryOverview } from '@/components/mercury-overview';
 import { TabScreenFrame } from '@/components/tab-screen-frame';
 
-export default function PaymentsRoute() {
+export default function MercuryRoute() {
   return (
     <TabScreenFrame>
-      <PaymentsOverview />
+      <MercuryOverview />
     </TabScreenFrame>
   );
 }
