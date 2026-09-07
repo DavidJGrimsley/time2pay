@@ -228,6 +228,9 @@ function parseUserProfile(value: unknown, path: string): UserProfile {
     full_name: readNullableString(getRequiredField(record, 'full_name', path), `${path}.full_name`),
     phone: readNullableString(getRequiredField(record, 'phone', path), `${path}.phone`),
     email: readNullableString(getRequiredField(record, 'email', path), `${path}.email`),
+    github_pat: readNullableString(getOptionalField(record, 'github_pat') ?? null, `${path}.github_pat`),
+    invoice_builder_mode:
+      getOptionalField(record, 'invoice_builder_mode') === 'mercury' ? 'mercury' : 't2p',
     created_at: readIsoTimestamp(getRequiredField(record, 'created_at', path), `${path}.created_at`),
     updated_at: readIsoTimestamp(getRequiredField(record, 'updated_at', path), `${path}.updated_at`),
   };
@@ -241,6 +244,10 @@ function parseClient(value: unknown, path: string): Client {
     email: readNullableString(getRequiredField(record, 'email', path), `${path}.email`),
     phone: readNullableString(getRequiredField(record, 'phone', path), `${path}.phone`),
     hourly_rate: readNumber(getRequiredField(record, 'hourly_rate', path), `${path}.hourly_rate`),
+    default_project_hourly_rate: readNumber(
+      getOptionalField(record, 'default_project_hourly_rate') ?? getRequiredField(record, 'hourly_rate', path),
+      `${path}.default_project_hourly_rate`,
+    ),
     github_org: readNullableString(
       getRequiredField(record, 'github_org', path),
       `${path}.github_org`,
@@ -278,6 +285,7 @@ function parseProject(value: unknown, path: string): Project {
       getOptionalField(record, 'total_project_fee') ?? null,
       `${path}.total_project_fee`,
     ),
+    hourly_rate: readNumber(getOptionalField(record, 'hourly_rate') ?? 0, `${path}.hourly_rate`),
     created_at: readIsoTimestamp(getRequiredField(record, 'created_at', path), `${path}.created_at`),
     updated_at: readIsoTimestamp(getRequiredField(record, 'updated_at', path), `${path}.updated_at`),
     deleted_at: readNullableIsoTimestamp(
@@ -370,7 +378,7 @@ function parseInvoice(value: unknown, path: string): Invoice {
     invoiceTypeRaw === undefined || invoiceTypeRaw === null
       ? 'hourly'
       : readString(invoiceTypeRaw, `${path}.invoice_type`);
-  if (invoiceType !== 'hourly' && invoiceType !== 'milestone') {
+  if (invoiceType !== 'hourly' && invoiceType !== 'milestone' && invoiceType !== 'combined') {
     throw new Error(`Invalid invoice type at ${path}.invoice_type`);
   }
 
@@ -795,16 +803,20 @@ async function insertBackupData(data: BackupDataTables): Promise<void> {
         full_name,
         phone,
         email,
+        github_pat,
+        invoice_builder_mode,
         created_at,
         updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       profile.id,
       profile.company_name,
       profile.logo_url,
       profile.full_name,
       profile.phone,
       profile.email,
+      profile.github_pat ?? null,
+      profile.invoice_builder_mode,
       profile.created_at,
       profile.updated_at,
     );
@@ -845,17 +857,19 @@ async function insertBackupData(data: BackupDataTables): Promise<void> {
         github_repo,
         pricing_mode,
         total_project_fee,
+        hourly_rate,
         created_at,
         updated_at,
         deleted_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       project.id,
       project.client_id,
       project.name,
       project.github_repo,
       project.pricing_mode,
       project.total_project_fee,
+      project.hourly_rate,
       project.created_at,
       project.updated_at,
       project.deleted_at,
@@ -1153,6 +1167,8 @@ export async function createBackupSnapshot(): Promise<Time2PayBackup> {
         full_name,
         phone,
         email,
+        github_pat,
+        invoice_builder_mode,
         created_at,
         updated_at
       FROM user_profile
@@ -1165,6 +1181,7 @@ export async function createBackupSnapshot(): Promise<Time2PayBackup> {
         email,
         phone,
         hourly_rate,
+        hourly_rate AS default_project_hourly_rate,
         github_org,
         created_at,
         updated_at,
@@ -1180,6 +1197,7 @@ export async function createBackupSnapshot(): Promise<Time2PayBackup> {
         github_repo,
         pricing_mode,
         total_project_fee,
+        hourly_rate,
         created_at,
         updated_at,
         deleted_at

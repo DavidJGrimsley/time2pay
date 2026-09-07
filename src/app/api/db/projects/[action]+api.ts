@@ -13,10 +13,12 @@ const createProjectSchema = projectInsertSchema
     githubRepo: true,
     pricingMode: true,
     totalProjectFee: true,
+    hourlyRate: true,
   })
   .extend({
     pricingMode: pricingModeSchema.optional(),
     totalProjectFee: z.coerce.number().nullable().optional(),
+    hourlyRate: z.coerce.number().min(0).optional(),
   })
   .strict();
 
@@ -25,10 +27,12 @@ const updateProjectPricingSchema = projectInsertSchema
     id: true,
     pricingMode: true,
     totalProjectFee: true,
+    hourlyRate: true,
   })
   .extend({
     pricingMode: pricingModeSchema,
     totalProjectFee: z.coerce.number().nullable(),
+    hourlyRate: z.coerce.number().min(0).optional(),
   })
   .strict();
 

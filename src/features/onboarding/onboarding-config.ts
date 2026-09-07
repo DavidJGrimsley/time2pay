@@ -75,6 +75,12 @@ export const onboardingConfig: OnboardingConfig = {
       badge: 'Core',
     },
     {
+      id: 'invoice-models',
+      title: 'Invoice the way the job is priced',
+      body: 'Create hourly invoices from reviewed sessions, milestone invoices after work is complete, or combine a completed milestone with its related sessions in one draft.',
+      badge: 'Invoicing',
+    },
+    {
       id: 'github',
       title: 'GitHub proof for development work',
       body: 'Link a repo or paste a GitHub URL so commits and pull requests can follow sessions into invoice review.',

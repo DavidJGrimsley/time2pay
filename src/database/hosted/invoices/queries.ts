@@ -5,6 +5,7 @@ import { hydrateSessions } from '@/database/hosted/sessions/queries';
 import type {
   Invoice,
   InvoiceSessionLink,
+  InvoiceMilestoneLink,
   InvoiceSessionLinkMode,
   InvoiceType,
   InvoiceWithClient,
@@ -208,6 +209,54 @@ export function listInvoiceSessionLinksByInvoiceId(
       link_mode: (row.link_mode as InvoiceSessionLinkMode) ?? 'context',
       created_at: String(row.created_at),
       updated_at: String(row.updated_at),
+    }));
+  });
+}
+
+export function createInvoiceMilestoneLinks(input: {
+  invoiceId: string;
+  links: {
+    milestoneId: string;
+    projectId: string;
+    projectName: string | null;
+    title: string;
+    amount: number;
+    amountType: 'percent' | 'fixed';
+    amountValue: number;
+    completionMode: 'toggle' | 'checklist';
+    completedAt: string | null;
+  }[];
+}): Promise<void> {
+  return callHostedWriteRoute('/api/db/invoice-milestone-links/upsert', input);
+}
+
+export function listInvoiceMilestoneLinksByInvoiceId(invoiceId: string): Promise<InvoiceMilestoneLink[]> {
+  return withHostedRead(async () => {
+    const supabase = getSupabaseClient();
+    const userId = await requireHostedUserId();
+    const { data, error } = await supabase
+      .from('invoice_milestone_links')
+      .select('id,invoice_id,milestone_id,project_id,project_name,title,amount,amount_type,amount_value,completion_mode,completed_at,created_at,updated_at')
+      .eq('auth_user_id', userId)
+      .eq('invoice_id', invoiceId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: true });
+    if (error) throw new Error(error.message);
+    return ((data ?? []) as Record<string, unknown>[]).map((row) => ({
+      id: String(row.id),
+      invoice_id: String(row.invoice_id),
+      milestone_id: String(row.milestone_id),
+      project_id: String(row.project_id),
+      project_name: (row.project_name as string | null) ?? null,
+      title: String(row.title),
+      amount: toNumber(row.amount),
+      amount_type: row.amount_type as 'percent' | 'fixed',
+      amount_value: toNumber(row.amount_value),
+      completion_mode: row.completion_mode as 'toggle' | 'checklist',
+      completed_at: (row.completed_at as string | null) ?? null,
+      created_at: String(row.created_at),
+      updated_at: String(row.updated_at),
+      deleted_at: null,
     }));
   });
 }

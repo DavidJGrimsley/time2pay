@@ -22,6 +22,11 @@ import { useStableWindowDimensions } from '@/hooks/use-stable-window-dimensions'
 import { prettifyBranchName } from '@/services/github';
 import { deleteRuntimeSession, listRuntimeSessions, updateRuntimeSession } from '@/services/session-runtime';
 import {
+  filterSessionsForToolbar,
+  getAvailableSessionPeriods,
+  type SessionPeriodFilter,
+} from '@/services/session-filters';
+import {
   showActionErrorAlert,
   showBlockedAlert,
   showSystemConfirm,
@@ -48,6 +53,7 @@ type StatusNotice = {
   message: string;
   tone: NoticeTone;
 };
+
 
 type SelectFieldProps = {
   label?: string;
@@ -278,6 +284,8 @@ export function SessionList() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedClientFilterId, setSelectedClientFilterId] = useState<string | null>(null);
+  const [selectedProjectFilterId, setSelectedProjectFilterId] = useState<string | null>(null);
+  const [selectedPeriodFilter, setSelectedPeriodFilter] = useState<SessionPeriodFilter>('all');
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
@@ -406,13 +414,41 @@ export function SessionList() {
     return null;
   }, [editingSession, editStartDate, editStartTime, editEndDate, editEndTime]);
 
-  const filteredSessions = useMemo(() => {
-    if (!selectedClientFilterId) {
-      return sessions;
-    }
+  const projectFilterOptions = useMemo(() => {
+    const projectRows = new Map<string, string>();
+    sessions.forEach((session) => {
+      if (selectedClientFilterId && session.client_id !== selectedClientFilterId) return;
+      if (session.project_id) projectRows.set(session.project_id, session.project_name ?? 'Untitled project');
+    });
+    return [...projectRows].map(([id, label]) => ({ id, label })).sort((a, b) => a.label.localeCompare(b.label));
+  }, [selectedClientFilterId, sessions]);
 
-    return sessions.filter((session) => session.client_id === selectedClientFilterId);
-  }, [sessions, selectedClientFilterId]);
+  useEffect(() => {
+    if (selectedProjectFilterId && !projectFilterOptions.some((project) => project.id === selectedProjectFilterId)) {
+      setSelectedProjectFilterId(null);
+    }
+  }, [projectFilterOptions, selectedProjectFilterId]);
+
+  const periodOptions = useMemo(
+    () => getAvailableSessionPeriods({ sessions, clientId: selectedClientFilterId, projectId: selectedProjectFilterId }),
+    [selectedClientFilterId, selectedProjectFilterId, sessions],
+  );
+
+  useEffect(() => {
+    if (!periodOptions.some((period) => period.id === selectedPeriodFilter)) {
+      setSelectedPeriodFilter('all');
+    }
+  }, [periodOptions, selectedPeriodFilter]);
+
+  const filteredSessions = useMemo(
+    () => filterSessionsForToolbar({
+      sessions,
+      clientId: selectedClientFilterId,
+      projectId: selectedProjectFilterId,
+      period: selectedPeriodFilter,
+    }),
+    [selectedClientFilterId, selectedPeriodFilter, selectedProjectFilterId, sessions],
+  );
 
   const groupedWeeks = useMemo<WeekGroup[]>(() => {
     const weekMap = new Map<string, WeekGroup>();
@@ -711,20 +747,41 @@ export function SessionList() {
   return (
     <View className="gap-4">
       <View className="gap-2">
-        <View className="flex-row items-start justify-between gap-4">
-          <Text className="text-3xl font-extrabold text-heading">Sessions</Text>
-          <View className="w-52">
+        <Text className="text-3xl font-extrabold text-heading">Sessions</Text>
+        <Text className="text-muted">Track and review your logged work sessions.</Text>
+        <View className={isLargeScreen ? 'flex-row items-end gap-3 rounded-xl border border-border bg-card p-3' : 'gap-3 rounded-xl border border-border bg-card p-3'}>
+          <View style={isLargeScreen ? { flex: 2 } : undefined}>
             <SelectField
-              hideLabel
+              label="Customer"
               value={selectedClientFilterId}
               options={clients.map((client) => ({ id: client.id, label: client.name }))}
               placeholder="All customers"
-              onSelect={(value) => setSelectedClientFilterId(value)}
+              onSelect={(value) => {
+                setSelectedClientFilterId(value);
+                setSelectedProjectFilterId(null);
+              }}
             />
           </View>
-        </View>
-        <View className="flex-1">
-          <Text className="text-muted">Track and review your logged work sessions.</Text>
+          <View style={isLargeScreen ? { flex: 1.35 } : undefined}>
+            <SelectField
+              label="Project"
+              value={selectedProjectFilterId}
+              options={projectFilterOptions}
+              placeholder={selectedClientFilterId ? 'All projects' : 'Choose customer first'}
+              disabled={!selectedClientFilterId}
+              onSelect={setSelectedProjectFilterId}
+            />
+          </View>
+          <View style={isLargeScreen ? { flex: 1 } : undefined}>
+            <SelectField
+              label="Period"
+              value={periodOptions.some((option) => option.id === selectedPeriodFilter) ? selectedPeriodFilter : null}
+              options={periodOptions}
+              placeholder="No matching period"
+              disabled={periodOptions.length === 0}
+              onSelect={(value) => setSelectedPeriodFilter((value as SessionPeriodFilter | null) ?? 'all')}
+            />
+          </View>
         </View>
       </View>
       <View className="items-center">
@@ -736,8 +793,8 @@ export function SessionList() {
 
           {!isLoading && groupedWeeks.length === 0 ? (
             <Text className="text-muted">
-              {selectedClientFilterId
-                ? 'No sessions found for this customer.'
+              {selectedClientFilterId || selectedProjectFilterId
+                ? 'No sessions match these filters.'
                 : 'No sessions yet. Use Clock In on Dashboard.'}
             </Text>
           ) : null}

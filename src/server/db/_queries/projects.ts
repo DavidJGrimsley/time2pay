@@ -11,6 +11,7 @@ export type CreateProjectInput = {
   githubRepo?: string | null;
   pricingMode?: 'hourly' | 'milestone';
   totalProjectFee?: number | null;
+  hourlyRate?: number;
 };
 
 export async function createProject(
@@ -40,7 +41,7 @@ export async function createProject(
   const timestamp = nowIso();
   await db.execute(sql`
     insert into projects (
-      id, auth_user_id, client_id, name, github_repo, pricing_mode, total_project_fee, created_at, updated_at, deleted_at
+      id, auth_user_id, client_id, name, github_repo, pricing_mode, total_project_fee, hourly_rate, created_at, updated_at, deleted_at
     ) values (
       ${input.id},
       ${authUserId}::uuid,
@@ -49,6 +50,7 @@ export async function createProject(
       ${input.githubRepo ?? null},
       ${input.pricingMode ?? 'hourly'},
       ${toNumericString(input.totalProjectFee)},
+      ${toNumericString(input.hourlyRate ?? 0)},
       ${timestamp},
       ${timestamp},
       null
@@ -60,6 +62,7 @@ export type UpdateProjectPricingInput = {
   id: string;
   pricingMode: 'hourly' | 'milestone';
   totalProjectFee: number | null;
+  hourlyRate?: number;
 };
 
 export async function updateProjectPricing(
@@ -79,6 +82,7 @@ export async function updateProjectPricing(
       set
         pricing_mode = ${input.pricingMode},
         total_project_fee = ${toNumericString(input.totalProjectFee)},
+        hourly_rate = coalesce(${input.hourlyRate === undefined ? null : toNumericString(input.hourlyRate)}, hourly_rate),
         updated_at = ${timestamp}
       where id = ${input.id}
         and auth_user_id = ${authUserId}::uuid

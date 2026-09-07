@@ -1,6 +1,7 @@
 import type {
   Invoice,
   InvoiceSessionLink,
+  InvoiceMilestoneLink,
   InvoiceSessionLinkMode,
   InvoiceType,
   InvoiceWithClient,
@@ -244,6 +245,15 @@ export async function deleteInvoice(invoiceId: string): Promise<void> {
       invoiceId,
     );
 
+    await db.runAsync(
+      `UPDATE invoice_milestone_links
+       SET deleted_at = ?, updated_at = ?
+       WHERE invoice_id = ? AND deleted_at IS NULL`,
+      timestamp,
+      timestamp,
+      invoiceId,
+    );
+
     const result = await db.runAsync(
       `UPDATE invoices
          SET deleted_at = ?,
@@ -311,6 +321,50 @@ export async function listInvoiceSessionLinksByInvoiceId(
      FROM invoice_session_links
      WHERE invoice_id = ?
      ORDER BY created_at ASC`,
+    invoiceId,
+  );
+}
+
+export async function createInvoiceMilestoneLinks(input: {
+  invoiceId: string;
+  links: {
+    milestoneId: string;
+    projectId: string;
+    projectName: string | null;
+    title: string;
+    amount: number;
+    amountType: MilestoneAmountType;
+    amountValue: number;
+    completionMode: MilestoneCompletionMode;
+    completedAt: string | null;
+  }[];
+}): Promise<void> {
+  if (input.links.length === 0) return;
+  const db = await getDb();
+  const timestamp = nowIso();
+  await runSqliteTransaction(db, async () => {
+    for (const link of input.links) {
+      await db.runAsync(
+        `INSERT INTO invoice_milestone_links (
+          id, invoice_id, milestone_id, project_id, project_name, title, amount,
+          amount_type, amount_value, completion_mode, completed_at, created_at, updated_at, deleted_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
+        createDbId('invoice_milestone_link'), input.invoiceId, link.milestoneId, link.projectId,
+        link.projectName, link.title, link.amount, link.amountType, link.amountValue,
+        link.completionMode, link.completedAt, timestamp, timestamp,
+      );
+    }
+  });
+}
+
+export async function listInvoiceMilestoneLinksByInvoiceId(invoiceId: string): Promise<InvoiceMilestoneLink[]> {
+  const db = await getDb();
+  return db.getAllAsync<InvoiceMilestoneLink>(
+    `SELECT id, invoice_id, milestone_id, project_id, project_name, title, amount,
+            amount_type, amount_value, completion_mode, completed_at, created_at, updated_at
+       FROM invoice_milestone_links
+      WHERE invoice_id = ? AND deleted_at IS NULL
+      ORDER BY created_at ASC`,
     invoiceId,
   );
 }

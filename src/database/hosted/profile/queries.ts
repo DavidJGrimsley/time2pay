@@ -1,6 +1,7 @@
 import { getSupabaseClient } from '@/services/supabase-client';
 import {
   ensureHostedProfileRow,
+  isMissingInvoiceBuilderModeColumn,
   nowIso,
   requireHostedUserId,
   toUserProfile,
@@ -13,11 +14,20 @@ export async function getUserProfile(): Promise<UserProfile> {
   const userId = await requireHostedUserId();
   await ensureHostedProfileRow(userId);
 
-  const { data, error } = await supabase
+  const profileFields = 'auth_user_id,id,company_name,logo_url,full_name,phone,email,github_pat,created_at,updated_at';
+  const { data: profileWithPreference, error: profileWithPreferenceError } = await supabase
     .from('user_profiles')
-    .select('auth_user_id,id,company_name,logo_url,full_name,phone,email,github_pat,created_at,updated_at')
+    .select(`${profileFields},invoice_builder_mode`)
     .eq('auth_user_id', userId)
     .maybeSingle();
+
+  const { data, error } = isMissingInvoiceBuilderModeColumn(profileWithPreferenceError)
+    ? await supabase
+        .from('user_profiles')
+        .select(profileFields)
+        .eq('auth_user_id', userId)
+        .maybeSingle()
+    : { data: profileWithPreference, error: profileWithPreferenceError };
 
   if (error) {
     throw new Error(error.message);
@@ -27,7 +37,8 @@ export async function getUserProfile(): Promise<UserProfile> {
     throw new Error('User profile could not be loaded');
   }
 
-  return toUserProfile(data as UserProfileRow);
+  const profileData = data as Partial<UserProfileRow>;
+  return toUserProfile({ ...profileData, invoice_builder_mode: profileData.invoice_builder_mode ?? 't2p' } as UserProfileRow);
 }
 
 export async function upsertUserProfile(input: {
@@ -37,13 +48,15 @@ export async function upsertUserProfile(input: {
   phone?: string | null;
   email?: string | null;
   github_pat?: string | null;
+  invoice_builder_mode?: 't2p' | 'mercury';
 }): Promise<void> {
   const supabase = getSupabaseClient();
   const userId = await requireHostedUserId();
   const existing = await getUserProfile();
   const timestamp = nowIso();
 
-  const { error } = await supabase
+  const update = (includeInvoiceBuilderMode: boolean) =>
+    supabase
     .from('user_profiles')
     .update({
       company_name: input.company_name === undefined ? existing.company_name : input.company_name,
@@ -52,9 +65,23 @@ export async function upsertUserProfile(input: {
       phone: input.phone === undefined ? existing.phone : input.phone,
       email: input.email === undefined ? existing.email : input.email,
       github_pat: input.github_pat === undefined ? existing.github_pat : input.github_pat,
+      ...(includeInvoiceBuilderMode
+        ? {
+            invoice_builder_mode:
+              input.invoice_builder_mode === undefined
+                ? existing.invoice_builder_mode
+                : input.invoice_builder_mode,
+          }
+        : {}),
       updated_at: timestamp,
     })
     .eq('auth_user_id', userId);
+
+  let { error } = await update(true);
+
+  if (isMissingInvoiceBuilderModeColumn(error)) {
+    ({ error } = await update(false));
+  }
 
   if (error) {
     throw new Error(error.message);

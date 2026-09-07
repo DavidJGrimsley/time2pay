@@ -9,7 +9,7 @@ export type CreateInvoiceInput = {
   clientId: string;
   total: number;
   status?: 'draft' | 'sent' | 'paid' | 'overdue';
-  invoiceType?: 'hourly' | 'milestone';
+  invoiceType?: 'hourly' | 'milestone' | 'combined';
   mercuryInvoiceId?: string | null;
   paymentLink?: string | null;
   sourceProjectId?: string | null;
@@ -199,6 +199,14 @@ export async function deleteInvoice(
       delete from invoice_session_links
       where auth_user_id = ${authUserId}::uuid
         and invoice_id = ${input.invoiceId}
+    `);
+
+    await tx.execute(sql`
+      update invoice_milestone_links
+      set deleted_at = ${timestamp}, updated_at = ${timestamp}
+      where auth_user_id = ${authUserId}::uuid
+        and invoice_id = ${input.invoiceId}
+        and deleted_at is null
     `);
 
     const deleteResult = await tx.execute(sql`

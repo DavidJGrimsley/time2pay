@@ -21,6 +21,7 @@ export type {
   MilestoneCompletionMode,
   InvoiceType,
   InvoiceSessionLinkMode,
+  InvoiceBuilderMode,
   Session,
   Client,
   Project,
@@ -32,6 +33,7 @@ export type {
   ProjectMilestone,
   MilestoneChecklistItem,
   InvoiceSessionLink,
+  InvoiceMilestoneLink,
   CoreDbValidationReport,
 } from '@/database/types';
 
@@ -87,6 +89,12 @@ export function updateClientInvoiceContact(
   return provider().updateClientInvoiceContact(...args);
 }
 
+export function updateClientDetails(
+  ...args: Parameters<typeof local.updateClientDetails>
+): ReturnType<typeof local.updateClientDetails> {
+  return provider().updateClientDetails(...args);
+}
+
 export function updateClientHourlyRate(
   ...args: Parameters<typeof local.updateClientHourlyRate>
 ): ReturnType<typeof local.updateClientHourlyRate> {
@@ -127,6 +135,12 @@ export function createTask(
   ...args: Parameters<typeof local.createTask>
 ): ReturnType<typeof local.createTask> {
   return provider().createTask(...args);
+}
+
+export function updateTask(
+  ...args: Parameters<typeof local.updateTask>
+): ReturnType<typeof local.updateTask> {
+  return provider().updateTask(...args);
 }
 
 export function listTasksByProject(
@@ -289,6 +303,18 @@ export function listInvoiceSessionLinksByInvoiceId(
   ...args: Parameters<typeof local.listInvoiceSessionLinksByInvoiceId>
 ): ReturnType<typeof local.listInvoiceSessionLinksByInvoiceId> {
   return provider().listInvoiceSessionLinksByInvoiceId(...args);
+}
+
+export function createInvoiceMilestoneLinks(
+  ...args: Parameters<typeof local.createInvoiceMilestoneLinks>
+): ReturnType<typeof local.createInvoiceMilestoneLinks> {
+  return provider().createInvoiceMilestoneLinks(...args);
+}
+
+export function listInvoiceMilestoneLinksByInvoiceId(
+  ...args: Parameters<typeof local.listInvoiceMilestoneLinksByInvoiceId>
+): ReturnType<typeof local.listInvoiceMilestoneLinksByInvoiceId> {
+  return provider().listInvoiceMilestoneLinksByInvoiceId(...args);
 }
 
 export function updateSessionNotes(

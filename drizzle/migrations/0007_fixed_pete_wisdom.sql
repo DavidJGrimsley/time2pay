@@ -1,0 +1,2 @@
+ALTER TABLE "user_profiles" ADD COLUMN "invoice_builder_mode" text DEFAULT 't2p' NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "ux_invoices_active_source_milestone" ON "invoices" USING btree ("source_milestone_id") WHERE "invoices"."source_milestone_id" is not null and "invoices"."deleted_at" is null;

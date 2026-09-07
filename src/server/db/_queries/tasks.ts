@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import type { WriteDb } from '@/server/db/_shared/db';
 import { notFound, validation } from '@/server/db/_shared/errors';
 import { nowIso } from '@/server/db/_shared/parsers';
+import { assertUpdated } from '@/server/db/_queries/_shared';
 
 export type CreateTaskInput = {
   id: string;
@@ -49,4 +50,16 @@ export async function createTask(
       null
     )
   `);
+}
+
+export async function updateTask(
+  db: WriteDb,
+  authUserId: string,
+  input: { id: string; name: string; githubBranch?: string | null },
+): Promise<void> {
+  if (!input.id.trim() || !input.name.trim()) throw validation('Task id and name are required.');
+  await assertUpdated(db, sql`
+    update tasks set name = ${input.name.trim()}, github_branch = ${input.githubBranch?.trim() || null}, updated_at = ${nowIso()}
+    where id = ${input.id} and auth_user_id = ${authUserId}::uuid and deleted_at is null returning id
+  `, 'Task not found.');
 }

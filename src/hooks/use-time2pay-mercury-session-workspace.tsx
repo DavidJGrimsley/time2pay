@@ -19,6 +19,7 @@ import {
   buildMercuryInvoiceDescriptionFromSessions,
   buildMercuryServicePeriodFromSessions,
   buildMercurySessionLineItems,
+  buildMercuryMilestoneLineItems,
   computeInvoiceTotals,
   createInvoiceFromSessions,
   groupSessionBreaksBySessionId,
@@ -32,6 +33,8 @@ import {
 } from '@/components/session-invoice-source-panel';
 import type { MercuryInvoicePayload } from '@/services/mercury';
 import { showActionErrorAlert, showValidationAlert } from '@/services/system-alert';
+import { CompletedMilestoneSourcePanel } from '@/components/completed-milestone-source-panel';
+import { useInvoiceMilestoneSources } from '@/hooks/use-invoice-milestone-sources';
 
 type UseTime2PayMercurySessionWorkspaceOptions = {
   onInvoiceCreated?: () => void;
@@ -94,6 +97,7 @@ export function useTime2PayMercurySessionWorkspace({
     () => selectedSessions.map((session) => session.id),
     [selectedSessions],
   );
+  const milestoneSources = useInvoiceMilestoneSources(selectedClientId, selectedProjectId, refreshKey);
 
   const preview: InvoiceComputation | null = useMemo(() => {
     if (!selectedClient || selectedSessions.length === 0) {
@@ -104,13 +108,14 @@ export function useTime2PayMercurySessionWorkspace({
   }, [selectedClient, selectedSessions]);
 
   const groupedLineItems = useMemo(() => buildGroupedLineItems(preview), [preview]);
-  const mercuryLineItems = useMemo(
-    () =>
-      preview && selectedClient
-        ? buildMercurySessionLineItems(preview.sessions, selectedClient.hourly_rate)
-        : [],
-    [preview, selectedClient],
-  );
+  const mercuryLineItems = useMemo(() => [
+    ...(preview && selectedClient ? buildMercurySessionLineItems(preview.sessions, selectedClient.hourly_rate) : []),
+    ...milestoneSources.selectedSources.flatMap((source) => buildMercuryMilestoneLineItems({
+      projectName: source.projectName,
+      milestoneTitle: source.milestone.title,
+      amount: source.amount,
+    })),
+  ], [milestoneSources.selectedSources, preview, selectedClient]);
   const mercuryDescription = useMemo(
     () =>
       preview
@@ -131,7 +136,7 @@ export function useTime2PayMercurySessionWorkspace({
       customerName: selectedClient?.name ?? '',
       customerEmail: selectedClient?.email ?? undefined,
       description: mercuryDescription,
-      amount: preview?.totalAmount ?? 0,
+      amount: (preview?.totalAmount ?? 0) + milestoneSources.selectedSources.reduce((sum, source) => sum + source.amount, 0),
       currency: 'USD',
       invoiceDateIso: toDayInputValue(new Date()),
       dueDateIso: toDayInputValue(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
@@ -149,6 +154,7 @@ export function useTime2PayMercurySessionWorkspace({
       mercuryServicePeriod.endDate,
       mercuryServicePeriod.startDate,
       preview?.totalAmount,
+      milestoneSources.selectedSources,
       selectedClient?.email,
       selectedClient?.name,
     ],
@@ -161,8 +167,9 @@ export function useTime2PayMercurySessionWorkspace({
         selectedWeekKeys.join(','),
         preview?.totalAmount ?? '0',
         selectedSessions.length,
+        milestoneSources.selectedIds.join(','),
       ].join('|'),
-    [preview?.totalAmount, selectedClientId, selectedSessions.length, selectedWeekKeys],
+    [milestoneSources.selectedIds, preview?.totalAmount, selectedClientId, selectedSessions.length, selectedWeekKeys],
   );
 
   async function refreshClients(): Promise<void> {
@@ -293,15 +300,8 @@ export function useTime2PayMercurySessionWorkspace({
       return;
     }
 
-    if (!selectedClient || selectedWeeks.length === 0 || !preview) {
-      const message = 'Select a client and at least one week with uninvoiced sessions.';
-      showValidationAlert(message);
-      setBuilderStatus({ message, tone: 'error' });
-      return;
-    }
-
-    if (selectedSessions.length === 0) {
-      const message = 'No sessions available for the selected weeks.';
+    if (!selectedClient || (selectedWeeks.length === 0 && milestoneSources.selectedSources.length === 0)) {
+      const message = 'Select at least one uninvoiced week or completed milestone.';
       showValidationAlert(message);
       setBuilderStatus({ message, tone: 'error' });
       return;
@@ -327,6 +327,12 @@ export function useTime2PayMercurySessionWorkspace({
         clientId: selectedClient.id,
         sessionIds: selectedSessionIds,
         hourlyRate: selectedClient.hourly_rate,
+        milestoneSources: milestoneSources.selectedSources.map((source) => ({
+          milestoneId: source.milestone.id,
+          projectId: source.projectId,
+          projectName: source.projectName,
+          projectTotalFee: source.projectTotalFee,
+        })),
         mercury: {
           enabled: true,
           customerName: payload.customerName,
@@ -432,7 +438,8 @@ export function useTime2PayMercurySessionWorkspace({
       </View>
     ),
     renderSourcePanel: () => (
-      <SessionInvoiceSourcePanel
+      <View style={{ gap: 12 }}>
+        <SessionInvoiceSourcePanel
         clients={clients}
         selectedClientId={selectedClientId}
         onSelectClient={setSelectedClientId}
@@ -452,7 +459,13 @@ export function useTime2PayMercurySessionWorkspace({
         preview={preview}
         groupedLineItems={groupedLineItems}
         previewBreaksBySessionId={previewBreaksBySessionId}
-      />
+        />
+        <CompletedMilestoneSourcePanel
+          sources={milestoneSources.sources}
+          selectedIds={milestoneSources.selectedIds}
+          onToggle={milestoneSources.toggleMilestone}
+        />
+      </View>
     ),
     submitInvoice: handleCreateInvoice,
   };

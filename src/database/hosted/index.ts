@@ -22,6 +22,7 @@ export type {
   ProjectMilestone,
   MilestoneChecklistItem,
   InvoiceSessionLink,
+  InvoiceMilestoneLink,
   CoreDbValidationReport,
 } from '@/database/hosted/types';
 
