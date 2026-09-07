@@ -137,6 +137,12 @@ export function createTask(
   return provider().createTask(...args);
 }
 
+export function updateTask(
+  ...args: Parameters<typeof local.updateTask>
+): ReturnType<typeof local.updateTask> {
+  return provider().updateTask(...args);
+}
+
 export function listTasksByProject(
   ...args: Parameters<typeof local.listTasksByProject>
 ): ReturnType<typeof local.listTasksByProject> {

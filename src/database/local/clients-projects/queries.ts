@@ -30,7 +30,7 @@ export async function createClient(input: {
 export async function listClients(): Promise<Client[]> {
   const db = await getDb();
   return db.getAllAsync<Client>(
-    `SELECT id, name, email, phone, hourly_rate, github_org, created_at, updated_at, deleted_at
+    `SELECT id, name, email, phone, hourly_rate, hourly_rate AS default_project_hourly_rate, github_org, created_at, updated_at, deleted_at
      FROM clients
      WHERE deleted_at IS NULL
      ORDER BY name COLLATE NOCASE ASC`,
@@ -40,7 +40,7 @@ export async function listClients(): Promise<Client[]> {
 export async function getClientById(clientId: string): Promise<Client | null> {
   const db = await getDb();
   const row = await db.getFirstAsync<Client>(
-    `SELECT id, name, email, phone, hourly_rate, github_org, created_at, updated_at, deleted_at
+    `SELECT id, name, email, phone, hourly_rate, hourly_rate AS default_project_hourly_rate, github_org, created_at, updated_at, deleted_at
      FROM clients
      WHERE id = ? AND deleted_at IS NULL`,
     clientId,
@@ -152,6 +152,7 @@ export async function createProject(input: {
   github_repo?: string | null;
   pricing_mode?: PricingMode;
   total_project_fee?: number | null;
+  hourly_rate?: number;
 }): Promise<void> {
   const db = await getDb();
   const timestamp = nowIso();
@@ -175,17 +176,19 @@ export async function createProject(input: {
       github_repo,
       pricing_mode,
       total_project_fee,
+      hourly_rate,
       created_at,
       updated_at,
       deleted_at
     )
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
     input.id,
     input.client_id,
     input.name,
     input.github_repo ?? null,
     normalizedPricingMode,
     normalizedProjectFee,
+    input.hourly_rate ?? 0,
     timestamp,
     timestamp,
   );
@@ -194,7 +197,7 @@ export async function createProject(input: {
 export async function listProjectsByClient(clientId: string): Promise<Project[]> {
   const db = await getDb();
   return db.getAllAsync<Project>(
-    `SELECT id, client_id, name, github_repo, pricing_mode, total_project_fee, created_at, updated_at, deleted_at
+    `SELECT id, client_id, name, github_repo, pricing_mode, total_project_fee, hourly_rate, created_at, updated_at, deleted_at
      FROM projects
      WHERE client_id = ? AND deleted_at IS NULL
      ORDER BY name COLLATE NOCASE ASC`,
@@ -205,7 +208,7 @@ export async function listProjectsByClient(clientId: string): Promise<Project[]>
 export async function listProjects(): Promise<Project[]> {
   const db = await getDb();
   return db.getAllAsync<Project>(
-    `SELECT id, client_id, name, github_repo, pricing_mode, total_project_fee, created_at, updated_at, deleted_at
+    `SELECT id, client_id, name, github_repo, pricing_mode, total_project_fee, hourly_rate, created_at, updated_at, deleted_at
      FROM projects
      WHERE deleted_at IS NULL
      ORDER BY name COLLATE NOCASE ASC`,
@@ -215,7 +218,7 @@ export async function listProjects(): Promise<Project[]> {
 export async function getProjectById(projectId: string): Promise<Project | null> {
   const db = await getDb();
   const row = await db.getFirstAsync<Project>(
-    `SELECT id, client_id, name, github_repo, pricing_mode, total_project_fee, created_at, updated_at, deleted_at
+    `SELECT id, client_id, name, github_repo, pricing_mode, total_project_fee, hourly_rate, created_at, updated_at, deleted_at
      FROM projects
      WHERE id = ? AND deleted_at IS NULL`,
     projectId,
@@ -227,6 +230,7 @@ export async function updateProjectPricing(input: {
   id: string;
   pricing_mode: PricingMode;
   total_project_fee: number | null;
+  hourly_rate?: number;
 }): Promise<void> {
   if (input.pricing_mode !== 'hourly' && input.pricing_mode !== 'milestone') {
     throw new Error('Invalid project pricing mode.');
@@ -244,11 +248,13 @@ export async function updateProjectPricing(input: {
     `UPDATE projects
        SET pricing_mode = ?,
            total_project_fee = ?,
+           hourly_rate = COALESCE(?, hourly_rate),
            updated_at = ?
      WHERE id = ?
        AND deleted_at IS NULL`,
     input.pricing_mode,
     input.total_project_fee,
+    input.hourly_rate ?? null,
     nowIso(),
     input.id,
   );
@@ -276,6 +282,17 @@ export async function createTask(input: {
     timestamp,
     timestamp,
   );
+}
+
+export async function updateTask(input: { id: string; name: string; github_branch?: string | null }): Promise<void> {
+  const name = input.name.trim();
+  if (!name) throw new Error('Task name is required.');
+  const db = await getDb();
+  const result = await db.runAsync(
+    `UPDATE tasks SET name = ?, github_branch = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
+    name, input.github_branch?.trim() || null, nowIso(), input.id,
+  );
+  if (result.changes === 0) throw new Error('Task not found.');
 }
 
 export async function listTasksByProject(projectId: string): Promise<Task[]> {

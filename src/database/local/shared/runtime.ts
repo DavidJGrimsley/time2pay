@@ -4,7 +4,7 @@ import { isTourMode } from '@/services/runtime-mode';
 
 const DB_NAME = 'time2pay.db';
 const IN_MEMORY_DB_NAME = ':memory:';
-const SCHEMA_VERSION = 13;
+const SCHEMA_VERSION = 15;
 export const USER_PROFILE_ID = 'me';
 
 const MIGRATIONS: { version: number; upSql: string }[] = [
@@ -283,6 +283,15 @@ const MIGRATIONS: { version: number; upSql: string }[] = [
         WHERE deleted_at IS NULL;
       CREATE INDEX IF NOT EXISTS idx_invoice_milestone_links_invoice_id
         ON invoice_milestone_links(invoice_id);
+    `,
+  },
+  {
+    version: 15,
+    upSql: `
+      ALTER TABLE projects ADD COLUMN hourly_rate REAL NOT NULL DEFAULT 0;
+      UPDATE projects
+         SET hourly_rate = COALESCE((SELECT hourly_rate FROM clients WHERE clients.id = projects.client_id), 0)
+       WHERE pricing_mode = 'hourly';
     `,
   },
 ];

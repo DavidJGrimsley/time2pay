@@ -19,6 +19,7 @@ export type DbProvider = Pick<
   | 'getProjectById'
   | 'updateProjectPricing'
   | 'createTask'
+  | 'updateTask'
   | 'listTasksByProject'
   | 'createProjectMilestone'
   | 'listProjectMilestones'

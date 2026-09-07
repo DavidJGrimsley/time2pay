@@ -65,5 +65,12 @@
       "tag": "0008_unified_invoice_sources",
       "breakpoints": true
     }
+    ,{
+      "idx": 9,
+      "version": "7",
+      "when": 1788578772315,
+      "tag": "0009_project_hourly_rates",
+      "breakpoints": true
+    }
   ]
 }

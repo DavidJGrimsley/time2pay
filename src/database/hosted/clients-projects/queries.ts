@@ -48,6 +48,7 @@ export function listClients(): Promise<Client[]> {
       email: (row.email as string | null) ?? null,
       phone: (row.phone as string | null) ?? null,
       hourly_rate: toNumber(row.hourly_rate),
+      default_project_hourly_rate: toNumber(row.hourly_rate),
       github_org: (row.github_org as string | null) ?? null,
       created_at: String(row.created_at),
       updated_at: String(row.updated_at),
@@ -82,6 +83,7 @@ export function getClientById(clientId: string): Promise<Client | null> {
       email: (row.email as string | null) ?? null,
       phone: (row.phone as string | null) ?? null,
       hourly_rate: toNumber(row.hourly_rate),
+      default_project_hourly_rate: toNumber(row.hourly_rate),
       github_org: (row.github_org as string | null) ?? null,
       created_at: String(row.created_at),
       updated_at: String(row.updated_at),
@@ -134,6 +136,7 @@ export function createProject(input: {
   github_repo?: string | null;
   pricing_mode?: PricingMode;
   total_project_fee?: number | null;
+  hourly_rate?: number;
 }): Promise<void> {
   return callHostedWriteRoute('/api/db/projects/create', {
     id: input.id,
@@ -142,6 +145,7 @@ export function createProject(input: {
     githubRepo: input.github_repo,
     pricingMode: input.pricing_mode,
     totalProjectFee: input.total_project_fee,
+    hourlyRate: input.hourly_rate,
   });
 }
 
@@ -151,7 +155,7 @@ export function listProjectsByClient(clientId: string): Promise<Project[]> {
     const userId = await requireHostedUserId();
     const { data, error } = await supabase
       .from('projects')
-      .select('id,client_id,name,github_repo,pricing_mode,total_project_fee,created_at,updated_at,deleted_at')
+      .select('id,client_id,name,github_repo,pricing_mode,total_project_fee,hourly_rate,created_at,updated_at,deleted_at')
       .eq('auth_user_id', userId)
       .eq('client_id', clientId)
       .is('deleted_at', null)
@@ -169,6 +173,7 @@ export function listProjectsByClient(clientId: string): Promise<Project[]> {
       github_repo: (row.github_repo as string | null) ?? null,
       pricing_mode: (row.pricing_mode as PricingMode) ?? 'hourly',
       total_project_fee: toNumberOrNull(row.total_project_fee),
+      hourly_rate: toNumber(row.hourly_rate),
       created_at: String(row.created_at),
       updated_at: String(row.updated_at),
       deleted_at: (row.deleted_at as string | null) ?? null,
@@ -182,7 +187,7 @@ export function listProjects(): Promise<Project[]> {
     const userId = await requireHostedUserId();
     const { data, error } = await supabase
       .from('projects')
-      .select('id,client_id,name,github_repo,pricing_mode,total_project_fee,created_at,updated_at,deleted_at')
+      .select('id,client_id,name,github_repo,pricing_mode,total_project_fee,hourly_rate,created_at,updated_at,deleted_at')
       .eq('auth_user_id', userId)
       .is('deleted_at', null)
       .order('name', { ascending: true });
@@ -199,6 +204,7 @@ export function listProjects(): Promise<Project[]> {
       github_repo: (row.github_repo as string | null) ?? null,
       pricing_mode: (row.pricing_mode as PricingMode) ?? 'hourly',
       total_project_fee: toNumberOrNull(row.total_project_fee),
+      hourly_rate: toNumber(row.hourly_rate),
       created_at: String(row.created_at),
       updated_at: String(row.updated_at),
       deleted_at: (row.deleted_at as string | null) ?? null,
@@ -212,7 +218,7 @@ export function getProjectById(projectId: string): Promise<Project | null> {
     const userId = await requireHostedUserId();
     const { data, error } = await supabase
       .from('projects')
-      .select('id,client_id,name,github_repo,pricing_mode,total_project_fee,created_at,updated_at,deleted_at')
+      .select('id,client_id,name,github_repo,pricing_mode,total_project_fee,hourly_rate,created_at,updated_at,deleted_at')
       .eq('auth_user_id', userId)
       .eq('id', projectId)
       .is('deleted_at', null)
@@ -233,6 +239,7 @@ export function getProjectById(projectId: string): Promise<Project | null> {
       github_repo: (row.github_repo as string | null) ?? null,
       pricing_mode: (row.pricing_mode as PricingMode) ?? 'hourly',
       total_project_fee: toNumberOrNull(row.total_project_fee),
+      hourly_rate: toNumber(row.hourly_rate),
       created_at: String(row.created_at),
       updated_at: String(row.updated_at),
       deleted_at: (row.deleted_at as string | null) ?? null,
@@ -244,11 +251,13 @@ export function updateProjectPricing(input: {
   id: string;
   pricing_mode: PricingMode;
   total_project_fee: number | null;
+  hourly_rate?: number;
 }): Promise<void> {
   return callHostedWriteRoute('/api/db/projects/update-pricing', {
     id: input.id,
     pricingMode: input.pricing_mode,
     totalProjectFee: input.total_project_fee,
+    hourlyRate: input.hourly_rate,
   });
 }
 
@@ -263,6 +272,12 @@ export function createTask(input: {
     projectId: input.project_id,
     name: input.name,
     githubBranch: input.github_branch,
+  });
+}
+
+export function updateTask(input: { id: string; name: string; github_branch?: string | null }): Promise<void> {
+  return callHostedWriteRoute('/api/db/tasks/update', {
+    id: input.id, name: input.name, githubBranch: input.github_branch,
   });
 }
 

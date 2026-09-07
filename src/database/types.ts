@@ -39,6 +39,8 @@ export type Client = {
   email: string | null;
   phone: string | null;
   hourly_rate: number;
+  /** Default used only to prefill future hourly projects. */
+  default_project_hourly_rate: number;
   github_org: string | null;
   created_at: string;
   updated_at: string;
@@ -52,6 +54,7 @@ export type Project = {
   github_repo: string | null;
   pricing_mode: PricingMode;
   total_project_fee: number | null;
+  hourly_rate: number;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;

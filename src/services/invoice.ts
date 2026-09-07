@@ -63,6 +63,7 @@ export type CreateInvoiceFromSessionsInput = {
   clientId: string;
   sessionIds: string[];
   hourlyRate: number;
+  hourlyRatesByProjectId?: Record<string, number>;
   milestoneSources?: {
     milestoneId: string;
     projectId: string;
@@ -441,6 +442,7 @@ export function buildMercuryServicePeriodFromSessions(sessions: SessionWithCompu
 export function buildMercurySessionLineItems(
   sessions: SessionWithComputed[],
   hourlyRate: number,
+  hourlyRatesByProjectId: Record<string, number> = {},
 ): MercuryLineItemPayload[] {
   assertNonNegativeFinite(hourlyRate, 'hourlyRate');
 
@@ -469,7 +471,7 @@ export function buildMercurySessionLineItems(
       return {
         name: truncateText(nameParts.join(' | '), 240),
         quantity: session.hours,
-        unitPrice: toMoney(hourlyRate),
+        unitPrice: toMoney(session.project_id ? hourlyRatesByProjectId[session.project_id] ?? hourlyRate : hourlyRate),
       };
     });
 }
@@ -510,6 +512,23 @@ export function computeInvoiceTotals(sessions: Session[], hourlyRate: number): I
   return {
     totalHours,
     totalAmount,
+    sessions: computed,
+  };
+}
+
+export function computeInvoiceTotalsByProjectRate(
+  sessions: Session[],
+  fallbackHourlyRate: number,
+  hourlyRatesByProjectId: Record<string, number>,
+): InvoiceComputation {
+  const computed = sessions.map((session) => {
+      const hourlyRate = session.project_id ? hourlyRatesByProjectId[session.project_id] ?? fallbackHourlyRate : fallbackHourlyRate;
+      const hours = toHours(session.duration);
+      return { ...session, hours, amount: toMoney(hours * hourlyRate) };
+    });
+  return {
+    totalHours: toMoney(computed.reduce((sum, session) => sum + session.hours, 0)),
+    totalAmount: toMoney(computed.reduce((sum, session) => sum + session.amount, 0)),
     sessions: computed,
   };
 }
@@ -754,7 +773,9 @@ export async function createInvoiceFromSessions(
     throw new Error('Select at least one uninvoiced week or completed milestone.');
   }
 
-  const totals = computeInvoiceTotals(selected, input.hourlyRate);
+  const totals = input.hourlyRatesByProjectId
+    ? computeInvoiceTotalsByProjectRate(selected, input.hourlyRate, input.hourlyRatesByProjectId)
+    : computeInvoiceTotals(selected, input.hourlyRate);
   const milestoneTotal = milestones.reduce((sum, row) => sum + row.amount, 0);
   const invoiceTotal = totals.totalAmount + milestoneTotal;
 
@@ -769,7 +790,7 @@ export async function createInvoiceFromSessions(
       input.mercury.lineItems && input.mercury.lineItems.length > 0
         ? input.mercury.lineItems
         : [
-            ...buildMercurySessionLineItems(totals.sessions, input.hourlyRate),
+            ...buildMercurySessionLineItems(totals.sessions, input.hourlyRate, input.hourlyRatesByProjectId),
             ...milestones.flatMap((row) => buildMercuryMilestoneLineItems({
               projectName: row.source.projectName,
               milestoneTitle: row.milestone.title,

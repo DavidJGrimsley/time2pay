@@ -90,7 +90,7 @@ export async function importBackupIntoHostedAccount(
 
   if (snapshot.data.clients.length > 0) {
     const { error } = await supabase.from('clients').upsert(
-      snapshot.data.clients.map((row) => ({
+      snapshot.data.clients.map(({ default_project_hourly_rate: _defaultRate, ...row }) => ({
         ...row,
         auth_user_id: userId,
       })),

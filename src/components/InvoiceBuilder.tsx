@@ -13,6 +13,7 @@ import {
 } from '@/database/db';
 import {
   computeInvoiceTotals,
+  computeInvoiceTotalsByProjectRate,
   createInvoiceFromSessions,
   groupSessionBreaksBySessionId,
   type InvoiceComputation,
@@ -93,8 +94,9 @@ export function InvoiceBuilder({ onInvoiceCreated, refreshKey }: InvoiceBuilderP
       return null;
     }
 
-    return computeInvoiceTotals(selectedSessions, selectedClient.hourly_rate);
-  }, [selectedClient, selectedSessions]);
+    const rates = Object.fromEntries(projects.map((project) => [project.id, project.hourly_rate]));
+    return computeInvoiceTotalsByProjectRate(selectedSessions, selectedClient.default_project_hourly_rate ?? selectedClient.hourly_rate, rates);
+  }, [projects, selectedClient, selectedSessions]);
 
   const groupedLineItems = useMemo(() => buildGroupedLineItems(preview), [preview]);
 
@@ -234,7 +236,8 @@ export function InvoiceBuilder({ onInvoiceCreated, refreshKey }: InvoiceBuilderP
         invoiceId,
         clientId: selectedClient.id,
         sessionIds: selectedSessionIds,
-        hourlyRate: selectedClient.hourly_rate,
+        hourlyRate: selectedClient.default_project_hourly_rate ?? selectedClient.hourly_rate,
+        hourlyRatesByProjectId: Object.fromEntries(projects.map((project) => [project.id, project.hourly_rate])),
         milestoneSources: milestoneSources.selectedSources.map((source) => ({
           milestoneId: source.milestone.id,
           projectId: source.projectId,

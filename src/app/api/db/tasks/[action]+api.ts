@@ -1,5 +1,5 @@
 import { handleDbWrite } from '@/server/db/_shared/route';
-import { createTask } from '@/server/db/_queries/tasks';
+import { createTask, updateTask } from '@/server/db/_queries/tasks';
 import { taskInsertSchema } from '@/database/hosted/clients-projects/schema';
 
 const createTaskSchema = taskInsertSchema
@@ -10,6 +10,7 @@ const createTaskSchema = taskInsertSchema
     githubBranch: true,
   })
   .strict();
+const updateTaskSchema = taskInsertSchema.pick({ id: true, name: true, githubBranch: true }).strict();
 
 function getRequestAction(request: Request, params?: { action?: string }): string | undefined {
   const routeAction = params?.action;
@@ -34,6 +35,8 @@ export async function POST(
   switch (action) {
     case 'create':
       return handleDbWrite(request, createTaskSchema, createTask);
+    case 'update':
+      return handleDbWrite(request, updateTaskSchema, updateTask);
     default:
       return Response.json({ error: `Unsupported tasks action: ${action ?? 'unknown'}` }, { status: 404 });
   }

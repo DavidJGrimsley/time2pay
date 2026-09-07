@@ -111,10 +111,10 @@ function createInitialState(): TourState {
       updated_at: createdAt,
     },
     clients: [
-      { id: TOUR_CLIENT_ID, name: 'Acme Design Co.', email: 'billing@acme-demo.test', phone: '(555) 010-1001', hourly_rate: 125, github_org: null, created_at: createdAt, updated_at: createdAt, deleted_at: null },
+      { id: TOUR_CLIENT_ID, name: 'Acme Design Co.', email: 'billing@acme-demo.test', phone: '(555) 010-1001', hourly_rate: 125, default_project_hourly_rate: 125, github_org: null, created_at: createdAt, updated_at: createdAt, deleted_at: null },
     ],
     projects: [
-      { id: TOUR_PROJECT_ID, client_id: TOUR_CLIENT_ID, name: 'Website Refresh', github_repo: null, pricing_mode: 'milestone', total_project_fee: 2400, created_at: createdAt, updated_at: createdAt, deleted_at: null },
+      { id: TOUR_PROJECT_ID, client_id: TOUR_CLIENT_ID, name: 'Website Refresh', github_repo: null, pricing_mode: 'milestone', total_project_fee: 2400, hourly_rate: 125, created_at: createdAt, updated_at: createdAt, deleted_at: null },
     ],
     tasks: [
       { id: TOUR_TASK_ONE_ID, project_id: TOUR_PROJECT_ID, name: 'Landing page polish', github_branch: null, created_at: createdAt, updated_at: createdAt, deleted_at: null },
@@ -291,6 +291,7 @@ export const tourProvider: DbProvider = {
       email: input.email ?? null,
       phone: input.phone ?? null,
       hourly_rate: input.hourly_rate ?? 0,
+      default_project_hourly_rate: input.hourly_rate ?? 0,
       github_org: input.github_org ?? null,
       created_at: timestamp,
       updated_at: timestamp,
@@ -368,6 +369,7 @@ export const tourProvider: DbProvider = {
       github_repo: input.github_repo ?? null,
       pricing_mode: pricingMode,
       total_project_fee: input.total_project_fee ?? null,
+      hourly_rate: input.hourly_rate ?? 0,
       created_at: timestamp,
       updated_at: timestamp,
       deleted_at: null,
@@ -409,6 +411,13 @@ export const tourProvider: DbProvider = {
       updated_at: timestamp,
       deleted_at: null,
     });
+  },
+  async updateTask(input) {
+    const index = getState().tasks.findIndex((item) => item.id === input.id && item.deleted_at === null);
+    if (index < 0) throw new Error('Task not found.');
+    const name = input.name.trim();
+    if (!name) throw new Error('Task name is required.');
+    getState().tasks[index] = { ...getState().tasks[index], name, github_branch: input.github_branch?.trim() || null, updated_at: nowIso() };
   },
   async listTasksByProject(projectId) {
     return getState().tasks.filter((item) => item.project_id === projectId && item.deleted_at === null).map(clone).sort(byNameInsensitive);

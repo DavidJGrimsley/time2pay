@@ -244,6 +244,10 @@ function parseClient(value: unknown, path: string): Client {
     email: readNullableString(getRequiredField(record, 'email', path), `${path}.email`),
     phone: readNullableString(getRequiredField(record, 'phone', path), `${path}.phone`),
     hourly_rate: readNumber(getRequiredField(record, 'hourly_rate', path), `${path}.hourly_rate`),
+    default_project_hourly_rate: readNumber(
+      getOptionalField(record, 'default_project_hourly_rate') ?? getRequiredField(record, 'hourly_rate', path),
+      `${path}.default_project_hourly_rate`,
+    ),
     github_org: readNullableString(
       getRequiredField(record, 'github_org', path),
       `${path}.github_org`,
@@ -281,6 +285,7 @@ function parseProject(value: unknown, path: string): Project {
       getOptionalField(record, 'total_project_fee') ?? null,
       `${path}.total_project_fee`,
     ),
+    hourly_rate: readNumber(getOptionalField(record, 'hourly_rate') ?? 0, `${path}.hourly_rate`),
     created_at: readIsoTimestamp(getRequiredField(record, 'created_at', path), `${path}.created_at`),
     updated_at: readIsoTimestamp(getRequiredField(record, 'updated_at', path), `${path}.updated_at`),
     deleted_at: readNullableIsoTimestamp(
@@ -852,17 +857,19 @@ async function insertBackupData(data: BackupDataTables): Promise<void> {
         github_repo,
         pricing_mode,
         total_project_fee,
+        hourly_rate,
         created_at,
         updated_at,
         deleted_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       project.id,
       project.client_id,
       project.name,
       project.github_repo,
       project.pricing_mode,
       project.total_project_fee,
+      project.hourly_rate,
       project.created_at,
       project.updated_at,
       project.deleted_at,
@@ -1174,6 +1181,7 @@ export async function createBackupSnapshot(): Promise<Time2PayBackup> {
         email,
         phone,
         hourly_rate,
+        hourly_rate AS default_project_hourly_rate,
         github_org,
         created_at,
         updated_at,
@@ -1189,6 +1197,7 @@ export async function createBackupSnapshot(): Promise<Time2PayBackup> {
         github_repo,
         pricing_mode,
         total_project_fee,
+        hourly_rate,
         created_at,
         updated_at,
         deleted_at
