@@ -20,6 +20,19 @@ export type UserProfileRow = {
   updated_at: string;
 };
 
+/**
+ * Keeps an already-deployed client usable while the additive profile preference
+ * migration is rolling out. The preference is optional at the API boundary and
+ * defaults to Time2Pay until the database column is available.
+ */
+export function isMissingInvoiceBuilderModeColumn(error: { code?: string; message?: string } | null): boolean {
+  return (
+    error?.code === '42703' &&
+    typeof error.message === 'string' &&
+    error.message.includes('invoice_builder_mode')
+  );
+}
+
 function toNullableNonEmptyString(value: unknown): string | null {
   if (typeof value !== 'string') {
     return null;
@@ -60,15 +73,21 @@ export async function ensureHostedProfileRow(userId: string): Promise<void> {
   let profileRow = existingRow;
 
   if (!profileRow) {
-    const { error: insertError } = await supabase.from('user_profiles').insert({
+    const insertProfile = (includeInvoiceBuilderMode: boolean) =>
+      supabase.from('user_profiles').insert({
       auth_user_id: userId,
       id: 'me',
       full_name: metadataName,
       email: metadataEmail,
-      invoice_builder_mode: 't2p',
+      ...(includeInvoiceBuilderMode ? { invoice_builder_mode: 't2p' } : {}),
       created_at: timestamp,
       updated_at: timestamp,
     });
+    let { error: insertError } = await insertProfile(true);
+
+    if (isMissingInvoiceBuilderModeColumn(insertError)) {
+      ({ error: insertError } = await insertProfile(false));
+    }
 
     if (insertError) {
       if (!isDuplicateProfileInsertError(insertError)) {

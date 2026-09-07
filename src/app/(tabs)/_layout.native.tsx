@@ -115,13 +115,9 @@ export default function TabsLayoutNative() {
           <NativeTabs.Trigger.Icon sf="doc.text.fill" md="description" />
           <NativeTabs.Trigger.Label>Invoices</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
-        <NativeTabs.Trigger name="bank">
+        <NativeTabs.Trigger name="mercury">
           <NativeTabs.Trigger.Icon sf="building.columns.fill" md="account_balance" />
-          <NativeTabs.Trigger.Label>Bank</NativeTabs.Trigger.Label>
-        </NativeTabs.Trigger>
-        <NativeTabs.Trigger name="payments">
-          <NativeTabs.Trigger.Icon sf="creditcard.fill" md="credit_card" />
-          <NativeTabs.Trigger.Label>Payments</NativeTabs.Trigger.Label>
+          <NativeTabs.Trigger.Label>Mercury</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
       </NativeTabs>
       {isTabsGateLoading ? (

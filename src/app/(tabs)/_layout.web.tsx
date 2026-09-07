@@ -125,8 +125,7 @@ export default function TabsLayoutWeb() {
           <Tabs.Screen name="dashboard" options={{ title: 'Dashboard' }} />
           <Tabs.Screen name="sessions" options={{ title: 'Sessions' }} />
           <Tabs.Screen name="invoices" options={{ title: 'Invoices' }} />
-          <Tabs.Screen name="bank" options={{ title: 'Bank' }} />
-          <Tabs.Screen name="payments" options={{ title: 'Payments' }} />
+          <Tabs.Screen name="mercury" options={{ title: 'Mercury' }} />
         </Tabs>
       </View>
       {isTabsGateLoading ? (
