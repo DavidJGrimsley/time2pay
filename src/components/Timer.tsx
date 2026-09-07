@@ -47,6 +47,7 @@ import {
 import { prettifyBranchName } from '@/services/github';
 import { showActionErrorAlert, showBlockedAlert, showValidationAlert } from '@/services/system-alert';
 import { CollapsibleSection } from '@/features/settings/collapsible-section';
+import { AnimatedSizeView } from '@/components/animated-size-view';
 
 // Motion budget: timer state changes use short fade transitions and avoid scroll-linked work.
 const LAST_SELECTIONS_KEY = 'time2pay.timer.last-selection';
@@ -1029,6 +1030,7 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart, onSelectionCh
         style={containerWidthStyle}
       >
       <Text className={timerHeaderTitleClassName}>Time tracker</Text>
+      <AnimatedSizeView className="gap-3">
       <Animated.View
         className="gap-3"
         layout={LinearTransition.duration(260)}
@@ -1555,6 +1557,7 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart, onSelectionCh
           handleSessionCompleteSkip().catch(() => undefined);
         }}
       />
+      </AnimatedSizeView>
       </Animated.View>
     </Animated.View>
   );

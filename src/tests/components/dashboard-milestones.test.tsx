@@ -15,6 +15,19 @@ vi.mock('react-native', async () => {
   };
 });
 
+vi.mock('react-native-reanimated', () => ({
+  default: {
+    View: 'Animated.View',
+  },
+  useReducedMotion: () => false,
+  useSharedValue: (value: number) => ({
+    get: () => value,
+    set: vi.fn(),
+  }),
+  useAnimatedStyle: (callback: () => unknown) => callback(),
+  withTiming: (value: number) => value,
+}));
+
 vi.mock('expo-router', () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));

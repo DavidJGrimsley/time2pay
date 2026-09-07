@@ -14,6 +14,7 @@ import {
   type ProjectMilestone,
 } from '@/database/db';
 import { InlineNotice } from '@/components/inline-notice';
+import { AnimatedSizeView } from '@/components/animated-size-view';
 
 type DashboardMilestonesProps = {
   projectId: string | null;
@@ -163,6 +164,7 @@ export function DashboardMilestones({ projectId, projectName }: DashboardMilesto
           </View>
         ) : null}
       </View>
+      <AnimatedSizeView className="gap-3">
       {isAdding ? (
         <View className="flex-row gap-2">
           <TextInput
@@ -215,6 +217,7 @@ export function DashboardMilestones({ projectId, projectName }: DashboardMilesto
           </View>
         </View>
       ))}
+      </AnimatedSizeView>
     </View>
   );
 }

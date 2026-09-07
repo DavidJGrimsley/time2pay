@@ -2,6 +2,7 @@ import { useEffect, useState, type PropsWithChildren } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Octicons } from '@expo/vector-icons';
 import { useUniwind } from 'uniwind';
+import { AnimatedSizeView } from '@/components/animated-size-view';
 
 const HEADING_COLOR_BY_THEME = {
   light: '#1a1f16',
@@ -65,11 +66,9 @@ export function CollapsibleSection({
         </View>
         <Octicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={headingColor} />
       </Pressable>
-      {keepMounted ? (
-        <View className={`gap-3 ${expanded ? '' : 'hidden'}`}>{children}</View>
-      ) : expanded ? (
-        <View className="gap-3">{children}</View>
-      ) : null}
+      <AnimatedSizeView className="gap-3" expanded={expanded || keepMounted}>
+        {children}
+      </AnimatedSizeView>
     </View>
   );
 }
