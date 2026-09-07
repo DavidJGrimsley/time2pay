@@ -1022,7 +1022,7 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart, onSelectionCh
   }, [isLargeScreen]);
 
   return (
-    <Animated.View className="items-center">
+    <Animated.View className="items-center" layout={LinearTransition.duration(260)}>
       <Animated.View
         className={timerContainerClassName}
         layout={LinearTransition.duration(260)}
@@ -1037,11 +1037,11 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart, onSelectionCh
         }}
         style={isLargeScreen ? { flexDirection: 'row', alignItems: 'stretch', gap: 16 } : undefined}
       >
-        <Animated.View style={customerPanelStyle}>
+        <Animated.View layout={LinearTransition.duration(260)} style={customerPanelStyle}>
         <CollapsibleSection
           title="Customer"
           defaultExpanded
-          keepMounted
+          keepMounted={isLargeScreen}
           onExpandedChange={(expanded) => {
             customerExpansion.set(withTiming(expanded ? 1 : 0, { duration: 320 }));
           }}
