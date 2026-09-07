@@ -2,6 +2,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Pressable, Text, View } from 'react-native';
 import { BankOverview } from '@/components/bank-overview';
 import { PaymentsOverview } from '@/components/payments-overview';
+import { AnimatedSizeView } from '@/components/animated-size-view';
 
 type MercurySection = 'bank' | 'payments';
 
@@ -75,11 +76,13 @@ export function MercuryOverview() {
           </Text>
         </Pressable>
       </View>
-      {activeSection === 'payments' ? (
-        <PaymentsOverview showHeader={false} />
-      ) : (
-        <BankOverview showHeader={false} />
-      )}
+      <AnimatedSizeView>
+        {activeSection === 'payments' ? (
+          <PaymentsOverview showHeader={false} />
+        ) : (
+          <BankOverview showHeader={false} />
+        )}
+      </AnimatedSizeView>
     </View>
   );
 }

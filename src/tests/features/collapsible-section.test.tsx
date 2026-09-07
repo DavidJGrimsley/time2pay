@@ -27,8 +27,21 @@ vi.mock('uniwind', () => ({
   useUniwind: () => ({ theme: 'light', hasAdaptiveThemes: true }),
 }));
 
+vi.mock('react-native-reanimated', () => ({
+  default: {
+    View: 'Animated.View',
+  },
+  useReducedMotion: () => false,
+  useSharedValue: (value: number) => ({
+    get: () => value,
+    set: vi.fn(),
+  }),
+  useAnimatedStyle: (callback: () => unknown) => callback(),
+  withTiming: (value: number) => value,
+}));
+
 describe('CollapsibleSection', () => {
-  it('starts collapsed by default and does not render children', async () => {
+  it('starts collapsed by default while keeping children measurable for animation', async () => {
     const { CollapsibleSection } = await import('@/features/settings/collapsible-section');
 
     let root!: renderer.ReactTestRenderer;
@@ -44,7 +57,7 @@ describe('CollapsibleSection', () => {
       root.root.findAll(
         (node: renderer.ReactTestInstance) => String(node.type) === 'Text' && node.props.children === 'Section content',
       ),
-    ).toHaveLength(0);
+    ).toHaveLength(1);
   });
 
   it('expands to reveal children when the header is pressed', async () => {
@@ -96,7 +109,7 @@ describe('CollapsibleSection', () => {
       root.root.findAll(
         (node: renderer.ReactTestInstance) => String(node.type) === 'Text' && node.props.children === 'Section content',
       ),
-    ).toHaveLength(0);
+    ).toHaveLength(1);
   });
 
   it('force-expands when defaultExpanded flips true after mount (e.g. an async check resolves)', async () => {
@@ -119,7 +132,7 @@ describe('CollapsibleSection', () => {
       root.root.findAll(
         (node: renderer.ReactTestInstance) => String(node.type) === 'Text' && node.props.children === 'Section content',
       ),
-    ).toHaveLength(0);
+    ).toHaveLength(1);
 
     await act(async () => {
       root.update(<Wrapper defaultExpanded />);

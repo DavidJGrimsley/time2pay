@@ -2,6 +2,7 @@ import { useEffect, useState, type PropsWithChildren } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Octicons } from '@expo/vector-icons';
 import { useUniwind } from 'uniwind';
+import { AnimatedSizeView } from '@/components/animated-size-view';
 
 const HEADING_COLOR_BY_THEME = {
   light: '#1a1f16',
@@ -12,6 +13,8 @@ type CollapsibleSectionProps = PropsWithChildren<{
   title: string;
   description?: string;
   defaultExpanded?: boolean;
+  onExpandedChange?: (expanded: boolean) => void;
+  keepMounted?: boolean;
 }>;
 
 /**
@@ -23,6 +26,8 @@ export function CollapsibleSection({
   title,
   description,
   defaultExpanded = false,
+  onExpandedChange,
+  keepMounted = false,
   children,
 }: CollapsibleSectionProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
@@ -39,11 +44,19 @@ export function CollapsibleSection({
     }
   }, [defaultExpanded]);
 
+  function toggleExpanded(): void {
+    setExpanded((current) => {
+      const next = !current;
+      onExpandedChange?.(next);
+      return next;
+    });
+  }
+
   return (
     <View className="gap-3 rounded-xl bg-card p-4">
       <Pressable
         className="flex-row items-center justify-between gap-3"
-        onPress={() => setExpanded((current) => !current)}
+        onPress={toggleExpanded}
         accessibilityRole="button"
         accessibilityState={{ expanded }}
       >
@@ -53,7 +66,9 @@ export function CollapsibleSection({
         </View>
         <Octicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={headingColor} />
       </Pressable>
-      {expanded ? <View className="gap-3">{children}</View> : null}
+      <AnimatedSizeView className="gap-3" expanded={expanded || keepMounted}>
+        {children}
+      </AnimatedSizeView>
     </View>
   );
 }

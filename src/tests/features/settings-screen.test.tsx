@@ -58,6 +58,19 @@ vi.mock('uniwind', () => ({
   Uniwind: { setTheme: vi.fn() },
 }));
 
+vi.mock('react-native-reanimated', () => ({
+  default: {
+    View: 'Animated.View',
+  },
+  useReducedMotion: () => false,
+  useSharedValue: (value: number) => ({
+    get: () => value,
+    set: vi.fn(),
+  }),
+  useAnimatedStyle: (callback: () => unknown) => callback(),
+  withTiming: (value: number) => value,
+}));
+
 vi.mock('@/database/db', () => ({
   getUserProfile: mocks.getUserProfile,
   upsertUserProfile: mocks.upsertUserProfile,
@@ -244,7 +257,7 @@ describe('SettingsScreen', () => {
     ).toBeTruthy();
   });
 
-  it('keeps Your Business collapsed by default when the profile is already complete', async () => {
+  it('keeps Your Business visually collapsed by default when the profile is already complete', async () => {
     mocks.getProfileCompletion.mockResolvedValue({ isComplete: true, missingFields: [] });
     const { SettingsScreen } = await import('@/features/settings/settings-screen');
 
@@ -258,6 +271,6 @@ describe('SettingsScreen', () => {
         (node: renderer.ReactTestInstance) =>
           String(node.type) === 'TextInput' && node.props.placeholder === 'Full name',
       ),
-    ).toHaveLength(0);
+    ).toHaveLength(1);
   });
 });
