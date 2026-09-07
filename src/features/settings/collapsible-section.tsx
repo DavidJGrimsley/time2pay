@@ -12,6 +12,8 @@ type CollapsibleSectionProps = PropsWithChildren<{
   title: string;
   description?: string;
   defaultExpanded?: boolean;
+  onExpandedChange?: (expanded: boolean) => void;
+  keepMounted?: boolean;
 }>;
 
 /**
@@ -23,6 +25,8 @@ export function CollapsibleSection({
   title,
   description,
   defaultExpanded = false,
+  onExpandedChange,
+  keepMounted = false,
   children,
 }: CollapsibleSectionProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
@@ -39,11 +43,19 @@ export function CollapsibleSection({
     }
   }, [defaultExpanded]);
 
+  function toggleExpanded(): void {
+    setExpanded((current) => {
+      const next = !current;
+      onExpandedChange?.(next);
+      return next;
+    });
+  }
+
   return (
     <View className="gap-3 rounded-xl bg-card p-4">
       <Pressable
         className="flex-row items-center justify-between gap-3"
-        onPress={() => setExpanded((current) => !current)}
+        onPress={toggleExpanded}
         accessibilityRole="button"
         accessibilityState={{ expanded }}
       >
@@ -53,7 +65,11 @@ export function CollapsibleSection({
         </View>
         <Octicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={headingColor} />
       </Pressable>
-      {expanded ? <View className="gap-3">{children}</View> : null}
+      {keepMounted ? (
+        <View className={`gap-3 ${expanded ? '' : 'hidden'}`}>{children}</View>
+      ) : expanded ? (
+        <View className="gap-3">{children}</View>
+      ) : null}
     </View>
   );
 }

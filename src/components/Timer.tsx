@@ -1,7 +1,15 @@
 import { Octicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Pressable, Text, TextInput, View } from 'react-native';
-import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
+import Animated, {
+  FadeIn,
+  FadeOut,
+  LinearTransition,
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import {
   createProject,
   createTask,
@@ -298,6 +306,8 @@ function saveLastSelection(selection: LastSelection): void {
 
 export function Timer({ gate, selectionHandoff, onOpenGitHubStart, onSelectionChange }: TimerProps) {
   const { width: viewportWidth } = useStableWindowDimensions();
+  const rowWidth = useSharedValue(0);
+  const customerExpansion = useSharedValue(1);
   const defaults = loadLastSelection();
   const [clients, setClients] = useState<Client[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -994,6 +1004,22 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart, onSelectionCh
   const createSessionTextClassName = isLargeScreen
     ? 'text-center text-2xl font-semibold text-heading'
     : 'text-center font-semibold text-heading';
+  const customerPanelStyle = useAnimatedStyle(() => {
+    if (!isLargeScreen || rowWidth.value <= 0) {
+      return {};
+    }
+
+    const customerWidth = interpolate(customerExpansion.value, [0, 1], [190, Math.min(560, rowWidth.value * 0.42)]);
+    return { width: customerWidth };
+  }, [isLargeScreen]);
+  const timeclockPanelStyle = useAnimatedStyle(() => {
+    if (!isLargeScreen || rowWidth.value <= 0) {
+      return {};
+    }
+
+    const customerWidth = interpolate(customerExpansion.value, [0, 1], [190, Math.min(560, rowWidth.value * 0.42)]);
+    return { width: Math.max(0, rowWidth.value - customerWidth - 16) };
+  }, [isLargeScreen]);
 
   return (
     <Animated.View className="items-center">
@@ -1006,9 +1032,20 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart, onSelectionCh
       <Animated.View
         className="gap-3"
         layout={LinearTransition.duration(260)}
+        onLayout={(event) => {
+          rowWidth.set(event.nativeEvent.layout.width);
+        }}
         style={isLargeScreen ? { flexDirection: 'row', alignItems: 'stretch', gap: 16 } : undefined}
       >
-        <CollapsibleSection title="Customer" defaultExpanded>
+        <Animated.View style={customerPanelStyle}>
+        <CollapsibleSection
+          title="Customer"
+          defaultExpanded
+          keepMounted
+          onExpandedChange={(expanded) => {
+            customerExpansion.set(withTiming(expanded ? 1 : 0, { duration: 320 }));
+          }}
+        >
         <Animated.View className="gap-3" style={isLargeScreen ? { flex: 1 } : undefined}>
           <PickerField
             label="Customer"
@@ -1259,11 +1296,15 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart, onSelectionCh
       </View>
         </Animated.View>
         </CollapsibleSection>
+        </Animated.View>
 
         <Animated.View
           className={`gap-2 ${isLargeScreen ? 'rounded-xl border border-border bg-background p-4' : ''}`}
           layout={LinearTransition.duration(260)}
-          style={isLargeScreen ? { flex: 1, justifyContent: 'space-between' } : undefined}
+          style={[
+            isLargeScreen ? { justifyContent: 'space-between' } : undefined,
+            timeclockPanelStyle,
+          ]}
         >
           <Text className={timerValueClassName}>{formatSeconds(elapsedSeconds)}</Text>
           <View className="items-center">
