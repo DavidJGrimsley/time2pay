@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 const tourRoutes = [
-  ['Dashboard', '/dashboard', 'Time tracker'],
+  ['Dashboard', '/dashboard', 'Keep work moving: set context, run the timer, and complete milestones.'],
   ['Sessions', '/sessions', 'Track and review your logged work sessions.'],
   ['Invoices', '/invoices', 'Create and manage client invoices.'],
   ['Mercury', '/mercury', 'Mercury checking and send-money tools in one place.'],
