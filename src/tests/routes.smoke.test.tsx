@@ -2,6 +2,19 @@ import React from 'react';
 import renderer from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 
+vi.mock('expo-router', () => ({
+  Redirect: () => null,
+  Stack: { Screen: () => null },
+  Link: ({ children }: { children?: React.ReactNode }) => children,
+  useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
+}));
+
+vi.mock('@expo/vector-icons', () => ({
+  AntDesign: () => null,
+  Feather: () => null,
+  Ionicons: () => null,
+}));
+
 vi.mock('react-native', async () => {
   const ReactModule = await import('react');
 
@@ -88,9 +101,12 @@ vi.mock('@/features/settings/customers-projects-screen', () => ({
   CustomersProjectsScreen: () => null,
 }));
 
+vi.mock('../app/settings', () => ({ default: () => null }));
+vi.mock('../app/settings/integrations', () => ({ default: () => null }));
+
 describe('web route smoke tests', () => {
   it('renders the Payments route shell', async () => {
-    const { default: PaymentsRoute } = await import('../app/(tabs)/payments');
+    const { default: PaymentsRoute } = await import('../app/payments');
     expect(() => renderer.create(<PaymentsRoute />)).not.toThrow();
   });
 

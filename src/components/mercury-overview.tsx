@@ -23,11 +23,11 @@ export function MercuryOverview() {
 
   function selectSection(next: MercurySection): void {
     if (next === 'payments') {
-      router.replace({ pathname: '/mercury', params: { section: 'payments' } });
+      router.replace({ pathname: '/mercury', params: { section: 'payments' } } as any);
       return;
     }
 
-    router.replace('/mercury');
+    router.replace('/mercury' as any);
   }
 
   return (
