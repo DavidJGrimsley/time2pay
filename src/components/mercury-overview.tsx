@@ -52,7 +52,7 @@ export function MercuryOverview() {
               activeSection === 'bank' ? 'font-semibold text-white' : 'font-semibold text-heading'
             }
           >
-            Bank
+            Accounts
           </Text>
         </Pressable>
         <Pressable

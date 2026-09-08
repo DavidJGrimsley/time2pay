@@ -12,6 +12,7 @@ type PickerControlItem = {
   label: string;
   value: string;
   tone?: 'default' | 'placeholder';
+  disabled?: boolean;
 };
 
 type PickerControlProps = {
@@ -59,7 +60,12 @@ export function PickerControl({
       <Picker
         enabled={!disabled}
         selectedValue={selectedValue}
-        onValueChange={(itemValue) => onValueChange(String(itemValue ?? EMPTY_PICKER_VALUE))}
+        onValueChange={(itemValue) => {
+          const value = String(itemValue ?? EMPTY_PICKER_VALUE);
+          if (!items.some((item) => item.value === value && item.disabled)) {
+            onValueChange(value);
+          }
+        }}
         dropdownIconColor={pickerTextColor}
         style={{
           width: '100%',
@@ -76,6 +82,7 @@ export function PickerControl({
               key={item.value}
               label={item.label}
               value={item.value}
+              enabled={!item.disabled}
               color={itemColor}
               style={{ color: itemColor, backgroundColor: pickerSurfaceColor }}
             />

@@ -1,4 +1,4 @@
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, Text, useColorScheme, View } from 'react-native';
 import type { InvoiceMilestoneSource } from '@/hooks/use-invoice-milestone-sources';
 
 export function CompletedMilestoneSourcePanel({
@@ -10,12 +10,22 @@ export function CompletedMilestoneSourcePanel({
   selectedIds: string[];
   onToggle: (milestoneId: string) => void;
 }) {
+  const isDark = useColorScheme() === 'dark';
+  // Mercury wraps this source panel in a deliberately light review surface. Keep its
+  // heading readable even when the surrounding Time2Pay theme is dark.
+  const lightSurfaceTextStyle = isDark ? { color: '#1A1F16' } : undefined;
+  const lightSurfaceMutedStyle = isDark ? { color: '#5F675D' } : undefined;
+
   if (sources.length === 0) return null;
   return (
     <View className="gap-2 border-t border-border pt-3">
       <View className="gap-1">
-        <Text className="text-sm font-semibold text-heading">Completed milestones</Text>
-        <Text className="text-xs text-muted">Selected by default. Toggle any milestone off before creating the draft.</Text>
+        <Text className="text-sm font-semibold text-heading" style={lightSurfaceTextStyle}>
+          Completed milestones
+        </Text>
+        <Text className="text-xs text-muted" style={lightSurfaceMutedStyle}>
+          Selected by default. Toggle any milestone off before creating the draft.
+        </Text>
       </View>
       {sources.map((source) => {
         const selected = selectedIds.includes(source.milestone.id);

@@ -1,7 +1,16 @@
 import { Octicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
-import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
+import { Image, Pressable, Text, TextInput, View } from 'react-native';
+import Animated, {
+  Easing,
+  FadeIn,
+  FadeOut,
+  interpolate,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import {
   createProject,
   createTask,
@@ -38,12 +47,15 @@ import {
 } from '@/services/profile-completion';
 import { prettifyBranchName } from '@/services/github';
 import { showActionErrorAlert, showBlockedAlert, showValidationAlert } from '@/services/system-alert';
+import { CollapsibleSection } from '@/features/settings/collapsible-section';
 
 // Motion budget: timer state changes use short fade transitions and avoid scroll-linked work.
 const LAST_SELECTIONS_KEY = 'time2pay.timer.last-selection';
 const CREATE_CLIENT_PICKER_VALUE = '__create_client__';
 const CREATE_PROJECT_PICKER_VALUE = '__create_project__';
 const CREATE_TASK_PICKER_VALUE = '__create_task__';
+const CUSTOMER_PANEL_TRANSITION_MS = 260;
+const CUSTOMER_PANEL_EASING = Easing.bezier(0.77, 0, 0.175, 1);
 
 type LastSelection = {
   clientId: string | null;
@@ -63,11 +75,17 @@ export type TimerSelectionHandoff = {
   taskId: string;
 };
 
+export type TimerSelection = {
+  clientId: string | null;
+  projectId: string | null;
+  projectName: string | null;
+};
+
 type TimerProps = {
   gate?: TimerGateState;
   selectionHandoff?: TimerSelectionHandoff | null;
   onOpenGitHubStart?: (() => void) | null;
-  onOpenMilestones?: ((selection: { clientId: string | null; projectId: string | null }) => void) | null;
+  onSelectionChange?: ((selection: TimerSelection) => void) | null;
 };
 
 type StatusNotice = {
@@ -334,8 +352,11 @@ function saveLastSelection(selection: LastSelection): void {
   localStorage.setItem(LAST_SELECTIONS_KEY, JSON.stringify(selection));
 }
 
-export function Timer({ gate, selectionHandoff, onOpenGitHubStart, onOpenMilestones }: TimerProps) {
+export function Timer({ gate, selectionHandoff, onOpenGitHubStart, onSelectionChange }: TimerProps) {
   const { width: viewportWidth } = useStableWindowDimensions();
+  const reducedMotion = useReducedMotion();
+  const rowWidth = useSharedValue(0);
+  const customerExpansion = useSharedValue(1);
   const defaults = loadLastSelection();
   const [clients, setClients] = useState<Client[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -444,6 +465,14 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart, onOpenMilesto
     () => tasks.find((task) => task.id === selectedTaskId) ?? null,
     [tasks, selectedTaskId],
   );
+
+  useEffect(() => {
+    onSelectionChange?.({
+      clientId: selectedClientId,
+      projectId: selectedProjectId,
+      projectName: selectedProject?.name ?? null,
+    });
+  }, [onSelectionChange, selectedClientId, selectedProjectId, selectedProject?.name]);
 
   useEffect(() => {
     if (!selectionHandoff) {
@@ -1025,6 +1054,32 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart, onOpenMilesto
   const createSessionTextClassName = isLargeScreen
     ? 'text-center text-2xl font-semibold text-heading'
     : 'text-center font-semibold text-heading';
+  const customerPanelStyle = useAnimatedStyle(() => {
+    const measuredWidth = rowWidth.get();
+    if (!isLargeScreen || measuredWidth <= 0) {
+      return {};
+    }
+
+    const customerWidth = interpolate(
+      customerExpansion.get(),
+      [0, 1],
+      [190, Math.min(560, measuredWidth * 0.42)],
+    );
+    return { width: customerWidth };
+  }, [isLargeScreen]);
+  const timeclockPanelStyle = useAnimatedStyle(() => {
+    const measuredWidth = rowWidth.get();
+    if (!isLargeScreen || measuredWidth <= 0) {
+      return {};
+    }
+
+    const customerWidth = interpolate(
+      customerExpansion.get(),
+      [0, 1],
+      [190, Math.min(560, measuredWidth * 0.42)],
+    );
+    return { width: Math.max(0, measuredWidth - customerWidth - 16) };
+  }, [isLargeScreen]);
 
   return (
     <Animated.View className="items-center">
@@ -1042,52 +1097,30 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart, onOpenMilesto
             {isClockedIn ? (isPaused ? 'Currently paused' : 'Currently clocked in') : 'Currently clocked out'}
           </Text>
         </View>
-        {onOpenGitHubStart ? (
-          <View
-            className={isLargeScreen ? 'items-center' : 'items-end'}
-            style={isLargeScreen ? { flex: 1 } : undefined}
-          >
-            <Pressable
-              className={`rounded-full border px-6 py-3 ${isInteractionLocked ? 'opacity-60' : ''}`}
-              style={{ borderColor: '#ffffff', backgroundColor: '#24292f' }}
-              onPress={() => {
-                if (isInteractionLocked) {
-                  showBlockedMessage(lockReason);
-                  return;
-                }
-                onOpenGitHubStart();
-              }}
-              disabled={isInteractionLocked}
-            >
-              <View className="flex-row items-center gap-2.5">
-                <Octicons name="mark-github" size={20} color="#ffffff" />
-                <Text className="text-base font-semibold" style={{ color: '#ffffff' }}>
-                  Start from GitHub
-                </Text>
-              </View>
-            </Pressable>
-          </View>
-        ) : null}
-        {onOpenMilestones ? (
-          <Pressable
-            className={`rounded-full border border-border bg-background px-4 py-3 ${isInteractionLocked ? 'opacity-60' : ''}`}
-            onPress={() => {
-              if (isInteractionLocked) {
-                showBlockedMessage(lockReason);
-                return;
-              }
-              onOpenMilestones({ clientId: selectedClientId, projectId: selectedProjectId });
-            }}
-            disabled={isInteractionLocked}
-          >
-            <Text className="text-base font-semibold text-heading">Milestones</Text>
-          </Pressable>
-        ) : null}
       </View>
       <Animated.View
         className="gap-3"
+        onLayout={(event) => {
+          rowWidth.set(event.nativeEvent.layout.width);
+        }}
         style={isLargeScreen ? { flexDirection: 'row', alignItems: 'stretch', gap: 16 } : undefined}
       >
+        <Animated.View style={customerPanelStyle}>
+          <CollapsibleSection
+            title="Customer"
+            defaultExpanded
+            onExpandedChange={(expanded) => {
+              const nextExpansion = expanded ? 1 : 0;
+              customerExpansion.set(
+                reducedMotion
+                  ? nextExpansion
+                  : withTiming(nextExpansion, {
+                      duration: CUSTOMER_PANEL_TRANSITION_MS,
+                      easing: CUSTOMER_PANEL_EASING,
+                    }),
+              );
+            }}
+          >
         <Animated.View className="gap-3" style={isLargeScreen ? { flex: 1 } : undefined}>
           <PickerField
             label="Customer"
@@ -1154,6 +1187,22 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart, onOpenMilesto
             <Pressable className="rounded-md bg-secondary px-3 py-2" onPress={() => handleCreateClient()}>
               <Text className="font-semibold text-white">Save Customer</Text>
             </Pressable>
+            {onOpenGitHubStart ? (
+              <Pressable
+                className="rounded-md border px-3 py-2"
+                style={{ borderColor: '#24292f', backgroundColor: '#24292f' }}
+                accessibilityRole="button"
+                accessibilityLabel="Start customer from GitHub"
+                onPress={onOpenGitHubStart}
+              >
+                <View className="flex-row items-center gap-2">
+                  <Octicons name="mark-github" size={16} color="#ffffff" />
+                  <Text className="font-semibold" style={{ color: '#ffffff' }}>
+                    Start from GitHub
+                  </Text>
+                </View>
+              </Pressable>
+            ) : null}
             <Pressable
               className="rounded-md border border-border px-3 py-2"
               onPress={() => setIsCreatingClient(false)}
@@ -1321,12 +1370,25 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart, onOpenMilesto
         />
       </View>
         </Animated.View>
+          </CollapsibleSection>
+        </Animated.View>
 
         <Animated.View
           className={`gap-2 ${isLargeScreen ? 'rounded-xl border border-border bg-background p-4' : ''}`}
-          style={isLargeScreen ? { flex: 1, justifyContent: 'space-between' } : undefined}
+          style={[
+            isLargeScreen ? { justifyContent: 'space-between' } : undefined,
+            timeclockPanelStyle,
+          ]}
         >
           <Text className={timerValueClassName}>{formatSeconds(elapsedSeconds)}</Text>
+          <View className="items-center">
+            <Image
+              source={{ uri: '/images/time2payLogo.png' }}
+              style={{ width: 72, height: 24 }}
+              resizeMode="contain"
+              accessibilityLabel="Time2Pay logo"
+            />
+          </View>
 
       {isClockedIn ? (
         <View className="flex-row gap-2">

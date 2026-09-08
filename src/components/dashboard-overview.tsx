@@ -8,8 +8,12 @@ import {
 } from '@/services/profile-completion';
 import { InlineNotice } from '@/components/inline-notice';
 import { GitHubStartModal, type GitHubStartSelection } from './GitHubStartModal';
-import { DashboardMilestoneSheet } from './dashboard-milestone-sheet';
-import { Timer, type TimerSelectionHandoff } from './Timer';
+import {
+  DashboardMilestoneSheet,
+  type DashboardMilestoneSheetMode,
+} from './dashboard-milestone-sheet';
+import { DashboardMilestones } from './dashboard-milestones';
+import { Timer, type TimerSelection, type TimerSelectionHandoff } from './Timer';
 import { useResolvedDataMode } from '@/hooks/use-resolved-data-mode';
 import { useAuthUiStore } from '@/stores/auth-ui-store';
 
@@ -27,10 +31,17 @@ export function DashboardOverview() {
   const [timerSelectionHandoff, setTimerSelectionHandoff] = useState<TimerSelectionHandoff | null>(
     null,
   );
-  const [milestoneSelection, setMilestoneSelection] = useState<{
-    clientId: string | null;
-    projectId: string | null;
+  const [selectedTimerContext, setSelectedTimerContext] = useState<TimerSelection>({
+    clientId: null,
+    projectId: null,
+    projectName: null,
+  });
+  const [milestoneEditor, setMilestoneEditor] = useState<{
+    mode: DashboardMilestoneSheetMode;
+    projectId: string;
+    milestoneId?: string;
   } | null>(null);
+  const [milestoneRefreshToken, setMilestoneRefreshToken] = useState(0);
 
   const refreshGate = useCallback(async (options?: { showLoading?: boolean }): Promise<void> => {
     const showLoading = options?.showLoading ?? true;
@@ -89,6 +100,13 @@ export function DashboardOverview() {
     setIsGitHubStartModalVisible(false);
   }
 
+  function openMilestoneEditor(mode: DashboardMilestoneSheetMode, milestoneId?: string): void {
+    if (!selectedTimerContext.projectId) {
+      return;
+    }
+    setMilestoneEditor({ mode, projectId: selectedTimerContext.projectId, milestoneId });
+  }
+
   return (
     <View className="gap-3">
       <Text className="text-3xl font-extrabold text-heading">Dashboard</Text>
@@ -114,7 +132,14 @@ export function DashboardOverview() {
         gate={{ locked, missingFields }}
         selectionHandoff={timerSelectionHandoff}
         onOpenGitHubStart={() => setIsGitHubStartModalVisible(true)}
-        onOpenMilestones={(selection) => setMilestoneSelection(selection)}
+        onSelectionChange={setSelectedTimerContext}
+      />
+      <DashboardMilestones
+        projectId={selectedTimerContext.projectId}
+        projectName={selectedTimerContext.projectName}
+        refreshToken={milestoneRefreshToken}
+        onAdd={() => openMilestoneEditor('create')}
+        onEdit={(milestoneId) => openMilestoneEditor('edit', milestoneId)}
       />
       <GitHubStartModal
         visible={isGitHubStartModalVisible}
@@ -122,9 +147,12 @@ export function DashboardOverview() {
         onComplete={handleGitHubStartComplete}
       />
       <DashboardMilestoneSheet
-        visible={milestoneSelection !== null}
-        initialSelection={milestoneSelection}
-        onDismiss={() => setMilestoneSelection(null)}
+        visible={milestoneEditor !== null}
+        mode={milestoneEditor?.mode ?? 'create'}
+        projectId={milestoneEditor?.projectId ?? null}
+        milestoneId={milestoneEditor?.milestoneId ?? null}
+        onDismiss={() => setMilestoneEditor(null)}
+        onSaved={() => setMilestoneRefreshToken((current) => current + 1)}
       />
     </View>
   );

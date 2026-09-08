@@ -1,8 +1,10 @@
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { usePathname, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { useColorScheme, View } from 'react-native';
+import { View } from 'react-native';
+import { useUniwind } from 'uniwind';
 import { AppLoadingShell } from '@/components/app-loading-shell';
+import { canvasBackground } from '@/components/workspace-nav';
 import { useResolvedDataMode } from '@/hooks/use-resolved-data-mode';
 import { getProfileCompletion } from '@/services/profile-completion';
 import { resolveHostedRouteGate } from '@/features/onboarding/onboarding-route-gate';
@@ -11,8 +13,7 @@ import { useAuthUiStore } from '@/stores/auth-ui-store';
 export default function TabsLayoutNative() {
   const pathname = usePathname();
   const router = useRouter();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
+  const { theme } = useUniwind();
   const { hostedMode, resolved: dataModeResolved } = useResolvedDataMode();
   const authReady = useAuthUiStore((state) => state.authReady);
   const isAuthenticated = useAuthUiStore((state) => state.isAuthenticated);
@@ -90,7 +91,7 @@ export default function TabsLayoutNative() {
   }, [profileComplete, profileGateReady, router, shouldBypassProfileGate]);
 
   const isTabsGateLoading = !profileGateReady && !shouldBypassProfileGate;
-  const backgroundColor = isDark ? '#1a1f16' : '#f8f7f3';
+  const backgroundColor = canvasBackground(theme === 'dark');
 
   if (shouldHoldTabsForRootGate) {
     return (
