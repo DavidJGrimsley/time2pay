@@ -12,6 +12,15 @@ import { resolveBrowserSiteOrigin } from '@/services/site-origin';
 let supabaseClient: SupabaseClient | null = null;
 const DEFAULT_AUTH_REDIRECT_PATH = '/dashboard';
 
+type PasswordlessAuthOptions = {
+  redirectPath?: string;
+  shouldCreateUser?: boolean;
+};
+
+type OAuthAuthOptions = {
+  redirectPath?: string;
+};
+
 function isMissingAuthSessionMessage(message: string): boolean {
   return /auth session missing!?/i.test(message);
 }
@@ -95,19 +104,23 @@ export async function requireSupabaseUserId(): Promise<string> {
   return user.id;
 }
 
-export async function signInWithMagicLink(email: string): Promise<void> {
+export async function signInWithMagicLink(
+  email: string,
+  options: PasswordlessAuthOptions = {},
+): Promise<void> {
   const client = getSupabaseClient();
   const normalizedEmail = email.trim().toLowerCase();
   if (!normalizedEmail) {
     throw new Error('Email is required.');
   }
 
-  const emailRedirectTo = resolveSupabaseAuthRedirectUrl();
+  const emailRedirectTo = resolveSupabaseAuthRedirectUrl(options.redirectPath);
 
   const { error } = await client.auth.signInWithOtp({
     email: normalizedEmail,
     options: {
       emailRedirectTo,
+      shouldCreateUser: options.shouldCreateUser ?? true,
     },
   });
 
@@ -116,9 +129,9 @@ export async function signInWithMagicLink(email: string): Promise<void> {
   }
 }
 
-export async function signInWithGitHubOAuth(): Promise<void> {
+export async function signInWithGitHubOAuth(options: OAuthAuthOptions = {}): Promise<void> {
   const client = getSupabaseClient();
-  const redirectTo = resolveSupabaseAuthRedirectUrl();
+  const redirectTo = resolveSupabaseAuthRedirectUrl(options.redirectPath);
   const { error } = await client.auth.signInWithOAuth({
     provider: 'github',
     options: {
@@ -132,17 +145,19 @@ export async function signInWithGitHubOAuth(): Promise<void> {
   }
 }
 
-export function resolveSupabaseAuthRedirectUrl(): string | undefined {
+export function resolveSupabaseAuthRedirectUrl(
+  redirectPath = DEFAULT_AUTH_REDIRECT_PATH,
+): string | undefined {
   if (isHostedMode()) {
     assertHostedModeConfigured();
-    return new URL(DEFAULT_AUTH_REDIRECT_PATH, resolveBrowserSiteOrigin()).toString();
+    return new URL(redirectPath, resolveBrowserSiteOrigin()).toString();
   }
 
   if (typeof window === 'undefined') {
     return undefined;
   }
 
-  return new URL(DEFAULT_AUTH_REDIRECT_PATH, window.location.origin).toString();
+  return new URL(redirectPath, window.location.origin).toString();
 }
 
 export async function signOutSupabase(): Promise<void> {

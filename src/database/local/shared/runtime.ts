@@ -4,7 +4,7 @@ import { isTourMode } from '@/services/runtime-mode';
 
 const DB_NAME = 'time2pay.db';
 const IN_MEMORY_DB_NAME = ':memory:';
-const SCHEMA_VERSION = 12;
+const SCHEMA_VERSION = 15;
 export const USER_PROFILE_ID = 'me';
 
 const MIGRATIONS: { version: number; upSql: string }[] = [
@@ -247,6 +247,53 @@ const MIGRATIONS: { version: number; upSql: string }[] = [
       CREATE INDEX IF NOT EXISTS idx_sessions_pr_number ON sessions(pr_number);
     `,
   },
+  {
+    version: 13,
+    upSql: `
+      ALTER TABLE user_profile ADD COLUMN invoice_builder_mode TEXT NOT NULL DEFAULT 't2p';
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_active_source_milestone
+        ON invoices(source_milestone_id)
+        WHERE source_milestone_id IS NOT NULL AND deleted_at IS NULL;
+    `,
+  },
+  {
+    version: 14,
+    upSql: `
+      CREATE TABLE IF NOT EXISTS invoice_milestone_links (
+        id TEXT PRIMARY KEY NOT NULL,
+        invoice_id TEXT NOT NULL,
+        milestone_id TEXT NOT NULL,
+        project_id TEXT NOT NULL,
+        project_name TEXT,
+        title TEXT NOT NULL,
+        amount REAL NOT NULL,
+        amount_type TEXT NOT NULL,
+        amount_value REAL NOT NULL,
+        completion_mode TEXT NOT NULL,
+        completed_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        deleted_at TEXT,
+        UNIQUE (invoice_id, milestone_id),
+        FOREIGN KEY (invoice_id) REFERENCES invoices(id),
+        FOREIGN KEY (milestone_id) REFERENCES project_milestones(id)
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_invoice_milestone_links_active_milestone
+        ON invoice_milestone_links(milestone_id)
+        WHERE deleted_at IS NULL;
+      CREATE INDEX IF NOT EXISTS idx_invoice_milestone_links_invoice_id
+        ON invoice_milestone_links(invoice_id);
+    `,
+  },
+  {
+    version: 15,
+    upSql: `
+      ALTER TABLE projects ADD COLUMN hourly_rate REAL NOT NULL DEFAULT 0;
+      UPDATE projects
+         SET hourly_rate = COALESCE((SELECT hourly_rate FROM clients WHERE clients.id = projects.client_id), 0)
+       WHERE pricing_mode = 'hourly';
+    `,
+  },
 ];
 
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
@@ -382,7 +429,10 @@ function isAccessHandleConflictError(error: unknown): boolean {
 async function openConfiguredDatabase(databaseName: string): Promise<SQLite.SQLiteDatabase> {
   const db = await SQLite.openDatabaseAsync(databaseName);
   await db.execAsync('PRAGMA foreign_keys = ON;');
-  await db.execAsync('PRAGMA journal_mode = WAL;');
+  // WAL is not reliably supported by expo-sqlite's web VFS / memory databases.
+  if (!isWebRuntime()) {
+    await db.execAsync('PRAGMA journal_mode = WAL;');
+  }
   activeDbName = databaseName;
   return db;
 }
@@ -418,20 +468,36 @@ async function getUserVersion(db: SQLite.SQLiteDatabase): Promise<number> {
   return row?.user_version ?? 0;
 }
 
+export async function runSqliteTransaction(
+  db: SQLite.SQLiteDatabase,
+  work: () => Promise<void>,
+): Promise<void> {
+  if (await db.isInTransactionAsync()) {
+    await work();
+    return;
+  }
+
+  try {
+    await db.withTransactionAsync(work);
+  } catch (error) {
+    const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+    if (message.includes('within a transaction')) {
+      await work();
+      return;
+    }
+    throw error;
+  }
+}
+
 async function runMigrations(db: SQLite.SQLiteDatabase): Promise<number> {
   const currentVersion = await getUserVersion(db);
   const pending = MIGRATIONS.filter((migration) => migration.version > currentVersion);
 
   for (const migration of pending) {
-    await db.execAsync('BEGIN;');
-    try {
+    await runSqliteTransaction(db, async () => {
       await db.execAsync(migration.upSql);
       await db.execAsync(`PRAGMA user_version = ${migration.version};`);
-      await db.execAsync('COMMIT;');
-    } catch (error) {
-      await db.execAsync('ROLLBACK;');
-      throw error;
-    }
+    });
   }
 
   return getUserVersion(db);
@@ -482,11 +548,12 @@ export async function ensureUserProfileRow(db: SQLite.SQLiteDatabase): Promise<v
        full_name,
        phone,
        email,
+       invoice_builder_mode,
        tour_seed_version,
        created_at,
        updated_at
      )
-     VALUES (?, NULL, NULL, NULL, NULL, NULL, 0, ?, ?)`,
+     VALUES (?, NULL, NULL, NULL, NULL, NULL, 't2p', 0, ?, ?)`,
     USER_PROFILE_ID,
     timestamp,
     timestamp,

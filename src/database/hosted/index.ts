@@ -4,7 +4,7 @@ export * from '@/database/hosted/clients-projects/index';
 export * from '@/database/hosted/milestones/index';
 export * from '@/database/hosted/sessions/index';
 export * from '@/database/hosted/invoices/index';
-
+export * from '@/database/hosted/onboarding/index';
 export type {
   PricingMode,
   MilestoneAmountType,
@@ -22,6 +22,7 @@ export type {
   ProjectMilestone,
   MilestoneChecklistItem,
   InvoiceSessionLink,
+  InvoiceMilestoneLink,
   CoreDbValidationReport,
 } from '@/database/hosted/types';
 

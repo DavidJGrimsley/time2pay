@@ -18,6 +18,9 @@ import { withWriteDb, type WriteDb } from '@/server/db/_shared/db';
 import { classifyMercuryError, recordMercuryCredentialEvent } from '@/server/mercury/audit';
 
 const MERCURY_CREDENTIAL_UNAVAILABLE_MESSAGE = 'No Mercury API key is saved for this account.';
+const MERCURY_PRODUCTION_TOKEN_PATTERN = /^secret-token:mercury_production_[A-Za-z0-9_-]+$/i;
+const MERCURY_PRODUCTION_TOKEN_FORMAT_MESSAGE =
+  'Save the complete Mercury production API token beginning with "secret-token:mercury_production_".';
 
 export type MercuryCredentialStatus = {
   configured: boolean;
@@ -186,12 +189,36 @@ export async function saveMercuryCredentialForUser(
   if (!apiKey) {
     throw new Error('Mercury API key is required.');
   }
-  if (/mercury_sandbox/i.test(apiKey)) {
+  if (/mercury_(?:sandbox|test)/i.test(apiKey)) {
     throw new Error('Save a production Mercury API key. Sandbox keys are only used in tour mode.');
+  }
+  if (!MERCURY_PRODUCTION_TOKEN_PATTERN.test(apiKey)) {
+    throw new Error(MERCURY_PRODUCTION_TOKEN_FORMAT_MESSAGE);
   }
 
   const keyLastFour = apiKey.slice(-4);
   const savedAt = new Date().toISOString();
+
+  let probeSuccess = false;
+  let probeErrorCode: string | null = null;
+  try {
+    const client = createMercuryClient({ apiKey, environment: 'production' });
+    await client.accounts.list({ limit: 1 });
+    probeSuccess = true;
+  } catch (error) {
+    probeErrorCode = classifyMercuryError(error);
+    throw error;
+  } finally {
+    await withWriteDb((db) =>
+      recordMercuryCredentialEvent(db, {
+        authUserId,
+        action: 'tested',
+        keyLastFour,
+        success: probeSuccess,
+        errorCode: probeErrorCode,
+      }),
+    );
+  }
 
   const status = await withWriteDb(async (db) => {
     await ensureProfileRow(db, authUserId);
@@ -359,6 +386,11 @@ export async function testMercuryCredentialForUser(authUserId: string): Promise<
     }
 
     lastFour = apiKey.slice(-4);
+    if (!MERCURY_PRODUCTION_TOKEN_PATTERN.test(apiKey)) {
+      errorCode = 'invalid_credential_format';
+      throw new Error(MERCURY_PRODUCTION_TOKEN_FORMAT_MESSAGE);
+    }
+
     const client = createMercuryClient({ apiKey, environment: 'production' });
     await client.accounts.list({ limit: 1 });
     success = true;

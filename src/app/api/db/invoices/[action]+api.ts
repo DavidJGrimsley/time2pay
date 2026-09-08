@@ -4,7 +4,7 @@ import { assignSessionsToInvoice, createInvoice, deleteInvoice } from '@/server/
 import { invoiceInsertSchema } from '@/database/hosted/invoices/schema';
 
 const invoiceStatusSchema = z.enum(['draft', 'sent', 'paid', 'overdue']);
-const invoiceTypeSchema = z.enum(['hourly', 'milestone']);
+const invoiceTypeSchema = z.enum(['hourly', 'milestone', 'combined']);
 const milestoneAmountTypeSchema = z.enum(['percent', 'fixed']);
 const milestoneCompletionModeSchema = z.enum(['toggle', 'checklist']);
 const invoiceSessionLinkModeSchema = z.enum(['context', 'billed']);
@@ -51,11 +51,27 @@ const deleteInvoiceSchema = z.object({
   invoiceId: z.string().min(1),
 }).strict();
 
+function getRequestAction(request: Request, params?: { action?: string }): string | undefined {
+  const routeAction = params?.action;
+  if (typeof routeAction === 'string' && routeAction.trim()) {
+    return routeAction;
+  }
+
+  try {
+    const lastPathSegment = new URL(request.url).pathname.split('/').filter(Boolean).at(-1);
+    return lastPathSegment && lastPathSegment !== 'db' ? lastPathSegment : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function POST(
   request: Request,
-  { params }: { params: { action: string } },
+  { params }: { params?: { action?: string } },
 ): Promise<Response> {
-  switch (params.action) {
+  const action = getRequestAction(request, params);
+
+  switch (action) {
     case 'create':
       return handleDbWrite(request, createInvoiceSchema, createInvoice);
     case 'assign-sessions':
@@ -63,6 +79,6 @@ export async function POST(
     case 'delete':
       return handleDbWrite(request, deleteInvoiceSchema, deleteInvoice);
     default:
-      return Response.json({ error: `Unsupported invoices action: ${params.action}` }, { status: 404 });
+      return Response.json({ error: `Unsupported invoices action: ${action ?? 'unknown'}` }, { status: 404 });
   }
 }

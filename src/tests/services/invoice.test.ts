@@ -4,13 +4,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const {
   assignSessionsToInvoiceMock,
   createInvoiceSessionLinksMock,
+  createInvoiceMilestoneLinksMock,
   createInvoiceMock,
+  getProjectMilestoneByIdMock,
+  listInvoicesMock,
   listSessionsMock,
   createMercuryInvoiceMock,
 } = vi.hoisted(() => ({
   assignSessionsToInvoiceMock: vi.fn(),
   createInvoiceSessionLinksMock: vi.fn(),
+  createInvoiceMilestoneLinksMock: vi.fn(),
   createInvoiceMock: vi.fn(),
+  getProjectMilestoneByIdMock: vi.fn(),
+  listInvoicesMock: vi.fn(),
   listSessionsMock: vi.fn(),
   createMercuryInvoiceMock: vi.fn(),
 }));
@@ -18,7 +24,10 @@ const {
 vi.mock('@/database/db', () => ({
   assignSessionsToInvoice: assignSessionsToInvoiceMock,
   createInvoiceSessionLinks: createInvoiceSessionLinksMock,
+  createInvoiceMilestoneLinks: createInvoiceMilestoneLinksMock,
   createInvoice: createInvoiceMock,
+  getProjectMilestoneById: getProjectMilestoneByIdMock,
+  listInvoices: listInvoicesMock,
   listSessions: listSessionsMock,
 }));
 
@@ -32,6 +41,7 @@ vi.mock('@/services/github', () => ({
 
 import {
   createMilestoneInvoice,
+  createInvoiceFromSessions,
   buildMercurySessionLineItems,
   buildNet7DueDateIso,
   computeInvoiceTotals,
@@ -66,7 +76,10 @@ function buildSession(overrides: Partial<Session> = {}): Session {
 beforeEach(() => {
   assignSessionsToInvoiceMock.mockReset();
   createInvoiceSessionLinksMock.mockReset();
+  createInvoiceMilestoneLinksMock.mockReset();
   createInvoiceMock.mockReset();
+  getProjectMilestoneByIdMock.mockReset();
+  listInvoicesMock.mockReset();
   listSessionsMock.mockReset();
   createMercuryInvoiceMock.mockReset();
 });
@@ -91,8 +104,23 @@ describe('buildMercurySessionLineItems', () => {
 });
 
 describe('createMilestoneInvoice', () => {
+  function completedMilestone() {
+    return {
+      id: 'milestone_1',
+      project_id: 'project_1',
+      title: 'Milestone 1',
+      amount_type: 'percent' as const,
+      amount_value: 50,
+      completion_mode: 'toggle' as const,
+      completed_at: '2026-03-18T12:00:00.000Z',
+      is_completed: 1,
+    };
+  }
+
   it('creates context links without locking sessions when markAttachedSessionsInvoiced is false', async () => {
     listSessionsMock.mockResolvedValue([buildSession()]);
+    getProjectMilestoneByIdMock.mockResolvedValue(completedMilestone());
+    listInvoicesMock.mockResolvedValue([]);
     createInvoiceMock.mockResolvedValue(undefined);
     createInvoiceSessionLinksMock.mockResolvedValue(undefined);
     assignSessionsToInvoiceMock.mockResolvedValue(undefined);
@@ -129,6 +157,8 @@ describe('createMilestoneInvoice', () => {
 
   it('marks sessions invoiced when markAttachedSessionsInvoiced is true', async () => {
     listSessionsMock.mockResolvedValue([buildSession()]);
+    getProjectMilestoneByIdMock.mockResolvedValue(completedMilestone());
+    listInvoicesMock.mockResolvedValue([]);
     createInvoiceMock.mockResolvedValue(undefined);
     createInvoiceSessionLinksMock.mockResolvedValue(undefined);
     assignSessionsToInvoiceMock.mockResolvedValue(undefined);
@@ -159,6 +189,8 @@ describe('createMilestoneInvoice', () => {
 
   it('rejects billed session attachment when any selected session is already invoiced', async () => {
     listSessionsMock.mockResolvedValue([buildSession({ invoice_id: 'invoice_existing' })]);
+    getProjectMilestoneByIdMock.mockResolvedValue(completedMilestone());
+    listInvoicesMock.mockResolvedValue([]);
     createInvoiceMock.mockResolvedValue(undefined);
     createInvoiceSessionLinksMock.mockResolvedValue(undefined);
     assignSessionsToInvoiceMock.mockResolvedValue(undefined);
@@ -184,6 +216,46 @@ describe('createMilestoneInvoice', () => {
     expect(createInvoiceMock).not.toHaveBeenCalled();
     expect(createInvoiceSessionLinksMock).not.toHaveBeenCalled();
     expect(assignSessionsToInvoiceMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects an incomplete milestone and an active duplicate draft', async () => {
+    getProjectMilestoneByIdMock.mockResolvedValue({ ...completedMilestone(), is_completed: 0 });
+    await expect(
+      createMilestoneInvoice({
+        invoiceId: 'invoice_4', clientId: 'client_1', projectId: 'project_1', projectName: 'Website refresh', projectTotalFee: 10000,
+        milestoneId: 'milestone_1', milestoneTitle: 'Milestone 1', milestoneAmountType: 'fixed', milestoneAmountValue: 1, milestoneCompletionMode: 'toggle',
+      }),
+    ).rejects.toThrow('Complete this milestone');
+
+    getProjectMilestoneByIdMock.mockResolvedValue(completedMilestone());
+    listInvoicesMock.mockResolvedValue([{ source_milestone_id: 'milestone_1' }]);
+    await expect(
+      createMilestoneInvoice({
+        invoiceId: 'invoice_5', clientId: 'client_1', projectId: 'project_1', projectName: 'Website refresh', projectTotalFee: 10000,
+        milestoneId: 'milestone_1', milestoneTitle: 'Milestone 1', milestoneAmountType: 'fixed', milestoneAmountValue: 1, milestoneCompletionMode: 'toggle',
+      }),
+    ).rejects.toThrow('already has an active invoice draft');
+  });
+});
+
+describe('createInvoiceFromSessions with milestone sources', () => {
+  it('allows milestone-only drafts and attaches automatic source links', async () => {
+    listSessionsMock.mockResolvedValue([]);
+    getProjectMilestoneByIdMock.mockResolvedValue({
+      id: 'milestone_1', project_id: 'project_1', title: 'Launch', amount_type: 'fixed', amount_value: 750,
+      completion_mode: 'toggle', completed_at: '2026-03-18T12:00:00.000Z', is_completed: 1,
+    });
+    createInvoiceMock.mockResolvedValue(undefined);
+    createInvoiceMilestoneLinksMock.mockResolvedValue(undefined);
+
+    const result = await createInvoiceFromSessions({
+      invoiceId: 'invoice_milestone_only', clientId: 'client_1', sessionIds: [], hourlyRate: 100,
+      milestoneSources: [{ milestoneId: 'milestone_1', projectId: 'project_1', projectName: 'Website', projectTotalFee: null }],
+    });
+
+    expect(result.totalAmount).toBe(750);
+    expect(createInvoiceMock).toHaveBeenCalledWith(expect.objectContaining({ invoice_type: 'milestone', total: 750 }));
+    expect(createInvoiceMilestoneLinksMock).toHaveBeenCalledWith(expect.objectContaining({ invoiceId: 'invoice_milestone_only' }));
   });
 });
 

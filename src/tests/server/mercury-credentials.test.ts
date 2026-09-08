@@ -37,6 +37,7 @@ const testState = vi.hoisted(() => ({
   vaultSecrets: new Map<string, string>(),
   nextVaultId: 1,
   accountsListMock: vi.fn(),
+  createMercuryClientMock: vi.fn(),
 }));
 
 function queryParts(query: Query): { sql: string; params: unknown[] } {
@@ -178,7 +179,7 @@ vi.mock('@/server/db/_shared/db', () => ({
 }));
 
 vi.mock('@mr.dj2u/mercury', () => ({
-  createMercuryClient: vi.fn(() => ({
+  createMercuryClient: testState.createMercuryClientMock.mockImplementation(() => ({
     accounts: { list: testState.accountsListMock },
   })),
 }));
@@ -193,6 +194,7 @@ describe('Mercury credential storage', () => {
     testState.nextVaultId = 1;
     testState.accountsListMock.mockReset();
     testState.accountsListMock.mockResolvedValue({ items: [] });
+    testState.createMercuryClientMock.mockClear();
   });
 
   it('saves a key into Vault and exposes status with null AR (manual toggle required)', async () => {
@@ -225,6 +227,11 @@ describe('Mercury credential storage', () => {
 
     expect(testState.events.map((e) => e.action)).toContain('created');
     expect(testState.events.map((e) => e.action)).not.toContain('ar_probed');
+    expect(testState.createMercuryClientMock).toHaveBeenCalledWith({
+      apiKey: rawKey,
+      environment: 'production',
+    });
+    expect(testState.accountsListMock).toHaveBeenCalledWith({ limit: 1 });
 
     const decrypted = await getDecryptedMercuryApiKeyForUser('user-1');
     expect(decrypted).toBe(rawKey);
@@ -239,7 +246,7 @@ describe('Mercury credential storage', () => {
 
     await saveMercuryCredentialForUser(
       'user-1',
-      'mercury_production_wma_x_yrucrem',
+      'secret-token:mercury_production_wma_x_yrucrem',
     );
 
     const enabled = await setMercuryArAccessForUser('user-1', true);
@@ -270,13 +277,13 @@ describe('Mercury credential storage', () => {
 
     await saveMercuryCredentialForUser(
       'user-1',
-      'mercury_production_wma_first_yrucrem',
+      'secret-token:mercury_production_wma_first_yrucrem',
     );
     await setMercuryArAccessForUser('user-1', true);
 
     await saveMercuryCredentialForUser(
       'user-1',
-      'mercury_production_wma_second_yrucrem',
+      'secret-token:mercury_production_wma_second_yrucrem',
     );
 
     const status = await getMercuryCredentialStatusForUser('user-1');
@@ -296,11 +303,11 @@ describe('Mercury credential storage', () => {
 
     await saveMercuryCredentialForUser(
       'user-1',
-      'a-mercury_production_wma_first_yrucrem',
+      'secret-token:mercury_production_wma_first_yrucrem',
     );
     await saveMercuryCredentialForUser(
       'user-1',
-      'b-mercury_production_wma_second_yrucrem',
+      'secret-token:mercury_production_wma_second_yrucrem',
     );
 
     expect(testState.history).toHaveLength(1);
@@ -317,7 +324,7 @@ describe('Mercury credential storage', () => {
 
     await saveMercuryCredentialForUser(
       'user-1',
-      'mercury_production_wma_some_yrucrem',
+      'secret-token:mercury_production_wma_some_yrucrem',
     );
     await deleteMercuryCredentialForUser('user-1');
 
@@ -335,14 +342,14 @@ describe('Mercury credential storage', () => {
 
     await saveMercuryCredentialForUser(
       'user-1',
-      'mercury_production_wma_x_yrucrem',
+      'secret-token:mercury_production_wma_x_yrucrem',
     );
     await testMercuryCredentialForUser('user-1');
 
     expect(testState.accountsListMock).toHaveBeenCalledWith({ limit: 1 });
     const tested = testState.events.filter((e) => e.action === 'tested');
-    expect(tested).toHaveLength(1);
-    expect(tested[0].success).toBe(true);
+    expect(tested).toHaveLength(2);
+    expect(tested.every((event) => event.success === true)).toBe(true);
   });
 
   it('rejects sandbox keys for hosted user storage', async () => {
@@ -354,5 +361,39 @@ describe('Mercury credential storage', () => {
         'secret-token:mercury_sandbox_wma_1234567890_yrucrem',
       ),
     ).rejects.toThrow('Sandbox keys are only used in tour mode.');
+  });
+
+  it('rejects a production key missing Mercury\'s complete token prefix', async () => {
+    const { saveMercuryCredentialForUser } = await import('@/server/mercury/credentials');
+
+    await expect(
+      saveMercuryCredentialForUser('user-1', 'mercury_production_wma_missing_secret_token'),
+    ).rejects.toThrow('secret-token:mercury_production_');
+    expect(testState.accountsListMock).not.toHaveBeenCalled();
+    expect(testState.row).toBeNull();
+  });
+
+  it('does not replace an existing key when the submitted production key is rejected by Mercury', async () => {
+    const { getDecryptedMercuryApiKeyForUser, saveMercuryCredentialForUser } =
+      await import('@/server/mercury/credentials');
+    const existingKey = 'secret-token:mercury_production_wma_existing_yrucrem';
+    const rejectedKey = 'secret-token:mercury_production_wma_rejected_yrucrem';
+
+    await saveMercuryCredentialForUser('user-1', existingKey);
+    testState.accountsListMock.mockRejectedValueOnce(
+      Object.assign(new Error('Mercury request failed with status 401.'), { status: 401 }),
+    );
+
+    await expect(saveMercuryCredentialForUser('user-1', rejectedKey)).rejects.toThrow('401');
+    await expect(getDecryptedMercuryApiKeyForUser('user-1')).resolves.toBe(existingKey);
+    expect(testState.history).toHaveLength(0);
+
+    const failedProbe = testState.events.findLast(
+      (event) => event.action === 'tested' && event.success === false,
+    );
+    expect(failedProbe).toMatchObject({
+      key_last_four: 'crem',
+      error_code: 'mercury_unauthorized',
+    });
   });
 });

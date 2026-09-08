@@ -47,6 +47,15 @@ describe('resolveSupabaseAuthRedirectUrl', () => {
     expect(resolveSupabaseAuthRedirectUrl()).toBe('http://localhost:3000/dashboard');
   });
 
+  it('builds custom onboarding redirect URLs', () => {
+    process.env.EXPO_PUBLIC_TIME2PAY_DATA_MODE = 'local';
+    (globalThis as Record<string, unknown>).window = { location: { origin: 'http://localhost:3000' } };
+
+    expect(resolveSupabaseAuthRedirectUrl('/onboarding/legal')).toBe(
+      'http://localhost:3000/onboarding/legal',
+    );
+  });
+
   it('returns undefined when local mode runs server-side', () => {
     process.env.EXPO_PUBLIC_TIME2PAY_DATA_MODE = 'local';
 

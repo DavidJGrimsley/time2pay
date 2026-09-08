@@ -13,10 +13,12 @@ const createProjectSchema = projectInsertSchema
     githubRepo: true,
     pricingMode: true,
     totalProjectFee: true,
+    hourlyRate: true,
   })
   .extend({
     pricingMode: pricingModeSchema.optional(),
     totalProjectFee: z.coerce.number().nullable().optional(),
+    hourlyRate: z.coerce.number().min(0).optional(),
   })
   .strict();
 
@@ -25,23 +27,41 @@ const updateProjectPricingSchema = projectInsertSchema
     id: true,
     pricingMode: true,
     totalProjectFee: true,
+    hourlyRate: true,
   })
   .extend({
     pricingMode: pricingModeSchema,
     totalProjectFee: z.coerce.number().nullable(),
+    hourlyRate: z.coerce.number().min(0).optional(),
   })
   .strict();
 
+function getRequestAction(request: Request, params?: { action?: string }): string | undefined {
+  const routeAction = params?.action;
+  if (typeof routeAction === 'string' && routeAction.trim()) {
+    return routeAction;
+  }
+
+  try {
+    const lastPathSegment = new URL(request.url).pathname.split('/').filter(Boolean).at(-1);
+    return lastPathSegment && lastPathSegment !== 'db' ? lastPathSegment : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function POST(
   request: Request,
-  { params }: { params: { action: string } },
+  { params }: { params?: { action?: string } },
 ): Promise<Response> {
-  switch (params.action) {
+  const action = getRequestAction(request, params);
+
+  switch (action) {
     case 'create':
       return handleDbWrite(request, createProjectSchema, createProject);
     case 'update-pricing':
       return handleDbWrite(request, updateProjectPricingSchema, updateProjectPricing);
     default:
-      return Response.json({ error: `Unsupported projects action: ${params.action}` }, { status: 404 });
+      return Response.json({ error: `Unsupported projects action: ${action ?? 'unknown'}` }, { status: 404 });
   }
 }

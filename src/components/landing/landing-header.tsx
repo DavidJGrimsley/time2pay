@@ -29,7 +29,10 @@ export function LandingHeader({ onOpenSignIn, onTourExperience }: LandingHeaderP
           >
             <Text className="text-center text-sm font-semibold text-heading">Tour the App</Text>
           </Pressable>
-          <Pressable className="flex-1 rounded-full bg-primary px-3 py-2 md:flex-none" onPress={onOpenSignIn}>
+          <Pressable
+            className="flex-1 rounded-full border border-border bg-background px-3 py-2 md:flex-none"
+            onPress={onOpenSignIn}
+          >
             <Text className="text-center text-sm font-semibold text-heading">Sign In</Text>
           </Pressable>
         </View>

@@ -1,7 +1,7 @@
 import type { PropsWithChildren } from 'react';
 import type { LayoutChangeEvent, StyleProp, TextStyle, ViewStyle } from 'react-native';
 import { View } from 'react-native';
-import Animated from 'react-native-reanimated';
+import Animated, { type AnimatedStyle } from 'react-native-reanimated';
 import { SemanticText } from './semantic-elements';
 
 const toneClasses = {
@@ -35,7 +35,7 @@ type LandingSectionProps = PropsWithChildren<{
   minHeight?: number;
   onLayout?: (event: LayoutChangeEvent) => void;
   backgroundStyle?: StyleProp<ViewStyle>;
-  sectionStyle?: StyleProp<ViewStyle>;
+  sectionStyle?: StyleProp<AnimatedStyle<ViewStyle>>;
   eyebrowClassName?: string;
   titleClassName?: string;
   eyebrowStyle?: StyleProp<TextStyle>;

@@ -2,6 +2,7 @@
   "expo": {
     "name": "Time2Pay",
     "slug": "time2pay",
+    "scheme": "time2pay",
     "version": "1.0.0",
     "userInterfaceStyle": "automatic",
     "orientation": "portrait",
@@ -10,14 +11,12 @@
         "expo-router",
         {
           "origin": "https://lucid-lewin.108-175-12-95.plesk.page",
-          "sitemap": false,
-          "headers": {
-            "Cross-Origin-Embedder-Policy": "credentialless",
-            "Cross-Origin-Opener-Policy": "same-origin"
-          }
+          "sitemap": false
         }
       ],
-      "expo-sqlite"
+      "expo-sqlite",
+      "expo-font",
+      "expo-status-bar"
     ],
     "experiments": {
       "typedRoutes": true,

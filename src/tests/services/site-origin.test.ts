@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  normalizeHostedWriteError,
+  resolveHostedWriteUrl,
+} from '@/database/hosted/shared/runtime';
+import {
   requireConfiguredSiteOrigin,
   resolveBrowserSiteOrigin,
   resolveSiteOrigin,
@@ -42,6 +46,17 @@ describe('site-origin', () => {
     expect(resolveBrowserSiteOrigin()).toBe('https://time2pay.app');
   });
 
+  it('uses the active local browser origin for hosted writes instead of forcing the configured origin', () => {
+    process.env.EXPO_PUBLIC_SITE_ORIGIN = 'https://staging.time2pay.app/';
+    (globalThis as Record<string, unknown>).window = {
+      location: { origin: 'http://localhost:8082' },
+    };
+
+    expect(resolveHostedWriteUrl('/api/db/sessions/start')).toBe(
+      'http://localhost:8082/api/db/sessions/start',
+    );
+  });
+
   it('falls back to the current window origin when the env var is missing', () => {
     process.env.EXPO_PUBLIC_SITE_ORIGIN = '';
     (globalThis as Record<string, unknown>).window = {
@@ -72,5 +87,11 @@ describe('site-origin', () => {
     expect(() => requireConfiguredSiteOrigin()).toThrow(
       'EXPO_PUBLIC_SITE_ORIGIN must be a valid absolute URL.',
     );
+  });
+
+  it('turns raw stack traces into a user-friendly write error', () => {
+    expect(
+      normalizeHostedWriteError('TypeError: Cannot read properties of undefined (reading \'action\')'),
+    ).toBe('We couldn’t save this change. Please refresh and try again.');
   });
 });

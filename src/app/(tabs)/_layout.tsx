@@ -1,29 +1,52 @@
 import { Tabs, usePathname, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { StyleSheet, useColorScheme, View } from 'react-native';
+import { View } from 'react-native';
+import { useUniwind } from 'uniwind';
 import { AppLoadingShell } from '@/components/app-loading-shell';
 import { RouteNav } from '@/components/route-nav';
+import { canvasBackground } from '@/components/workspace-nav';
 import { useResolvedDataMode } from '@/hooks/use-resolved-data-mode';
 import { getProfileCompletion } from '@/services/profile-completion';
+import { resolveHostedRouteGate } from '@/features/onboarding/onboarding-route-gate';
 import { useAuthUiStore } from '@/stores/auth-ui-store';
 
 export default function TabsLayout() {
   const pathname = usePathname();
   const router = useRouter();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
+  const { theme } = useUniwind();
   const { hostedMode, resolved: dataModeResolved } = useResolvedDataMode();
+  const authReady = useAuthUiStore((state) => state.authReady);
+  const isAuthenticated = useAuthUiStore((state) => state.isAuthenticated);
+  const onboardingGateReady = useAuthUiStore((state) => state.onboardingGateReady);
+  const onboardingGateStatus = useAuthUiStore((state) => state.onboardingGateStatus);
+  const hostedAccessGateReady = useAuthUiStore((state) => state.hostedAccessGateReady);
+  const hostedAccessGateStatus = useAuthUiStore((state) => state.hostedAccessGateStatus);
   const tourModeEnabled = useAuthUiStore((state) => state.tourModeEnabled);
-  const shouldBypassProfileGate = dataModeResolved && hostedMode && tourModeEnabled;
-  const normalizedPathname = pathname !== '/' ? pathname.replace(/\/+$/, '') : pathname;
-  const isProfileRoute = normalizedPathname === '/profile';
+  const tourModeHydrated = useAuthUiStore((state) => state.tourModeHydrated);
+  const routeGate = resolveHostedRouteGate({
+    authReady,
+    hostedAccessGateReady,
+    hostedAccessGateStatus,
+    hostedMode,
+    isAuthenticated,
+    isTourSeedReady: true,
+    onboardingGateReady,
+    onboardingGateStatus,
+    pathname,
+    tourModeEnabled,
+    tourModeHydrated,
+  });
+  const shouldHoldTabsForRootGate =
+    hostedMode && (!routeGate.canAccessAppRoutes || routeGate.shouldShowLoadingShell);
+  const shouldBypassProfileGate =
+    shouldHoldTabsForRootGate || (dataModeResolved && tourModeEnabled);
   const [profileGateReady, setProfileGateReady] = useState(false);
   const [profileComplete, setProfileComplete] = useState(true);
 
   useEffect(() => {
     let isActive = true;
 
-    if (shouldBypassProfileGate || isProfileRoute) {
+    if (shouldBypassProfileGate) {
       setProfileComplete(true);
       setProfileGateReady(true);
       return () => {
@@ -57,26 +80,34 @@ export default function TabsLayout() {
     return () => {
       isActive = false;
     };
-  }, [isProfileRoute, shouldBypassProfileGate]);
+  }, [shouldBypassProfileGate]);
 
   useEffect(() => {
-    if (!profileGateReady || shouldBypassProfileGate || isProfileRoute || profileComplete) {
+    if (!profileGateReady || shouldBypassProfileGate || profileComplete) {
       return;
     }
 
-    router.replace('/profile');
-  }, [isProfileRoute, profileComplete, profileGateReady, router, shouldBypassProfileGate]);
+    router.replace('/settings');
+  }, [profileComplete, profileGateReady, router, shouldBypassProfileGate]);
 
-  const isTabsGateLoading = !profileGateReady && !shouldBypassProfileGate && !isProfileRoute;
+  const isTabsGateLoading = !profileGateReady && !shouldBypassProfileGate;
 
-  const backgroundColor = isDark ? '#1a1f16' : '#f8f7f3';
+  const backgroundColor = canvasBackground(theme === 'dark');
+
+  if (shouldHoldTabsForRootGate) {
+    return (
+      <View className="flex-1" style={{ backgroundColor }}>
+        <AppLoadingShell />
+      </View>
+    );
+  }
 
   return (
-    <View style={[styles.container, { backgroundColor }]}>
-      <View style={styles.navContainer}>
+    <View className="flex-1" style={{ backgroundColor }}>
+      <View className="px-6 pt-7 pb-5">
         <RouteNav />
       </View>
-      <View style={styles.tabsContainer}>
+      <View className="flex-1">
         <Tabs
           backBehavior="history"
           detachInactiveScreens={false}
@@ -95,34 +126,15 @@ export default function TabsLayout() {
         >
           <Tabs.Screen name="dashboard" options={{ title: 'Dashboard' }} />
           <Tabs.Screen name="sessions" options={{ title: 'Sessions' }} />
-          <Tabs.Screen name="projects" options={{ title: 'Projects' }} />
           <Tabs.Screen name="invoices" options={{ title: 'Invoices' }} />
-          <Tabs.Screen name="bank" options={{ title: 'Bank' }} />
-          <Tabs.Screen name="payments" options={{ title: 'Payments' }} />
-          <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
+          <Tabs.Screen name="mercury" options={{ title: 'Mercury' }} />
         </Tabs>
       </View>
       {isTabsGateLoading ? (
-        <View
-          style={[StyleSheet.absoluteFill, { pointerEvents: 'auto', zIndex: 9999, elevation: 9999 }]}
-        >
+        <View className="absolute inset-0" pointerEvents="auto" style={{ zIndex: 9999, elevation: 9999 }}>
           <AppLoadingShell />
         </View>
       ) : null}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  navContainer: {
-    paddingHorizontal: 24,
-    paddingTop: 24,
-    paddingBottom: 8,
-  },
-  tabsContainer: {
-    flex: 1,
-  },
-});

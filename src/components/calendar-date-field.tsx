@@ -1,6 +1,7 @@
 import DateTimePicker, { type DateType } from 'react-native-ui-datepicker';
 import { useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
+import { AnimatedSizeView } from '@/components/animated-size-view';
 
 type CalendarDateFieldProps = {
   label: string;
@@ -59,7 +60,7 @@ export function CalendarDateField({ label, value, onChange }: CalendarDateFieldP
         <Text className="text-foreground">{selectedDate.toLocaleDateString()}</Text>
       </Pressable>
 
-      {open ? (
+      <AnimatedSizeView expanded={open} className="gap-2">
         <View className="gap-2 rounded-md border border-border bg-background p-2">
           <DateTimePicker
             mode="single"
@@ -74,7 +75,7 @@ export function CalendarDateField({ label, value, onChange }: CalendarDateFieldP
             }}
           />
         </View>
-      ) : null}
+      </AnimatedSizeView>
     </View>
   );
 }

@@ -9,6 +9,12 @@ type ReferralRow = {
   click_count: number;
   first_clicked_at: string | null;
   last_clicked_at: string | null;
+  application_started_at: string | null;
+  qualification_deadline_at: string | null;
+  qualified_at: string | null;
+  failed_at: string | null;
+  expired_at: string | null;
+  verification_source: string | null;
   premium_access_granted_at: string | null;
   deleted_at: string | null;
 };
@@ -57,18 +63,31 @@ const fakeDb = {
           first_clicked_at: testState.row.first_clicked_at ?? firstClickedAt,
           last_clicked_at: lastClickedAt,
           status:
-            testState.row.status === 'qualified' || testState.row.status === 'rejected'
+            [
+              'application_started',
+              'pending_qualification',
+              'qualified',
+              'failed',
+              'expired',
+              'existing_customer',
+            ].includes(testState.row.status)
               ? testState.row.status
-              : 'pending_review',
+              : 'clicked',
           deleted_at: null,
         };
       } else {
         testState.row = {
           referral_url: referralUrl,
-          status: 'pending_review',
+            status: 'clicked',
           click_count: 1,
           first_clicked_at: firstClickedAt,
           last_clicked_at: lastClickedAt,
+            application_started_at: null,
+            qualification_deadline_at: null,
+            qualified_at: null,
+            failed_at: null,
+            expired_at: null,
+            verification_source: null,
           premium_access_granted_at: null,
           deleted_at: null,
         };
@@ -96,26 +115,32 @@ describe('Mercury referral tracking', () => {
 
     await expect(getMercuryReferralStatusForUser('user-1')).resolves.toEqual({
       referralUrl: 'https://mercury.com/partner/time2pay',
-      status: 'none',
+      status: 'not_started',
       clickCount: 0,
       firstClickedAt: null,
       lastClickedAt: null,
+      applicationStartedAt: null,
+      qualificationDeadlineAt: null,
+      qualifiedAt: null,
+      failedAt: null,
+      expiredAt: null,
+      verificationSource: null,
       premiumAccess: false,
       premiumAccessGrantedAt: null,
     });
   });
 
-  it('records authenticated referral clicks as pending review', async () => {
+  it('records authenticated referral clicks without treating them as qualification proof', async () => {
     const { recordMercuryReferralClickForUser } = await import('@/server/mercury/referrals');
 
     await expect(recordMercuryReferralClickForUser('user-1')).resolves.toMatchObject({
-      status: 'pending_review',
+      status: 'clicked',
       clickCount: 1,
       premiumAccess: false,
     });
 
     await expect(recordMercuryReferralClickForUser('user-1')).resolves.toMatchObject({
-      status: 'pending_review',
+      status: 'clicked',
       clickCount: 2,
       premiumAccess: false,
     });
@@ -128,6 +153,12 @@ describe('Mercury referral tracking', () => {
       click_count: 1,
       first_clicked_at: '2026-04-20T12:00:00.000Z',
       last_clicked_at: '2026-04-20T12:00:00.000Z',
+      application_started_at: null,
+      qualification_deadline_at: null,
+      qualified_at: '2026-04-20T13:00:00.000Z',
+      failed_at: null,
+      expired_at: null,
+      verification_source: 'manual',
       premium_access_granted_at: '2026-04-20T13:00:00.000Z',
       deleted_at: null,
     };

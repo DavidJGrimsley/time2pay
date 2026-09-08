@@ -1,0 +1,920 @@
+import type Stripe from 'stripe';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { BillingError } from '@/server/billing/errors';
+
+const mocks = vi.hoisted(() => ({
+  resolveHostedAccess: vi.fn(),
+  getStripeBillingConfig: vi.fn(),
+  getStripeWebhookSecret: vi.fn(),
+  withWriteDb: vi.fn(),
+  getBillingCustomerForUser: vi.fn(),
+  claimBillingWebhookEvent: vi.fn(),
+  markBillingWebhookEventProcessed: vi.fn(),
+  markBillingWebhookEventFailed: vi.fn(),
+  getBillingCustomerByProviderCustomer: vi.fn(),
+  getBillingSubscriptionByProviderSubscription: vi.fn(),
+  upsertBillingCustomer: vi.fn(),
+  upsertBillingSubscription: vi.fn(),
+  upsertBillingPurchase: vi.fn(),
+  upsertAccessGrant: vi.fn(),
+  expireAccessGrant: vi.fn(),
+  revokeAccessGrant: vi.fn(),
+  updateBillingPurchaseStatus: vi.fn(),
+}));
+
+vi.mock('@/server/billing/entitlements', () => ({
+  resolveHostedAccess: mocks.resolveHostedAccess,
+}));
+
+vi.mock('@/server/billing/stripe', () => ({
+  getStripeBillingConfig: mocks.getStripeBillingConfig,
+  getStripeWebhookSecret: mocks.getStripeWebhookSecret,
+}));
+
+vi.mock('@/server/db/_shared/db', () => ({
+  withWriteDb: mocks.withWriteDb,
+}));
+
+vi.mock('@/database/hosted/billing/queries', () => ({
+  claimBillingWebhookEvent: mocks.claimBillingWebhookEvent,
+  expireAccessGrant: mocks.expireAccessGrant,
+  getBillingCustomerByProviderCustomer: mocks.getBillingCustomerByProviderCustomer,
+  getBillingCustomerForUser: mocks.getBillingCustomerForUser,
+  getBillingSubscriptionByProviderSubscription: mocks.getBillingSubscriptionByProviderSubscription,
+  markBillingWebhookEventFailed: mocks.markBillingWebhookEventFailed,
+  markBillingWebhookEventProcessed: mocks.markBillingWebhookEventProcessed,
+  revokeAccessGrant: mocks.revokeAccessGrant,
+  updateBillingPurchaseStatus: mocks.updateBillingPurchaseStatus,
+  upsertAccessGrant: mocks.upsertAccessGrant,
+  upsertBillingCustomer: mocks.upsertBillingCustomer,
+  upsertBillingPurchase: mocks.upsertBillingPurchase,
+  upsertBillingSubscription: mocks.upsertBillingSubscription,
+}));
+
+const fakeDb = {
+  transaction: vi.fn(async (work: (transaction: unknown) => unknown) => work(fakeDb)),
+};
+
+function stripeConfig(overrides: Record<string, unknown> = {}): unknown {
+  return {
+    siteOrigin: 'https://time2pay.example',
+    priceIds: {
+      annual: 'price_annual',
+      monthly: 'price_monthly',
+      mercury_lifetime: 'price_mercury_lifetime',
+    },
+    gracePeriodDays: 7,
+    client: {
+      customers: {
+        create: vi.fn(),
+        retrieve: vi.fn().mockResolvedValue({
+          deleted: false,
+          invoice_settings: { default_payment_method: null },
+        }),
+        update: vi.fn(),
+      },
+      checkout: {
+        sessions: {
+          create: vi.fn(),
+          retrieve: vi.fn(),
+          listLineItems: vi.fn(),
+        },
+      },
+      subscriptions: {
+        retrieve: vi.fn(),
+        list: vi.fn().mockResolvedValue({ data: [] }),
+        update: vi.fn(),
+      },
+      invoices: { createPreview: vi.fn() },
+      paymentIntents: { retrieve: vi.fn() },
+      charges: { retrieve: vi.fn() },
+      paymentMethods: {
+        detach: vi.fn(),
+        retrieve: vi.fn(),
+        list: vi.fn().mockResolvedValue({ data: [] }),
+      },
+      setupIntents: { create: vi.fn() },
+      webhooks: { constructEvent: vi.fn() },
+      ...overrides,
+    },
+  };
+}
+
+function stripeSubscription(
+  overrides: {
+    id: string;
+    status: Stripe.Subscription.Status;
+    priceId?: string;
+    periodEnd?: number;
+    metadata?: Record<string, string>;
+    cancelAtPeriodEnd?: boolean;
+  },
+): Stripe.Subscription {
+  return {
+    id: overrides.id,
+    customer: 'cus_123',
+    metadata: overrides.metadata ?? { authUserId: 'user-1' },
+    status: overrides.status,
+    cancel_at_period_end: overrides.cancelAtPeriodEnd ?? false,
+    canceled_at: overrides.status === 'canceled' ? 1_700_000_000 : null,
+    items: {
+      data: [
+        {
+          price: { id: overrides.priceId ?? 'price_annual' },
+          current_period_start: 1_900_000_000,
+          current_period_end: overrides.periodEnd ?? 2_000_000_000,
+        },
+      ],
+    },
+  } as unknown as Stripe.Subscription;
+}
+
+describe('Stripe billing service', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.withWriteDb.mockImplementation(async (work: (db: typeof fakeDb) => unknown) => work(fakeDb));
+    mocks.getBillingCustomerForUser.mockResolvedValue({ providerCustomerId: 'cus_123' });
+    mocks.resolveHostedAccess.mockResolvedValue({
+      hasAccess: false,
+      status: 'payment_required',
+      source: null,
+      validUntil: null,
+      eligibleOffers: ['annual', 'monthly'],
+    });
+    mocks.getBillingSubscriptionByProviderSubscription.mockResolvedValue(null);
+    mocks.upsertBillingPurchase.mockResolvedValue('completed');
+  });
+
+  it('creates an annual Checkout Session only from the configured server price', async () => {
+    const config = stripeConfig() as {
+      client: { checkout: { sessions: { create: ReturnType<typeof vi.fn> } } };
+    };
+    config.client.checkout.sessions.create.mockResolvedValue({
+      client_secret: 'cs_test_secret_123',
+    });
+    mocks.getStripeBillingConfig.mockReturnValue(config);
+    const { createStripeCheckoutSession } = await import('@/server/billing/stripe-service');
+
+    await expect(createStripeCheckoutSession('user-1', 'annual')).resolves.toEqual({
+      clientSecret: 'cs_test_secret_123',
+    });
+
+    expect(config.client.checkout.sessions.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: 'subscription',
+        customer: 'cus_123',
+        line_items: [{ price: 'price_annual', quantity: 1 }],
+        metadata: { authUserId: 'user-1', offer: 'annual' },
+        ui_mode: 'embedded_page',
+        redirect_on_completion: 'if_required',
+        return_url:
+          'https://time2pay.example/settings/billing?checkout=return&session_id={CHECKOUT_SESSION_ID}',
+        branding_settings: {
+          background_color: '#f8f7f3',
+          button_color: '#1a1f16',
+          border_style: 'rounded',
+          display_name: 'Time2Pay',
+          font_family: 'inter',
+        },
+      }),
+    );
+  });
+
+  it('uses darker Stripe branding when the checkout session starts in dark mode', async () => {
+    const config = stripeConfig() as {
+      client: { checkout: { sessions: { create: ReturnType<typeof vi.fn> } } };
+    };
+    config.client.checkout.sessions.create.mockResolvedValue({
+      client_secret: 'cs_test_secret_dark',
+    });
+    mocks.getStripeBillingConfig.mockReturnValue(config);
+    const { createStripeCheckoutSession } = await import('@/server/billing/stripe-service');
+
+    await createStripeCheckoutSession('user-1', 'annual', undefined, 'dark');
+
+    expect(config.client.checkout.sessions.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        branding_settings: {
+          background_color: '#24291f',
+          button_color: '#d4955f',
+          border_style: 'rounded',
+          display_name: 'Time2Pay',
+          font_family: 'inter',
+        },
+      }),
+    );
+  });
+
+  it('refuses the hidden Mercury lifetime offer before contacting Stripe when the server says it is ineligible', async () => {
+    mocks.resolveHostedAccess.mockResolvedValue({
+      hasAccess: false,
+      status: 'payment_required',
+      source: null,
+      validUntil: null,
+      eligibleOffers: ['annual', 'monthly'],
+    });
+    const { createStripeCheckoutSession } = await import('@/server/billing/stripe-service');
+
+    await expect(createStripeCheckoutSession('user-1', 'mercury_lifetime')).rejects.toMatchObject({
+      status: 403,
+      code: 'billing_offer_ineligible',
+    } satisfies Partial<BillingError>);
+
+    expect(mocks.getStripeBillingConfig).not.toHaveBeenCalled();
+  });
+
+  it('returns redirect payment methods to the active localhost Expo port', async () => {
+    const config = stripeConfig() as {
+      siteOrigin: string;
+      client: { checkout: { sessions: { create: ReturnType<typeof vi.fn> } } };
+    };
+    config.siteOrigin = 'http://localhost:3000';
+    config.client.checkout.sessions.create.mockResolvedValue({
+      client_secret: 'cs_test_secret_local',
+    });
+    mocks.getStripeBillingConfig.mockReturnValue(config);
+    const { createStripeCheckoutSession } = await import('@/server/billing/stripe-service');
+
+    await createStripeCheckoutSession(
+      'user-1',
+      'annual',
+      'http://localhost:8081/api/billing/checkout',
+    );
+
+    expect(config.client.checkout.sessions.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        return_url:
+          'http://localhost:8081/settings/billing?checkout=return&session_id={CHECKOUT_SESSION_ID}',
+      }),
+    );
+  });
+
+  it('returns the current subscription for the in-app billing manager', async () => {
+    const config = stripeConfig() as {
+      client: { subscriptions: { list: ReturnType<typeof vi.fn> } };
+    };
+    config.client.subscriptions.list.mockResolvedValue({
+      data: [
+        stripeSubscription({
+          id: 'sub_annual',
+          status: 'active',
+          priceId: 'price_annual',
+        }),
+      ],
+    });
+    mocks.getStripeBillingConfig.mockReturnValue(config);
+    const { getStripeSubscriptionManagement } = await import(
+      '@/server/billing/stripe-service'
+    );
+
+    await expect(getStripeSubscriptionManagement('user-1')).resolves.toEqual({
+      plan: 'annual',
+      status: 'active',
+      currentPeriodEnd: new Date(2_000_000_000 * 1000).toISOString(),
+      cancelAtPeriodEnd: false,
+      paymentMethod: null,
+    });
+  });
+
+  it('returns the current card summary without storing card data in Time2Pay', async () => {
+    const config = stripeConfig() as {
+      client: {
+        subscriptions: { list: ReturnType<typeof vi.fn> };
+        paymentMethods: { retrieve: ReturnType<typeof vi.fn> };
+      };
+    };
+    const subscription = stripeSubscription({
+      id: 'sub_annual',
+      status: 'active',
+      priceId: 'price_annual',
+    });
+    Object.assign(subscription, { default_payment_method: 'pm_card_123' });
+    config.client.subscriptions.list.mockResolvedValue({ data: [subscription] });
+    config.client.paymentMethods.retrieve.mockResolvedValue({
+      id: 'pm_card_123',
+      customer: 'cus_123',
+      type: 'card',
+      card: { brand: 'visa', last4: '4242', exp_month: 8, exp_year: 2030 },
+    });
+    mocks.getStripeBillingConfig.mockReturnValue(config);
+    const { getStripeSubscriptionManagement } = await import(
+      '@/server/billing/stripe-service'
+    );
+
+    await expect(getStripeSubscriptionManagement('user-1')).resolves.toMatchObject({
+      paymentMethod: { brand: 'visa', last4: '4242', expMonth: 8, expYear: 2030 },
+    });
+  });
+
+  it('switches the active subscription plan with Stripe proration', async () => {
+    const config = stripeConfig() as {
+      client: {
+        subscriptions: {
+          list: ReturnType<typeof vi.fn>;
+          update: ReturnType<typeof vi.fn>;
+        };
+      };
+    };
+    const subscription = stripeSubscription({
+      id: 'sub_monthly',
+      status: 'active',
+      priceId: 'price_monthly',
+    });
+    Object.assign(subscription.items.data[0] as unknown as Record<string, unknown>, {
+      id: 'si_monthly',
+      quantity: 1,
+    });
+    const updatedSubscription = stripeSubscription({
+      id: 'sub_monthly',
+      status: 'active',
+      priceId: 'price_annual',
+      periodEnd: 2_100_000_000,
+    });
+    config.client.subscriptions.list.mockResolvedValue({ data: [subscription] });
+    config.client.subscriptions.update.mockResolvedValue(updatedSubscription);
+    mocks.getStripeBillingConfig.mockReturnValue(config);
+    const { updateStripeSubscriptionManagement } = await import(
+      '@/server/billing/stripe-service'
+    );
+
+    await expect(
+      updateStripeSubscriptionManagement('user-1', {
+        action: 'switch_plan',
+        plan: 'annual',
+      }),
+    ).resolves.toMatchObject({
+      plan: 'annual',
+      cancelAtPeriodEnd: false,
+    });
+
+    expect(config.client.subscriptions.update).toHaveBeenCalledWith('sub_monthly', {
+      cancel_at_period_end: false,
+      items: [
+        {
+          id: 'si_monthly',
+          price: 'price_annual',
+          quantity: 1,
+        },
+      ],
+      payment_behavior: 'error_if_incomplete',
+      proration_behavior: 'always_invoice',
+      proration_date: 1_900_000_000,
+    });
+  });
+
+  it('refuses to prorate a delinquent subscription plan', async () => {
+    const config = stripeConfig() as {
+      client: {
+        subscriptions: {
+          list: ReturnType<typeof vi.fn>;
+          update: ReturnType<typeof vi.fn>;
+        };
+      };
+    };
+    config.client.subscriptions.list.mockResolvedValue({
+      data: [stripeSubscription({ id: 'sub_past_due', status: 'past_due' })],
+    });
+    mocks.getStripeBillingConfig.mockReturnValue(config);
+    const { updateStripeSubscriptionManagement } = await import(
+      '@/server/billing/stripe-service'
+    );
+
+    await expect(
+      updateStripeSubscriptionManagement('user-1', {
+        action: 'switch_plan',
+        plan: 'monthly',
+      }),
+    ).rejects.toMatchObject({
+      status: 409,
+      code: 'billing_plan_switch_unavailable',
+    } satisfies Partial<BillingError>);
+    expect(config.client.subscriptions.update).not.toHaveBeenCalled();
+  });
+
+  it('previews the Stripe invoice impact before switching plans', async () => {
+    const config = stripeConfig() as {
+      client: {
+        invoices: { createPreview: ReturnType<typeof vi.fn> };
+        subscriptions: { list: ReturnType<typeof vi.fn> };
+      };
+    };
+    const subscription = stripeSubscription({
+      id: 'sub_annual',
+      status: 'active',
+      priceId: 'price_annual',
+    });
+    Object.assign(subscription.items.data[0] as unknown as Record<string, unknown>, {
+      id: 'si_annual',
+      quantity: 1,
+    });
+    config.client.subscriptions.list.mockResolvedValue({ data: [subscription] });
+    config.client.invoices.createPreview.mockResolvedValue({
+      currency: 'usd',
+      amount_due: 0,
+      total: -1600,
+      lines: {
+        data: [
+          {
+            amount: -1800,
+            parent: { subscription_item_details: { proration: true } },
+          },
+          {
+            amount: 200,
+            parent: { subscription_item_details: { proration: true } },
+          },
+        ],
+      },
+    });
+    mocks.getStripeBillingConfig.mockReturnValue(config);
+    const { previewStripeSubscriptionPlanSwitch } = await import(
+      '@/server/billing/stripe-service'
+    );
+
+    await expect(previewStripeSubscriptionPlanSwitch('user-1', 'monthly')).resolves.toEqual({
+      currentPlan: 'annual',
+      targetPlan: 'monthly',
+      currency: 'usd',
+      prorationDate: 1_900_000_000,
+      proratedCreditCents: 1800,
+      immediateChargeCents: 200,
+      amountDueNowCents: 0,
+      futureCreditCents: 1600,
+    });
+    expect(config.client.invoices.createPreview).toHaveBeenCalledWith({
+      customer: 'cus_123',
+      subscription: 'sub_annual',
+      subscription_details: {
+        cancel_at_period_end: false,
+        items: [
+          {
+            id: 'si_annual',
+            price: 'price_monthly',
+            quantity: 1,
+          },
+        ],
+        proration_behavior: 'always_invoice',
+        proration_date: 1_900_000_000,
+      },
+    });
+  });
+
+  it('falls back to a saved customer card when Stripe did not mark a default', async () => {
+    const config = stripeConfig() as {
+      client: {
+        subscriptions: { list: ReturnType<typeof vi.fn> };
+        paymentMethods: { list: ReturnType<typeof vi.fn> };
+      };
+    };
+    const subscription = stripeSubscription({
+      id: 'sub_monthly',
+      status: 'active',
+      priceId: 'price_monthly',
+    });
+    config.client.subscriptions.list.mockResolvedValue({ data: [subscription] });
+    config.client.paymentMethods.list.mockResolvedValue({
+      data: [
+        {
+          id: 'pm_saved_card',
+          customer: 'cus_123',
+          type: 'card',
+          card: { brand: 'visa', last4: '4242', exp_month: 8, exp_year: 2030 },
+        },
+      ],
+    });
+    mocks.getStripeBillingConfig.mockReturnValue(config);
+    const { getStripeSubscriptionManagement } = await import(
+      '@/server/billing/stripe-service'
+    );
+
+    await expect(getStripeSubscriptionManagement('user-1')).resolves.toMatchObject({
+      paymentMethod: { brand: 'visa', last4: '4242', expMonth: 8, expYear: 2030 },
+    });
+    expect(config.client.paymentMethods.list).toHaveBeenCalledWith({
+      customer: 'cus_123',
+      type: 'card',
+      limit: 1,
+    });
+  });
+
+  it('creates a customer-bound SetupIntent before showing the payment-method form', async () => {
+    const config = stripeConfig() as {
+      client: {
+        subscriptions: { list: ReturnType<typeof vi.fn> };
+        setupIntents: { create: ReturnType<typeof vi.fn> };
+      };
+    };
+    config.client.subscriptions.list.mockResolvedValue({
+      data: [stripeSubscription({ id: 'sub_annual', status: 'active' })],
+    });
+    config.client.setupIntents.create.mockResolvedValue({ client_secret: 'seti_secret_123' });
+    mocks.getStripeBillingConfig.mockReturnValue(config);
+    const { createStripePaymentMethodSetup } = await import('@/server/billing/stripe-service');
+
+    await expect(createStripePaymentMethodSetup('user-1')).resolves.toEqual({
+      clientSecret: 'seti_secret_123',
+    });
+    expect(config.client.setupIntents.create).toHaveBeenCalledWith({
+      customer: 'cus_123',
+      payment_method_types: ['card'],
+      usage: 'off_session',
+    });
+  });
+
+  it('uses a confirmed customer card for future subscription invoices', async () => {
+    const config = stripeConfig() as {
+      client: {
+        customers: { update: ReturnType<typeof vi.fn> };
+        subscriptions: {
+          list: ReturnType<typeof vi.fn>;
+          update: ReturnType<typeof vi.fn>;
+        };
+        paymentMethods: { retrieve: ReturnType<typeof vi.fn> };
+      };
+    };
+    const subscription = stripeSubscription({ id: 'sub_annual', status: 'active' });
+    config.client.subscriptions.list.mockResolvedValue({ data: [subscription] });
+    config.client.paymentMethods.retrieve.mockResolvedValue({
+      id: 'pm_card_456',
+      customer: 'cus_123',
+      type: 'card',
+      card: { brand: 'mastercard', last4: '4444', exp_month: 10, exp_year: 2031 },
+    });
+    config.client.subscriptions.update.mockResolvedValue(subscription);
+    mocks.getStripeBillingConfig.mockReturnValue(config);
+    const { updateStripePaymentMethod } = await import('@/server/billing/stripe-service');
+
+    await expect(updateStripePaymentMethod('user-1', 'pm_card_456')).resolves.toMatchObject({
+      paymentMethod: { brand: 'mastercard', last4: '4444' },
+    });
+    expect(config.client.customers.update).toHaveBeenCalledWith('cus_123', {
+      invoice_settings: { default_payment_method: 'pm_card_456' },
+    });
+    expect(config.client.subscriptions.update).toHaveBeenCalledWith('sub_annual', {
+      default_payment_method: 'pm_card_456',
+    });
+  });
+
+  it('refuses to remove the saved card while renewal is still active', async () => {
+    const config = stripeConfig() as {
+      client: {
+        paymentMethods: { detach: ReturnType<typeof vi.fn> };
+        subscriptions: { list: ReturnType<typeof vi.fn> };
+      };
+    };
+    const subscription = stripeSubscription({ id: 'sub_annual', status: 'active' });
+    config.client.subscriptions.list.mockResolvedValue({ data: [subscription] });
+    mocks.getStripeBillingConfig.mockReturnValue(config);
+    const { removeStripePaymentMethod } = await import('@/server/billing/stripe-service');
+
+    await expect(removeStripePaymentMethod('user-1')).rejects.toMatchObject({
+      status: 409,
+      code: 'billing_card_required_for_active_subscription',
+    } satisfies Partial<BillingError>);
+    expect(config.client.paymentMethods.detach).not.toHaveBeenCalled();
+  });
+
+  it('detaches the saved Stripe card after renewal is off', async () => {
+    const config = stripeConfig() as {
+      client: {
+        customers: { update: ReturnType<typeof vi.fn> };
+        paymentMethods: {
+          detach: ReturnType<typeof vi.fn>;
+          retrieve: ReturnType<typeof vi.fn>;
+        };
+        subscriptions: {
+          list: ReturnType<typeof vi.fn>;
+          update: ReturnType<typeof vi.fn>;
+        };
+      };
+    };
+    const subscription = stripeSubscription({
+      id: 'sub_annual',
+      status: 'active',
+      cancelAtPeriodEnd: true,
+    });
+    Object.assign(subscription, { default_payment_method: 'pm_card_456' });
+    config.client.subscriptions.list.mockResolvedValue({ data: [subscription] });
+    config.client.paymentMethods.retrieve.mockResolvedValue({
+      id: 'pm_card_456',
+      customer: 'cus_123',
+      type: 'card',
+      card: { brand: 'visa', last4: '4242', exp_month: 8, exp_year: 2030 },
+    });
+    config.client.subscriptions.update.mockResolvedValue(subscription);
+    config.client.paymentMethods.detach.mockResolvedValue({ id: 'pm_card_456', deleted: false });
+    mocks.getStripeBillingConfig.mockReturnValue(config);
+    const { removeStripePaymentMethod } = await import('@/server/billing/stripe-service');
+
+    await expect(removeStripePaymentMethod('user-1')).resolves.toMatchObject({
+      paymentMethod: null,
+    });
+    expect(config.client.subscriptions.update).toHaveBeenCalledWith('sub_annual', {
+      default_payment_method: '',
+    });
+    expect(config.client.customers.update).toHaveBeenCalledWith('cus_123', {
+      invoice_settings: { default_payment_method: '' },
+    });
+    expect(config.client.paymentMethods.detach).toHaveBeenCalledWith('pm_card_456');
+  });
+
+  it('turns renewal off through the authenticated subscription manager', async () => {
+    const currentSubscription = stripeSubscription({
+      id: 'sub_annual',
+      status: 'active',
+      priceId: 'price_annual',
+    });
+    const updatedSubscription = stripeSubscription({
+      id: 'sub_annual',
+      status: 'active',
+      priceId: 'price_annual',
+      cancelAtPeriodEnd: true,
+    });
+    const config = stripeConfig() as {
+      client: {
+        subscriptions: {
+          list: ReturnType<typeof vi.fn>;
+          update: ReturnType<typeof vi.fn>;
+        };
+      };
+    };
+    config.client.subscriptions.list
+      .mockResolvedValueOnce({ data: [currentSubscription] })
+      .mockResolvedValue({ data: [updatedSubscription] });
+    config.client.subscriptions.update.mockResolvedValue(updatedSubscription);
+    mocks.getStripeBillingConfig.mockReturnValue(config);
+    const { updateStripeSubscriptionManagement } = await import(
+      '@/server/billing/stripe-service'
+    );
+
+    await expect(
+      updateStripeSubscriptionManagement('user-1', { action: 'cancel_at_period_end' }),
+    ).resolves.toMatchObject({
+      plan: 'annual',
+      cancelAtPeriodEnd: true,
+    });
+    expect(config.client.subscriptions.update).toHaveBeenCalledWith('sub_annual', {
+      cancel_at_period_end: true,
+    });
+  });
+
+  it('does not restore lifetime access from a refunded Checkout Session', async () => {
+    const config = stripeConfig() as {
+      client: {
+        checkout: {
+          sessions: {
+            retrieve: ReturnType<typeof vi.fn>;
+            listLineItems: ReturnType<typeof vi.fn>;
+          };
+        };
+        paymentIntents: { retrieve: ReturnType<typeof vi.fn> };
+      };
+    };
+    config.client.checkout.sessions.retrieve.mockResolvedValue({
+      id: 'cs_lifetime_refunded',
+      mode: 'payment',
+      payment_status: 'paid',
+      payment_intent: 'pi_refunded',
+      customer: 'cus_123',
+      metadata: { authUserId: 'user-1', offer: 'mercury_lifetime' },
+      created: 1_900_000_000,
+    });
+    config.client.checkout.sessions.listLineItems.mockResolvedValue({
+      data: [{ price: { id: 'price_mercury_lifetime' } }],
+    });
+    config.client.paymentIntents.retrieve.mockResolvedValue({
+      id: 'pi_refunded',
+      status: 'succeeded',
+      latest_charge: {
+        id: 'ch_refunded',
+        paid: true,
+        refunded: true,
+        disputed: false,
+        amount_refunded: 2_000,
+      },
+    });
+    mocks.getBillingCustomerByProviderCustomer.mockResolvedValue({ authUserId: 'user-1' });
+    mocks.updateBillingPurchaseStatus.mockResolvedValue({ authUserId: 'user-1' });
+    mocks.getStripeBillingConfig.mockReturnValue(config);
+    const { syncStripeBillingForUser } = await import('@/server/billing/stripe-service');
+
+    await syncStripeBillingForUser('user-1', 'cs_lifetime_refunded');
+
+    expect(mocks.upsertBillingPurchase).not.toHaveBeenCalled();
+    expect(mocks.upsertAccessGrant).not.toHaveBeenCalled();
+    expect(mocks.updateBillingPurchaseStatus).toHaveBeenCalledWith(
+      fakeDb,
+      'stripe',
+      'pi_refunded',
+      'refunded',
+    );
+    expect(mocks.revokeAccessGrant).toHaveBeenCalledWith(
+      fakeDb,
+      'user-1',
+      'stripe_lifetime',
+      'pi_refunded',
+    );
+  });
+
+  it('does not overwrite a terminal lifetime purchase status during replay', async () => {
+    const config = stripeConfig() as {
+      client: {
+        checkout: {
+          sessions: {
+            retrieve: ReturnType<typeof vi.fn>;
+            listLineItems: ReturnType<typeof vi.fn>;
+          };
+        };
+        paymentIntents: { retrieve: ReturnType<typeof vi.fn> };
+      };
+    };
+    config.client.checkout.sessions.retrieve.mockResolvedValue({
+      id: 'cs_lifetime_paid',
+      mode: 'payment',
+      payment_status: 'paid',
+      payment_intent: 'pi_paid',
+      customer: 'cus_123',
+      metadata: { authUserId: 'user-1', offer: 'mercury_lifetime' },
+      created: 1_900_000_000,
+      amount_total: 2_000,
+      currency: 'usd',
+    });
+    config.client.checkout.sessions.listLineItems.mockResolvedValue({
+      data: [{ price: { id: 'price_mercury_lifetime' } }],
+    });
+    config.client.paymentIntents.retrieve.mockResolvedValue({
+      id: 'pi_paid',
+      status: 'succeeded',
+      latest_charge: {
+        id: 'ch_paid',
+        paid: true,
+        refunded: false,
+        disputed: false,
+        amount_refunded: 0,
+      },
+    });
+    mocks.getBillingCustomerByProviderCustomer.mockResolvedValue({ authUserId: 'user-1' });
+    mocks.upsertBillingPurchase.mockResolvedValue('disputed');
+    mocks.getStripeBillingConfig.mockReturnValue(config);
+    const { syncStripeBillingForUser } = await import('@/server/billing/stripe-service');
+
+    await syncStripeBillingForUser('user-1', 'cs_lifetime_paid');
+
+    expect(mocks.upsertAccessGrant).not.toHaveBeenCalled();
+    expect(mocks.revokeAccessGrant).toHaveBeenCalledWith(
+      fakeDb,
+      'user-1',
+      'stripe_lifetime',
+      'pi_paid',
+    );
+  });
+
+  it('acknowledges duplicate verified Stripe events without replaying billing work', async () => {
+    const config = stripeConfig() as {
+      client: { webhooks: { constructEvent: ReturnType<typeof vi.fn> } };
+    };
+    config.client.webhooks.constructEvent.mockReturnValue({
+      id: 'evt_duplicate',
+      type: 'checkout.session.completed',
+      data: { object: {} },
+    });
+    mocks.getStripeBillingConfig.mockReturnValue(config);
+    mocks.getStripeWebhookSecret.mockReturnValue('whsec_test');
+    mocks.claimBillingWebhookEvent.mockResolvedValue(false);
+    const { processStripeWebhook } = await import('@/server/billing/stripe-service');
+
+    await expect(
+      processStripeWebhook(Buffer.from('{"id":"evt_duplicate"}'), 't=1,v1=signature'),
+    ).resolves.toEqual({ duplicate: true });
+
+    expect(mocks.markBillingWebhookEventProcessed).not.toHaveBeenCalled();
+    expect(mocks.markBillingWebhookEventFailed).not.toHaveBeenCalled();
+  });
+
+  it('reconciles subscription events from Stripe current state instead of the stale event payload', async () => {
+    const config = stripeConfig() as {
+      client: {
+        webhooks: { constructEvent: ReturnType<typeof vi.fn> };
+        subscriptions: {
+          retrieve: ReturnType<typeof vi.fn>;
+          list: ReturnType<typeof vi.fn>;
+        };
+      };
+    };
+    config.client.webhooks.constructEvent.mockReturnValue({
+      id: 'evt_subscription_updated',
+      type: 'customer.subscription.updated',
+      data: { object: { id: 'sub_123', status: 'past_due' } },
+    });
+    const currentSubscription = stripeSubscription({ id: 'sub_123', status: 'active' });
+    config.client.subscriptions.retrieve.mockResolvedValue(currentSubscription);
+    config.client.subscriptions.list.mockResolvedValue({ data: [currentSubscription] });
+    mocks.getStripeBillingConfig.mockReturnValue(config);
+    mocks.getStripeWebhookSecret.mockReturnValue('whsec_test');
+    mocks.claimBillingWebhookEvent.mockResolvedValue(true);
+    const { processStripeWebhook } = await import('@/server/billing/stripe-service');
+
+    await expect(
+      processStripeWebhook(Buffer.from('{"id":"evt_subscription_updated"}'), 't=1,v1=signature'),
+    ).resolves.toEqual({ duplicate: false });
+
+    expect(config.client.subscriptions.retrieve).toHaveBeenCalledWith('sub_123');
+    expect(mocks.upsertBillingSubscription).toHaveBeenCalledWith(
+      fakeDb,
+      expect.objectContaining({ status: 'active', providerSubscriptionId: 'sub_123' }),
+    );
+  });
+
+  it.each([
+    ['canceled before active', ['sub_canceled', 'sub_active']],
+    ['active before canceled', ['sub_active', 'sub_canceled']],
+  ])(
+    'keeps subscription access active when manual sync sees %s',
+    async (_label, subscriptionOrder) => {
+      const config = stripeConfig() as {
+        client: { subscriptions: { list: ReturnType<typeof vi.fn> } };
+      };
+      const subscriptionsById = {
+        sub_active: stripeSubscription({ id: 'sub_active', status: 'active' }),
+        sub_canceled: stripeSubscription({ id: 'sub_canceled', status: 'canceled' }),
+      };
+      config.client.subscriptions.list.mockResolvedValue({
+        data: subscriptionOrder.map((id) => subscriptionsById[id as keyof typeof subscriptionsById]),
+      });
+      mocks.getStripeBillingConfig.mockReturnValue(config);
+      const { syncStripeBillingForUser } = await import('@/server/billing/stripe-service');
+
+      await syncStripeBillingForUser('user-1');
+
+      expect(config.client.subscriptions.list).toHaveBeenCalledTimes(1);
+      expect(mocks.expireAccessGrant).not.toHaveBeenCalled();
+      expect(mocks.upsertAccessGrant).toHaveBeenCalledTimes(1);
+      expect(mocks.upsertAccessGrant).toHaveBeenCalledWith(
+        fakeDb,
+        expect.objectContaining({
+          authUserId: 'user-1',
+          source: 'stripe_subscription',
+          sourceReferenceId: 'sub_active',
+          metadata: { plan: 'annual', subscriptionStatus: 'active' },
+        }),
+      );
+      expect(mocks.resolveHostedAccess).toHaveBeenCalledWith('user-1');
+    },
+  );
+
+  it('expires subscription access only after Stripe reports no entitled subscriptions', async () => {
+    const config = stripeConfig() as {
+      client: { subscriptions: { list: ReturnType<typeof vi.fn> } };
+    };
+    config.client.subscriptions.list.mockResolvedValue({
+      data: [stripeSubscription({ id: 'sub_canceled', status: 'canceled' })],
+    });
+    mocks.getStripeBillingConfig.mockReturnValue(config);
+    const { syncStripeBillingForUser } = await import('@/server/billing/stripe-service');
+
+    await syncStripeBillingForUser('user-1');
+
+    expect(mocks.upsertAccessGrant).not.toHaveBeenCalled();
+    expect(mocks.expireAccessGrant).toHaveBeenCalledTimes(1);
+    expect(mocks.expireAccessGrant).toHaveBeenCalledWith(fakeDb, 'user-1', 'stripe_subscription');
+  });
+
+  it('does not let a canceled subscription webhook revoke a separate active subscription', async () => {
+    const config = stripeConfig() as {
+      client: {
+        webhooks: { constructEvent: ReturnType<typeof vi.fn> };
+        subscriptions: {
+          retrieve: ReturnType<typeof vi.fn>;
+          list: ReturnType<typeof vi.fn>;
+        };
+      };
+    };
+    const canceledSubscription = stripeSubscription({ id: 'sub_canceled', status: 'canceled' });
+    const activeSubscription = stripeSubscription({ id: 'sub_active', status: 'active' });
+    config.client.webhooks.constructEvent.mockReturnValue({
+      id: 'evt_subscription_deleted',
+      type: 'customer.subscription.deleted',
+      data: { object: { id: 'sub_canceled' } },
+    });
+    config.client.subscriptions.retrieve.mockResolvedValue(canceledSubscription);
+    config.client.subscriptions.list.mockResolvedValue({
+      data: [canceledSubscription, activeSubscription],
+    });
+    mocks.getStripeBillingConfig.mockReturnValue(config);
+    mocks.getStripeWebhookSecret.mockReturnValue('whsec_test');
+    mocks.claimBillingWebhookEvent.mockResolvedValue(true);
+    const { processStripeWebhook } = await import('@/server/billing/stripe-service');
+
+    await expect(
+      processStripeWebhook(Buffer.from('{"id":"evt_subscription_deleted"}'), 't=1,v1=signature'),
+    ).resolves.toEqual({ duplicate: false });
+
+    expect(mocks.expireAccessGrant).not.toHaveBeenCalled();
+    expect(mocks.upsertAccessGrant).toHaveBeenCalledWith(
+      fakeDb,
+      expect.objectContaining({
+        sourceReferenceId: 'sub_active',
+        metadata: { plan: 'annual', subscriptionStatus: 'active' },
+      }),
+    );
+  });
+});

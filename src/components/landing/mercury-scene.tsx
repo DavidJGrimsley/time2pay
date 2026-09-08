@@ -13,6 +13,7 @@ import Animated, {
   useAnimatedStyle,
   type SharedValue,
 } from 'react-native-reanimated';
+import { AnimatedTime2PayLogo } from '../branding/animated-time2pay-logo';
 import {
   mercuryBullets,
   mercuryCallout,
@@ -25,6 +26,7 @@ import {
 } from './landing-motion';
 import { SemanticText } from './semantic-elements';
 
+// Motion budget: Mercury cards use the same pinned-scene progress and avoid layout-affecting animation.
 const MERCURY_NAVY = '#272735';
 const MERCURY_SURFACE = '#ffffff';
 const MERCURY_BACKGROUND = '#f6f8fb';
@@ -141,6 +143,48 @@ function MercuryBulletCard({
   );
 }
 
+function Time2PayAlarmWatermark({
+  progress,
+  compact,
+}: {
+  progress: SharedValue<number>;
+  compact: boolean;
+}) {
+  const watermarkStyle = useAnimatedStyle(
+    () => ({
+      opacity: interpolate(progress.value, [0, 0.03, 0.86, 1], [0, 0.18, 0.18, 0.08], Extrapolation.CLAMP),
+    }),
+    [progress],
+  );
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      className="absolute left-[-72px] top-1/2"
+      style={[
+        {
+          width: compact ? 260 : 340,
+          height: compact ? 260 : 340,
+          marginTop: compact ? -130 : -170,
+        },
+        watermarkStyle,
+      ]}
+    >
+      <AnimatedTime2PayLogo
+        state="alarm"
+        animationProgress={progress}
+        size={compact ? 260 : 340}
+        foregroundColor={MERCURY_NAVY}
+        accentColor="#9bacc4"
+        statusColor="#71849f"
+        accessibilityLabel=""
+      />
+    </Animated.View>
+  );
+}
+
 export function MercuryScene({
   scrollY,
   layout,
@@ -168,6 +212,10 @@ export function MercuryScene({
       ? 'text-[40px] font-bold leading-[0.98] md:text-[50px]'
       : 'text-[44px] font-bold leading-[1] md:text-[60px]';
   const progress = usePinnedSceneProgress(scrollY, layout, viewportHeight);
+  const mercuryPrimaryCta =
+    mercuryCallout.ctas?.find((cta) => cta.href === MERCURY_REFERRAL_URL) ??
+    mercuryCallout.ctas?.[0] ??
+    { label: 'Sign Up Through Time2Pay', href: MERCURY_REFERRAL_URL, kind: 'primary' as const };
 
   const frameStyle = useAnimatedStyle(() => ({
     transform: [
@@ -276,6 +324,8 @@ export function MercuryScene({
                   accessibilityLabel="Mercury icon watermark"
                 />
               </Animated.View>
+
+              <Time2PayAlarmWatermark progress={progress} compact={isCompactScene} />
             </View>
 
             <View className={`relative z-10 mx-auto flex h-full w-full max-w-[1400px] flex-col justify-center ${isCompactScene ? 'gap-7 md:gap-8' : 'gap-8 md:gap-10'} md:flex-row md:items-center md:justify-between`}>
@@ -317,13 +367,13 @@ export function MercuryScene({
                             borderWidth: 1,
                             borderColor: isDark ? MERCURY_LINE : MERCURY_NAVY,
                           }}
-                          onPress={() => onOpenLink(MERCURY_REFERRAL_URL)}
+                          onPress={() => onOpenLink(mercuryPrimaryCta.href)}
                         >
                           <Text
                             className="text-center text-sm font-semibold"
                             style={{ lineHeight: 20, color: isDark ? MERCURY_NAVY : '#ffffff' }}
                           >
-                            Sign up for a Mercury Business Account through Time2Pay
+                            {mercuryPrimaryCta.label}
                           </Text>
                         </Pressable>
                       </Animated.View>

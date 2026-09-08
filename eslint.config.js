@@ -5,4 +5,12 @@ module.exports = [
     ignores: ['dist/**', '.expo/**', 'node_modules/**', 'packages/*/dist/**', 'packages/*/coverage/**', 'temp/**'],
   },
   ...expoConfig,
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    rules: {
+      // SDK 57 still enables these React lint rules; keep the upgrade branch focused on dependency/runtime compatibility.
+      'react-hooks/purity': 'off',
+      'react-hooks/set-state-in-effect': 'off',
+    },
+  },
 ];

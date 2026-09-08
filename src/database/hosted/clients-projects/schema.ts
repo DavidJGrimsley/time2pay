@@ -46,6 +46,7 @@ export const projects = pgTable(
     githubRepo: text('github_repo'),
     pricingMode: text('pricing_mode').notNull().default('hourly'),
     totalProjectFee: numeric('total_project_fee', { precision: 12, scale: 2 }),
+    hourlyRate: numeric('hourly_rate', { precision: 12, scale: 2 }).notNull().default('0'),
     ...lifecycleColumns,
   },
   (table) => ({

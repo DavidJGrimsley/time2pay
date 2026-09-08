@@ -3,6 +3,7 @@ import {
   getDataMode,
   getMissingHostedModePublicEnvKeys,
   getPresentHostedModeDeprecatedPublicEnvKeys,
+  resolveAppAccessMode,
 } from '@/services/runtime-mode';
 
 const ORIGINAL_ENV = {
@@ -20,6 +21,18 @@ afterEach(() => {
   process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = ORIGINAL_ENV.EXPO_PUBLIC_SUPABASE_ANON_KEY;
   process.env.EXPO_PUBLIC_HOSTED_API_BASE_URL = ORIGINAL_ENV.EXPO_PUBLIC_HOSTED_API_BASE_URL;
   Reflect.deleteProperty(globalThis, 'window');
+});
+
+describe('resolveAppAccessMode', () => {
+  it('uses tour mode even when data mode is local', () => {
+    expect(resolveAppAccessMode('local', true)).toBe('tour');
+    expect(resolveAppAccessMode('hosted', true)).toBe('tour');
+  });
+
+  it('falls back to the configured data mode when tour is off', () => {
+    expect(resolveAppAccessMode('local', false)).toBe('local');
+    expect(resolveAppAccessMode('hosted', false)).toBe('hosted');
+  });
 });
 
 describe('runtime-mode hosted env diagnostics', () => {

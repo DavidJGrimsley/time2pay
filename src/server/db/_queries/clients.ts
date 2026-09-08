@@ -104,3 +104,45 @@ export async function updateClientHourlyRate(
     'Client not found.',
   );
 }
+
+export type UpdateClientDetailsInput = {
+  id: string;
+  name: string;
+  email?: string | null;
+  phone?: string | null;
+  hourlyRate: number;
+  githubOrg?: string | null;
+};
+
+export async function updateClientDetails(
+  db: WriteDb,
+  authUserId: string,
+  input: UpdateClientDetailsInput,
+): Promise<void> {
+  if (!input.id.trim() || !input.name.trim()) {
+    throw validation('Customer name is required.');
+  }
+  if (!Number.isFinite(input.hourlyRate) || input.hourlyRate < 0) {
+    throw validation('Hourly rate must be a non-negative number.');
+  }
+
+  const timestamp = nowIso();
+  await assertUpdated(
+    db,
+    sql`
+      update clients
+      set
+        name = ${input.name.trim()},
+        email = ${input.email?.trim() || null},
+        phone = ${input.phone?.trim() || null},
+        hourly_rate = ${toNumericString(input.hourlyRate)},
+        github_org = ${input.githubOrg?.trim() || null},
+        updated_at = ${timestamp}
+      where id = ${input.id}
+        and auth_user_id = ${authUserId}::uuid
+        and deleted_at is null
+      returning id
+    `,
+    'Customer not found.',
+  );
+}

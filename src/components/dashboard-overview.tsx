@@ -8,7 +8,12 @@ import {
 } from '@/services/profile-completion';
 import { InlineNotice } from '@/components/inline-notice';
 import { GitHubStartModal, type GitHubStartSelection } from './GitHubStartModal';
-import { Timer, type TimerSelectionHandoff } from './Timer';
+import {
+  DashboardMilestoneSheet,
+  type DashboardMilestoneSheetMode,
+} from './dashboard-milestone-sheet';
+import { DashboardMilestones } from './dashboard-milestones';
+import { Timer, type TimerSelection, type TimerSelectionHandoff } from './Timer';
 import { useResolvedDataMode } from '@/hooks/use-resolved-data-mode';
 import { useAuthUiStore } from '@/stores/auth-ui-store';
 
@@ -16,9 +21,9 @@ type DashboardGateStatus = 'loading' | 'locked' | 'unlocked';
 
 export function DashboardOverview() {
   const router = useRouter();
-  const { hostedMode, resolved: dataModeResolved } = useResolvedDataMode();
+  const { resolved: dataModeResolved } = useResolvedDataMode();
   const tourModeEnabled = useAuthUiStore((state) => state.tourModeEnabled);
-  const shouldBypassProfileGate = dataModeResolved && hostedMode && tourModeEnabled;
+  const shouldBypassProfileGate = dataModeResolved && tourModeEnabled;
   const [gateStatus, setGateStatus] = useState<DashboardGateStatus>('unlocked');
   const [missingFields, setMissingFields] = useState<RequiredProfileField[]>([]);
   const [gateStatusMessage, setGateStatusMessage] = useState<string | null>(null);
@@ -26,6 +31,17 @@ export function DashboardOverview() {
   const [timerSelectionHandoff, setTimerSelectionHandoff] = useState<TimerSelectionHandoff | null>(
     null,
   );
+  const [selectedTimerContext, setSelectedTimerContext] = useState<TimerSelection>({
+    clientId: null,
+    projectId: null,
+    projectName: null,
+  });
+  const [milestoneEditor, setMilestoneEditor] = useState<{
+    mode: DashboardMilestoneSheetMode;
+    projectId: string;
+    milestoneId?: string;
+  } | null>(null);
+  const [milestoneRefreshToken, setMilestoneRefreshToken] = useState(0);
 
   const refreshGate = useCallback(async (options?: { showLoading?: boolean }): Promise<void> => {
     const showLoading = options?.showLoading ?? true;
@@ -84,10 +100,17 @@ export function DashboardOverview() {
     setIsGitHubStartModalVisible(false);
   }
 
+  function openMilestoneEditor(mode: DashboardMilestoneSheetMode, milestoneId?: string): void {
+    if (!selectedTimerContext.projectId) {
+      return;
+    }
+    setMilestoneEditor({ mode, projectId: selectedTimerContext.projectId, milestoneId });
+  }
+
   return (
     <View className="gap-3">
       <Text className="text-3xl font-extrabold text-heading">Dashboard</Text>
-      <Text className="text-muted">Clock-in and out or create work sessions manually.</Text>
+      <Text className="text-muted">Keep work moving: set context, run the timer, and complete milestones.</Text>
 
       {locked ? (
         <View className="gap-2 rounded-xl border border-border bg-background p-4">
@@ -98,9 +121,9 @@ export function DashboardOverview() {
           {gateStatusMessage ? <InlineNotice tone="error" message={gateStatusMessage} /> : null}
           <Pressable
             className="self-start rounded-md bg-secondary px-3 py-2"
-            onPress={() => router.push('/profile')}
+            onPress={() => router.push('/settings')}
           >
-            <Text className="font-semibold text-white">Go to Profile</Text>
+            <Text className="font-semibold text-white">Go to Settings</Text>
           </Pressable>
         </View>
       ) : null}
@@ -109,11 +132,27 @@ export function DashboardOverview() {
         gate={{ locked, missingFields }}
         selectionHandoff={timerSelectionHandoff}
         onOpenGitHubStart={() => setIsGitHubStartModalVisible(true)}
+        onSelectionChange={setSelectedTimerContext}
+      />
+      <DashboardMilestones
+        projectId={selectedTimerContext.projectId}
+        projectName={selectedTimerContext.projectName}
+        refreshToken={milestoneRefreshToken}
+        onAdd={() => openMilestoneEditor('create')}
+        onEdit={(milestoneId) => openMilestoneEditor('edit', milestoneId)}
       />
       <GitHubStartModal
         visible={isGitHubStartModalVisible}
         onClose={() => setIsGitHubStartModalVisible(false)}
         onComplete={handleGitHubStartComplete}
+      />
+      <DashboardMilestoneSheet
+        visible={milestoneEditor !== null}
+        mode={milestoneEditor?.mode ?? 'create'}
+        projectId={milestoneEditor?.projectId ?? null}
+        milestoneId={milestoneEditor?.milestoneId ?? null}
+        onDismiss={() => setMilestoneEditor(null)}
+        onSaved={() => setMilestoneRefreshToken((current) => current + 1)}
       />
     </View>
   );

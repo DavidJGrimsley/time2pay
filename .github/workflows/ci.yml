@@ -42,20 +42,51 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Run MDS Doctor (static guard)
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx -y -p "@mr.dj2u/cli@0.1.24" mds doctor . --ci --json --no-scripts > mds-doctor-report.json
+          node -e 'const fs=require("fs"); const report=JSON.parse(fs.readFileSync("mds-doctor-report.json","utf8")); const score=report.summary?.score ?? 0; const errors=report.summary?.errors ?? 0; const warnings=report.summary?.warnings ?? 0; console.log(`MDS Doctor score: ${score} (errors: ${errors}, warnings: ${warnings})`); if (errors > 0 || score < 90) { process.exit(1); }'
+
       - name: Run lint
         run: npm run lint
 
       - name: Run typecheck
         run: npm run typecheck
 
-      - name: Run tests
-        run: npm run test
+      - name: Run unit and integration tests with coverage
+        run: npm run test:coverage
 
-      - name: Run Expo doctor
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          if-no-files-found: error
+
+      - name: Run Expo Doctor
         run: npm run doctor
 
-      - name: Run deploy build
+      - name: Run production build
         run: npm run build:web:deploy
+
+      - name: Build hosted tour artifact for browser smoke tests
+        run: npm run build:web:e2e
+
+      - name: Install Chromium for browser smoke tests
+        run: npx playwright install --with-deps chromium
+
+      - name: Run browser smoke tests
+        run: npm run test:e2e
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          if-no-files-found: ignore
 
   deploy_staging:
     name: Deploy Staging

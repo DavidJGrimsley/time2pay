@@ -1,8 +1,9 @@
 export type PricingMode = 'hourly' | 'milestone';
 export type MilestoneAmountType = 'percent' | 'fixed';
 export type MilestoneCompletionMode = 'toggle' | 'checklist';
-export type InvoiceType = 'hourly' | 'milestone';
+export type InvoiceType = 'hourly' | 'milestone' | 'combined';
 export type InvoiceSessionLinkMode = 'context' | 'billed';
+export type InvoiceBuilderMode = 't2p' | 'mercury';
 
 export type Session = {
   id: string;
@@ -38,6 +39,8 @@ export type Client = {
   email: string | null;
   phone: string | null;
   hourly_rate: number;
+  /** Default used only to prefill future hourly projects. */
+  default_project_hourly_rate: number;
   github_org: string | null;
   created_at: string;
   updated_at: string;
@@ -51,6 +54,7 @@ export type Project = {
   github_repo: string | null;
   pricing_mode: PricingMode;
   total_project_fee: number | null;
+  hourly_rate: number;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -104,6 +108,7 @@ export type UserProfile = {
   phone: string | null;
   email: string | null;
   github_pat?: string | null;
+  invoice_builder_mode: InvoiceBuilderMode;
   created_at: string;
   updated_at: string;
 };
@@ -153,6 +158,23 @@ export type InvoiceSessionLink = {
   link_mode: InvoiceSessionLinkMode;
   created_at: string;
   updated_at: string;
+};
+
+export type InvoiceMilestoneLink = {
+  id: string;
+  invoice_id: string;
+  milestone_id: string;
+  project_id: string;
+  project_name: string | null;
+  title: string;
+  amount: number;
+  amount_type: MilestoneAmountType;
+  amount_value: number;
+  completion_mode: MilestoneCompletionMode;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
 };
 
 export type CoreDbValidationReport = {

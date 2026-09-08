@@ -2,6 +2,19 @@ import React from 'react';
 import renderer from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 
+vi.mock('expo-router', () => ({
+  Redirect: () => null,
+  Stack: { Screen: () => null },
+  Link: ({ children }: { children?: React.ReactNode }) => children,
+  useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
+}));
+
+vi.mock('@expo/vector-icons', () => ({
+  AntDesign: () => null,
+  Feather: () => null,
+  Ionicons: () => null,
+}));
+
 vi.mock('react-native', async () => {
   const ReactModule = await import('react');
 
@@ -15,6 +28,7 @@ vi.mock('react-native', async () => {
     View: makeComponent('View'),
     Text: makeComponent('Text'),
     Pressable: makeComponent('Pressable'),
+    useColorScheme: () => 'light',
   };
 });
 
@@ -51,6 +65,26 @@ vi.mock('../components/route-nav', () => ({
   RouteNav: () => null,
 }));
 
+vi.mock('@/components/route-nav', () => ({
+  RouteNav: () => null,
+}));
+
+vi.mock('../features/settings/settings-screen', () => ({
+  SettingsScreen: () => null,
+}));
+
+vi.mock('@/features/settings/settings-screen', () => ({
+  SettingsScreen: () => null,
+}));
+
+vi.mock('../features/settings/integrations/integrations-screen', () => ({
+  IntegrationsScreen: () => null,
+}));
+
+vi.mock('@/features/settings/integrations/integrations-screen', () => ({
+  IntegrationsScreen: () => null,
+}));
+
 vi.mock('../components/payments-overview', () => ({
   PaymentsOverview: () => null,
 }));
@@ -63,9 +97,20 @@ vi.mock('../components/projects-overview', () => ({
   ProjectsOverview: () => null,
 }));
 
+vi.mock('@/features/settings/customers-projects-screen', () => ({
+  CustomersProjectsScreen: () => null,
+}));
+
+vi.mock('@/features/animations/animation-gallery-screen', () => ({
+  AnimationGalleryScreen: () => null,
+}));
+
+vi.mock('../app/settings', () => ({ default: () => null }));
+vi.mock('../app/settings/integrations', () => ({ default: () => null }));
+
 describe('web route smoke tests', () => {
   it('renders the Payments route shell', async () => {
-    const { default: PaymentsRoute } = await import('../app/(tabs)/payments');
+    const { default: PaymentsRoute } = await import('../app/payments');
     expect(() => renderer.create(<PaymentsRoute />)).not.toThrow();
   });
 
@@ -74,8 +119,23 @@ describe('web route smoke tests', () => {
     expect(() => renderer.create(<InvoicesRoute />)).not.toThrow();
   });
 
-  it('renders the Projects route shell', async () => {
-    const { default: ProjectsRoute } = await import('../app/(tabs)/projects');
-    expect(() => renderer.create(<ProjectsRoute />)).not.toThrow();
+  it('renders the Customers & Projects route shell', async () => {
+    const { default: CustomersProjectsRoute } = await import('../app/settings/customers-projects');
+    expect(() => renderer.create(<CustomersProjectsRoute />)).not.toThrow();
+  });
+
+  it('renders the root Settings route shell', async () => {
+    const { default: SettingsRoute } = await import('../app/settings');
+    expect(() => renderer.create(<SettingsRoute />)).not.toThrow();
+  });
+
+  it('renders the Settings Integrations route shell', async () => {
+    const { default: IntegrationsRoute } = await import('../app/settings/integrations');
+    expect(() => renderer.create(<IntegrationsRoute />)).not.toThrow();
+  });
+
+  it('renders the public Animations route shell', async () => {
+    const { default: AnimationsRoute } = await import('../app/animations');
+    expect(() => renderer.create(<AnimationsRoute />)).not.toThrow();
   });
 });

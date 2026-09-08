@@ -11,10 +11,28 @@ type StatusNotice = {
 };
 
 type HostedAuthGateProps = {
+  description?: string;
+  githubLabel?: string;
+  githubPendingLabel?: string;
+  magicLinkLabel?: string;
+  magicLinkPendingLabel?: string;
   onTourExperience?: () => void;
+  redirectPath?: string;
+  shouldCreateUser?: boolean;
+  title?: string;
 };
 
-export function HostedAuthGate({ onTourExperience }: HostedAuthGateProps) {
+export function HostedAuthGate({
+  description = 'Enter your email to sign in. If this is your first time, Time2Pay will create your account from the same secure link.',
+  githubLabel = 'Continue with GitHub',
+  githubPendingLabel = 'Redirecting to GitHub...',
+  magicLinkLabel = 'Send magic link',
+  magicLinkPendingLabel = 'Sending magic link...',
+  onTourExperience,
+  redirectPath = '/dashboard',
+  shouldCreateUser = true,
+  title = 'Sign in or create your Time2Pay account',
+}: HostedAuthGateProps) {
   const [email, setEmail] = useState('');
   const [isSendingMagicLink, setIsSendingMagicLink] = useState(false);
   const [isGitHubRedirecting, setIsGitHubRedirecting] = useState(false);
@@ -29,7 +47,10 @@ export function HostedAuthGate({ onTourExperience }: HostedAuthGateProps) {
     });
 
     try {
-      await signInWithMagicLink(email);
+      await signInWithMagicLink(email, {
+        redirectPath,
+        shouldCreateUser,
+      });
       logRuntimeDiagnostic('hostedAuth.magicLink.success');
       setStatus({
         tone: 'success',
@@ -58,7 +79,7 @@ export function HostedAuthGate({ onTourExperience }: HostedAuthGateProps) {
     logRuntimeDiagnostic('hostedAuth.github.start');
 
     try {
-      await signInWithGitHubOAuth();
+      await signInWithGitHubOAuth({ redirectPath });
     } catch (error: unknown) {
       logRuntimeDiagnostic(
         'hostedAuth.github.error',
@@ -78,10 +99,8 @@ export function HostedAuthGate({ onTourExperience }: HostedAuthGateProps) {
   return (
     <View className="flex-1 items-center justify-center bg-background px-6">
       <View className="w-full max-w-xl gap-4 rounded-2xl bg-card p-6">
-        <Text className="text-3xl font-extrabold text-heading">Sign in to Time2Pay</Text>
-        <Text className="text-sm text-muted">
-          Hosted mode requires authentication. Use email magic link or GitHub on web to continue.
-        </Text>
+        <Text className="text-3xl font-extrabold text-heading">{title}</Text>
+        <Text className="text-sm text-muted">{description}</Text>
 
         <TextInput
           value={email}
@@ -101,7 +120,7 @@ export function HostedAuthGate({ onTourExperience }: HostedAuthGateProps) {
           disabled={isSendingMagicLink || isGitHubRedirecting}
         >
           <Text className="text-center font-semibold text-white">
-            {isSendingMagicLink ? 'Sending magic sign-in link...' : 'Send magic sign-in link'}
+            {isSendingMagicLink ? magicLinkPendingLabel : magicLinkLabel}
           </Text>
         </Pressable>
 
@@ -117,7 +136,7 @@ export function HostedAuthGate({ onTourExperience }: HostedAuthGateProps) {
             <View className="flex-row items-center gap-2">
               <Octicons name="mark-github" size={16} color="#ffffff" />
               <Text className="font-semibold" style={{ color: '#ffffff' }}>
-                {isGitHubRedirecting ? 'Redirecting to GitHub...' : 'Continue with GitHub'}
+                {isGitHubRedirecting ? githubPendingLabel : githubLabel}
               </Text>
             </View>
           </Pressable>
