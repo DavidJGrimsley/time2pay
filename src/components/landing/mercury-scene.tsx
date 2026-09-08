@@ -13,6 +13,7 @@ import Animated, {
   useAnimatedStyle,
   type SharedValue,
 } from 'react-native-reanimated';
+import { AnimatedTime2PayLogo } from '../branding/animated-time2pay-logo';
 import {
   mercuryBullets,
   mercuryCallout,
@@ -138,6 +139,48 @@ function MercuryBulletCard({
           {bullet.body}
         </SemanticText>
       </View>
+    </Animated.View>
+  );
+}
+
+function Time2PayAlarmWatermark({
+  progress,
+  compact,
+}: {
+  progress: SharedValue<number>;
+  compact: boolean;
+}) {
+  const watermarkStyle = useAnimatedStyle(
+    () => ({
+      opacity: interpolate(progress.value, [0, 0.03, 0.86, 1], [0, 0.18, 0.18, 0.08], Extrapolation.CLAMP),
+    }),
+    [progress],
+  );
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      className="absolute left-[-72px] top-1/2"
+      style={[
+        {
+          width: compact ? 260 : 340,
+          height: compact ? 260 : 340,
+          marginTop: compact ? -130 : -170,
+        },
+        watermarkStyle,
+      ]}
+    >
+      <AnimatedTime2PayLogo
+        state="alarm"
+        animationProgress={progress}
+        size={compact ? 260 : 340}
+        foregroundColor={MERCURY_NAVY}
+        accentColor="#9bacc4"
+        statusColor="#71849f"
+        accessibilityLabel=""
+      />
     </Animated.View>
   );
 }
@@ -281,6 +324,8 @@ export function MercuryScene({
                   accessibilityLabel="Mercury icon watermark"
                 />
               </Animated.View>
+
+              <Time2PayAlarmWatermark progress={progress} compact={isCompactScene} />
             </View>
 
             <View className={`relative z-10 mx-auto flex h-full w-full max-w-[1400px] flex-col justify-center ${isCompactScene ? 'gap-7 md:gap-8' : 'gap-8 md:gap-10'} md:flex-row md:items-center md:justify-between`}>

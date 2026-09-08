@@ -612,6 +612,7 @@ export default function RootLayout() {
         <Stack.Screen name="legal/updates" options={{ title: 'Legal Updates' }} />
         <Stack.Screen name="sign-in" options={{ title: 'Sign In' }} />
         <Stack.Screen name="pricing" options={{ title: 'Hosted Pricing' }} />
+        <Stack.Screen name="animations" options={{ title: 'Logo Animation Lab' }} />
         <Stack.Screen name="onboarding" options={{ title: 'Time2Pay Onboarding' }} />
         <Stack.Screen name="onboarding/features" options={{ title: 'Time2Pay Features' }} />
         <Stack.Screen name="onboarding/auth" options={{ title: 'Time2Pay Account' }} />

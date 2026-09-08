@@ -103,7 +103,7 @@ export default function TabsLayoutWeb() {
 
   return (
     <View className="flex-1" style={{ backgroundColor }}>
-      <View className="px-6 pt-6 pb-2">
+      <View className="px-6 pt-7 pb-5">
         <RouteNav />
       </View>
       <View className="flex-1">
