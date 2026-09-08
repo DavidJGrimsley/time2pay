@@ -1190,12 +1190,14 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart, onSelectionCh
             {onOpenGitHubStart ? (
               <Pressable
                 className="rounded-md border px-3 py-2"
-                style={{ borderColor: '#F8F7F3', backgroundColor: '#F8F7F3' }}
+                style={{ borderColor: '#24292f', backgroundColor: '#24292f' }}
+                accessibilityRole="button"
+                accessibilityLabel="Start customer from GitHub"
                 onPress={onOpenGitHubStart}
               >
                 <View className="flex-row items-center gap-2">
-                  <Octicons name="mark-github" size={16} color="#1A1F16" />
-                  <Text className="font-semibold" style={{ color: '#1A1F16' }}>
+                  <Octicons name="mark-github" size={16} color="#ffffff" />
+                  <Text className="font-semibold" style={{ color: '#ffffff' }}>
                     Start from GitHub
                   </Text>
                 </View>
