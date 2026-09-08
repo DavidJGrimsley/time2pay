@@ -14,7 +14,6 @@ type CollapsibleSectionProps = PropsWithChildren<{
   description?: string;
   defaultExpanded?: boolean;
   onExpandedChange?: (expanded: boolean) => void;
-  keepMounted?: boolean;
 }>;
 
 /**
@@ -27,7 +26,6 @@ export function CollapsibleSection({
   description,
   defaultExpanded = false,
   onExpandedChange,
-  keepMounted = false,
   children,
 }: CollapsibleSectionProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
@@ -66,7 +64,7 @@ export function CollapsibleSection({
         </View>
         <Octicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={headingColor} />
       </Pressable>
-      <AnimatedSizeView className="gap-3" expanded={expanded || keepMounted}>
+      <AnimatedSizeView className="gap-3" expanded={expanded}>
         {children}
       </AnimatedSizeView>
     </View>

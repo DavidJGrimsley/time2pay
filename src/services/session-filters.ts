@@ -16,6 +16,12 @@ function startOfWeekMonday(date: Date): Date {
   return copy;
 }
 
+function addCalendarDays(date: Date, days: number): Date {
+  const copy = new Date(date);
+  copy.setDate(copy.getDate() + days);
+  return copy;
+}
+
 export function filterSessionsForToolbar(input: {
   sessions: Session[];
   clientId: string | null;
@@ -24,11 +30,10 @@ export function filterSessionsForToolbar(input: {
   now?: Date;
 }): Session[] {
   const now = input.now ?? new Date();
-  const thisWeekStart = startOfWeekMonday(now).getTime();
-  const lastWeekStart = new Date(thisWeekStart);
-  lastWeekStart.setDate(lastWeekStart.getDate() - 7);
-  const fourWeeksStart = new Date(thisWeekStart);
-  fourWeeksStart.setDate(fourWeeksStart.getDate() - 21);
+  const thisWeekStart = startOfWeekMonday(now);
+  const nextWeekStart = addCalendarDays(thisWeekStart, 7);
+  const lastWeekStart = addCalendarDays(thisWeekStart, -7);
+  const fourWeeksStart = addCalendarDays(thisWeekStart, -21);
 
   return input.sessions.filter((session) => {
     if (input.clientId && session.client_id !== input.clientId) return false;
@@ -36,9 +41,13 @@ export function filterSessionsForToolbar(input: {
     if (input.period === 'all') return true;
     const started = new Date(session.start_time).getTime();
     if (!Number.isFinite(started)) return false;
-    if (input.period === 'this-week') return started >= thisWeekStart;
-    if (input.period === 'last-week') return started >= lastWeekStart.getTime() && started < thisWeekStart;
-    return started >= fourWeeksStart.getTime();
+    if (input.period === 'this-week') {
+      return started >= thisWeekStart.getTime() && started < nextWeekStart.getTime();
+    }
+    if (input.period === 'last-week') {
+      return started >= lastWeekStart.getTime() && started < thisWeekStart.getTime();
+    }
+    return started >= fourWeeksStart.getTime() && started < nextWeekStart.getTime();
   });
 }
 

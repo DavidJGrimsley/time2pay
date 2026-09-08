@@ -745,7 +745,8 @@ export function SessionList() {
   }
 
   return (
-    <View className="gap-4">
+    <View className="items-center">
+      <View className="w-full gap-4" style={contentWidthStyle}>
       <View className="gap-2">
         <Text className="text-3xl font-extrabold text-heading">Sessions</Text>
         <Text className="text-muted">Track and review your logged work sessions.</Text>
@@ -784,9 +785,7 @@ export function SessionList() {
           </View>
         </View>
       </View>
-      <View className="items-center">
-        <View className="w-full gap-4" style={contentWidthStyle}>
-
+      <View className="gap-4">
           {isLoading ? <Text className="text-muted">Loading sessions...</Text> : null}
           {error ? <InlineNotice tone="error" message={error} /> : null}
           {status ? <InlineNotice tone={status.tone} message={status.message} /> : null}
@@ -876,7 +875,6 @@ export function SessionList() {
               })}
             </View>
           ))}
-        </View>
       </View>
 
       <Modal
@@ -1173,6 +1171,7 @@ export function SessionList() {
           </View>
         </View>
       </Modal>
+      </View>
     </View>
   );
 }

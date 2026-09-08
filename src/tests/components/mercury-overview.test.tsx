@@ -57,7 +57,7 @@ describe('MercuryOverview', () => {
     mocks.section = undefined;
   });
 
-  it('shows Bank by default and can switch to Payments', async () => {
+  it('shows Accounts by default while retaining the bank query value', async () => {
     const { MercuryOverview } = await import('@/components/mercury-overview');
 
     let root!: renderer.ReactTestRenderer;
@@ -67,6 +67,11 @@ describe('MercuryOverview', () => {
 
     expect(root.root.findByType('BankOverview' as never).props.showHeader).toBe(false);
     expect(root.root.findAllByType('PaymentsOverview' as never)).toHaveLength(0);
+    expect(
+      root.root.find(
+        (node: renderer.ReactTestInstance) => String(node.type) === 'Text' && node.props.children === 'Accounts',
+      ),
+    ).toBeTruthy();
 
     const payments = root.root.find(
       (node: renderer.ReactTestInstance) =>

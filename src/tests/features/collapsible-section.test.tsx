@@ -61,12 +61,13 @@ describe('CollapsibleSection', () => {
   });
 
   it('expands to reveal children when the header is pressed', async () => {
+    const onExpandedChange = vi.fn();
     const { CollapsibleSection } = await import('@/features/settings/collapsible-section');
 
     let root!: renderer.ReactTestRenderer;
     await act(async () => {
       root = renderer.create(
-        <CollapsibleSection title="Preferences">
+        <CollapsibleSection title="Preferences" onExpandedChange={onExpandedChange}>
           <Text>Section content</Text>
         </CollapsibleSection>,
       );
@@ -78,6 +79,9 @@ describe('CollapsibleSection', () => {
     await act(async () => {
       header.props.onPress();
     });
+
+    expect(header.props.accessibilityState).toEqual({ expanded: true });
+    expect(onExpandedChange).toHaveBeenCalledWith(true);
 
     expect(
       root.root.find(

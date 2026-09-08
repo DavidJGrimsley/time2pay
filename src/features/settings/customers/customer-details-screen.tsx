@@ -76,7 +76,7 @@ export function CustomerDetailsScreen({ isNew = false }: { isNew?: boolean }) {
           github_org: nullable(githubOrg),
         });
       }
-      router.replace('/settings/customers');
+      router.replace('/settings/customers-projects');
     } catch (error: unknown) {
       setNotice({ message: error instanceof Error ? error.message : 'Failed to save customer.', tone: 'error' });
     } finally {
