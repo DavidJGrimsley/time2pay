@@ -27,6 +27,9 @@ import {
 
 const AnimatedG = Animated.createAnimatedComponent(G);
 const AnimatedRect = Animated.createAnimatedComponent(Rect);
+const IS_WEB = process.env.EXPO_OS === 'web';
+const NATIVE_POINTER_EVENTS = IS_WEB ? undefined : 'none';
+const NON_INTERACTIVE_STYLE = { pointerEvents: 'none' } as const;
 
 export const TIME2PAY_LOGO_CENTER_X = 354.6673;
 export const TIME2PAY_LOGO_CENTER_Y = 370.74576;
@@ -50,7 +53,7 @@ const TICK_TRANSFORMS = [
   'matrix(0.86602536 -0.56068189 0.44588564 0.86602537 -117.57621 250.69985)',
 ] as const;
 
-type AnimatedGroupProps = ComponentProps<typeof AnimatedG>['animatedProps'];
+export type AnimatedGroupProps = ComponentProps<typeof AnimatedG>['animatedProps'];
 type AnimatedRectangleProps = ComponentProps<typeof AnimatedRect>['animatedProps'];
 
 export type Time2PayLogoProps = {
@@ -82,6 +85,13 @@ function sanitizeSvgId(value: string): string {
   return value.replace(/[^a-zA-Z0-9_-]/g, '');
 }
 
+function getRotationMatrix(degrees: number): [number, number, number, number, number, number] {
+  const radians = (degrees * Math.PI) / 180;
+  const cosine = Math.cos(radians);
+  const sine = Math.sin(radians);
+  return [cosine, sine, -sine, cosine, 0, 0];
+}
+
 function StatusBadge({
   status,
   statusColor,
@@ -96,7 +106,7 @@ function StatusBadge({
   const fill = status === 'error' ? errorColor : statusColor;
 
   return (
-    <G pointerEvents="none">
+    <G pointerEvents={NATIVE_POINTER_EVENTS} style={NON_INTERACTIVE_STYLE}>
       <Circle cx={440} cy={414} r={39} fill={fill} stroke="#ffffff" strokeWidth={6} />
       {status === 'pause' ? (
         <>
@@ -166,12 +176,12 @@ export function Time2PayLogoArtwork({
       height={size}
       viewBox="0 0 512 512"
       fill="none"
-      accessible
+      accessible={IS_WEB ? undefined : true}
       accessibilityRole="image"
       accessibilityLabel={accessibilityLabel}
-      pointerEvents="none"
+      pointerEvents={NATIVE_POINTER_EVENTS}
       testID={testID}
-      style={[{ overflow: 'visible' }, style]}
+      style={[{ overflow: 'visible', pointerEvents: 'none' }, style]}
     >
       <Defs>
         <ClipPath id={dollarClipId}>
@@ -185,79 +195,80 @@ export function Time2PayLogoArtwork({
         </ClipPath>
       </Defs>
 
-      <G transform={ROOT_TRANSFORM} pointerEvents="none">
-        <AnimatedG
-          animatedProps={bodyAnimatedProps}
-          originX={TIME2PAY_LOGO_CENTER_X}
-          originY={TIME2PAY_LOGO_CENTER_Y}
-          pointerEvents="none"
-        >
-          <Ellipse
-            cx={TIME2PAY_LOGO_CENTER_X}
-            cy={TIME2PAY_LOGO_CENTER_Y}
-            rx={211.41132}
-            ry={237.06898}
-            fill="none"
-            stroke={foregroundColor}
-            strokeWidth={12.4029}
-          />
-          {TICK_TRANSFORMS.map((transform, index) => (
-            <Line
-              key={index}
-              x1={354.60719}
-              y1={157.45082}
-              x2={354.7274}
-              y2={199.59474}
-              stroke={foregroundColor}
-              strokeWidth={10.4302}
-              strokeLinecap="round"
-              transform={transform}
-            />
-          ))}
+      <G transform={ROOT_TRANSFORM} pointerEvents={NATIVE_POINTER_EVENTS} style={NON_INTERACTIVE_STYLE}>
+        <G transform={`translate(${TIME2PAY_LOGO_CENTER_X} ${TIME2PAY_LOGO_CENTER_Y})`}>
+          <AnimatedG animatedProps={bodyAnimatedProps} pointerEvents={NATIVE_POINTER_EVENTS}>
+            <G transform={`translate(${-TIME2PAY_LOGO_CENTER_X} ${-TIME2PAY_LOGO_CENTER_Y})`}>
+              <Ellipse
+                cx={TIME2PAY_LOGO_CENTER_X}
+                cy={TIME2PAY_LOGO_CENTER_Y}
+                rx={211.41132}
+                ry={237.06898}
+                fill="none"
+                stroke={foregroundColor}
+                strokeWidth={12.4029}
+              />
+              {TICK_TRANSFORMS.map((transform, index) => (
+                <Line
+                  key={index}
+                  x1={354.60719}
+                  y1={157.45082}
+                  x2={354.7274}
+                  y2={199.59474}
+                  stroke={foregroundColor}
+                  strokeWidth={10.4302}
+                  strokeLinecap="round"
+                  transform={transform}
+                />
+              ))}
 
-          <AnimatedG
-            animatedProps={hourAnimatedProps}
-            rotation={handAngles.hour + TIME2PAY_HOUR_ARTWORK_OFFSET}
-            originX={TIME2PAY_LOGO_CENTER_X}
-            originY={TIME2PAY_LOGO_CENTER_Y}
-            pointerEvents="none"
-          >
-            <Path d={TIME2PAY_HOUR_HAND_PATH} fill={foregroundColor} />
-          </AnimatedG>
-          <AnimatedG
-            animatedProps={minuteAnimatedProps}
-            rotation={handAngles.minute}
-            originX={TIME2PAY_LOGO_CENTER_X}
-            originY={TIME2PAY_LOGO_CENTER_Y}
-            pointerEvents="none"
-          >
-            <Path d={TIME2PAY_MINUTE_HAND_PATH} fill={foregroundColor} />
-          </AnimatedG>
+              <G transform={`translate(${TIME2PAY_LOGO_CENTER_X} ${TIME2PAY_LOGO_CENTER_Y})`}>
+                <AnimatedG
+                  animatedProps={hourAnimatedProps}
+                  transform={getRotationMatrix(handAngles.hour + TIME2PAY_HOUR_ARTWORK_OFFSET)}
+                  pointerEvents={NATIVE_POINTER_EVENTS}
+                >
+                  <G transform={`translate(${-TIME2PAY_LOGO_CENTER_X} ${-TIME2PAY_LOGO_CENTER_Y})`}>
+                    <Path d={TIME2PAY_HOUR_HAND_PATH} fill={foregroundColor} />
+                  </G>
+                </AnimatedG>
+              </G>
+              <G transform={`translate(${TIME2PAY_LOGO_CENTER_X} ${TIME2PAY_LOGO_CENTER_Y})`}>
+                <AnimatedG
+                  animatedProps={minuteAnimatedProps}
+                  transform={getRotationMatrix(handAngles.minute)}
+                  pointerEvents={NATIVE_POINTER_EVENTS}
+                >
+                  <G transform={`translate(${-TIME2PAY_LOGO_CENTER_X} ${-TIME2PAY_LOGO_CENTER_Y})`}>
+                    <Path d={TIME2PAY_MINUTE_HAND_PATH} fill={foregroundColor} />
+                  </G>
+                </AnimatedG>
+              </G>
 
-          <AnimatedG
-            animatedProps={dollarAnimatedProps}
-            originX={TIME2PAY_LOGO_CENTER_X}
-            originY={TIME2PAY_LOGO_CENTER_Y}
-            pointerEvents="none"
-          >
-            <Path d={TIME2PAY_DOLLAR_PATH} fill={foregroundColor} opacity={0.15} />
-            <Path d={TIME2PAY_DOLLAR_PATH} fill={accentColor} clipPath={`url(#${dollarClipId})`} />
+              <G transform={`translate(${TIME2PAY_LOGO_CENTER_X} ${TIME2PAY_LOGO_CENTER_Y})`}>
+                <AnimatedG animatedProps={dollarAnimatedProps} pointerEvents={NATIVE_POINTER_EVENTS}>
+                  <G transform={`translate(${-TIME2PAY_LOGO_CENTER_X} ${-TIME2PAY_LOGO_CENTER_Y})`}>
+                    <Path d={TIME2PAY_DOLLAR_PATH} fill={foregroundColor} opacity={0.15} />
+                    <Path d={TIME2PAY_DOLLAR_PATH} fill={accentColor} clipPath={`url(#${dollarClipId})`} />
+                  </G>
+                </AnimatedG>
+              </G>
+            </G>
           </AnimatedG>
-        </AnimatedG>
+        </G>
 
         {showToupee ? (
-          <AnimatedG
-            animatedProps={toupeeAnimatedProps}
-            originX={TIME2PAY_LOGO_CENTER_X}
-            originY={180}
-            pointerEvents="none"
-          >
-            <Path d={TIME2PAY_TOUPEE_PATH} fill={foregroundColor} />
-          </AnimatedG>
+          <G transform={`translate(${TIME2PAY_LOGO_CENTER_X} 180)`}>
+            <AnimatedG animatedProps={toupeeAnimatedProps} pointerEvents={NATIVE_POINTER_EVENTS}>
+              <G transform={`translate(${-TIME2PAY_LOGO_CENTER_X} -180)`}>
+                <Path d={TIME2PAY_TOUPEE_PATH} fill={foregroundColor} />
+              </G>
+            </AnimatedG>
+          </G>
         ) : null}
       </G>
 
-      <AnimatedG animatedProps={badgeAnimatedProps} pointerEvents="none">
+      <AnimatedG animatedProps={badgeAnimatedProps} pointerEvents={NATIVE_POINTER_EVENTS}>
         <StatusBadge status={status} statusColor={statusColor} errorColor={errorColor} />
       </AnimatedG>
     </Svg>

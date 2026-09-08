@@ -103,11 +103,11 @@ describe('Time2PayLogo', () => {
     expect(svg.props).toMatchObject({
       width: 160,
       height: 160,
-      accessible: true,
+      accessible: process.env.EXPO_OS === 'web' ? undefined : true,
       accessibilityRole: 'image',
       accessibilityLabel: 'Time2Pay static mark',
-      pointerEvents: 'none',
     });
+    expect(svg.props.style).toContainEqual(expect.objectContaining({ pointerEvents: 'none' }));
   });
 });
 

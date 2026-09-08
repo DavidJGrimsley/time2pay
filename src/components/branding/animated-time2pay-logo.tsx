@@ -15,6 +15,7 @@ import {
   TIME2PAY_LOGO_CENTER_X,
   TIME2PAY_LOGO_CENTER_Y,
   Time2PayLogoArtwork,
+  type AnimatedGroupProps,
   type Time2PayLogoProps,
 } from './time2pay-logo';
 import {
@@ -129,40 +130,36 @@ export function AnimatedTime2PayLogo({
   }, [sessionElapsedSeconds]);
 
   const bodyAnimatedProps = useAnimatedProps(() => ({
-    translateX: bodyTranslateX.get(),
-    scaleX: bodyScaleX.get(),
-    scaleY: bodyScaleY.get(),
-    originX: TIME2PAY_LOGO_CENTER_X,
-    originY: TIME2PAY_LOGO_CENTER_Y,
+    transform: [bodyScaleX.get(), 0, 0, bodyScaleY.get(), bodyTranslateX.get(), 0],
   }));
 
-  const hourAnimatedProps = useAnimatedProps(() => ({
-    rotation: hourRotation.get(),
-    originX: TIME2PAY_LOGO_CENTER_X,
-    originY: TIME2PAY_LOGO_CENTER_Y,
-  }));
+  const hourAnimatedProps = useAnimatedProps(() => {
+    const radians = (hourRotation.get() * Math.PI) / 180;
+    const cosine = Math.cos(radians);
+    const sine = Math.sin(radians);
+    return { transform: [cosine, sine, -sine, cosine, 0, 0] };
+  });
 
-  const minuteAnimatedProps = useAnimatedProps(() => ({
-    rotation: minuteRotation.get(),
-    originX: TIME2PAY_LOGO_CENTER_X,
-    originY: TIME2PAY_LOGO_CENTER_Y,
-  }));
+  const minuteAnimatedProps = useAnimatedProps(() => {
+    const radians = (minuteRotation.get() * Math.PI) / 180;
+    const cosine = Math.cos(radians);
+    const sine = Math.sin(radians);
+    return { transform: [cosine, sine, -sine, cosine, 0, 0] };
+  });
 
   const dollarAnimatedProps = useAnimatedProps(() => ({
-    translateY: dollarTranslateY.get(),
-    scale: dollarScale.get(),
-    originX: TIME2PAY_LOGO_CENTER_X,
-    originY: 375,
+    transform: [dollarScale.get(), 0, 0, dollarScale.get(), 0, dollarTranslateY.get()],
   }));
 
-  const toupeeAnimatedProps = useAnimatedProps(() => ({
-    translateX: toupeeTranslateX.get(),
-    translateY: toupeeTranslateY.get(),
-    rotation: toupeeRotation.get(),
-    opacity: toupeeOpacity.get(),
-    originX: TIME2PAY_LOGO_CENTER_X,
-    originY: 180,
-  }));
+  const toupeeAnimatedProps = useAnimatedProps(() => {
+    const radians = (toupeeRotation.get() * Math.PI) / 180;
+    const cosine = Math.cos(radians);
+    const sine = Math.sin(radians);
+    return {
+      transform: [cosine, sine, -sine, cosine, toupeeTranslateX.get(), toupeeTranslateY.get()],
+      opacity: toupeeOpacity.get(),
+    };
+  });
 
   const badgeAnimatedProps = useAnimatedProps(() => ({
     opacity: badgeOpacity.get(),
@@ -732,11 +729,11 @@ export function AnimatedTime2PayLogo({
       status={getLogoBadge(state)}
       accessibilityLabel={accessibilityLabel ?? getLogoAccessibilityLabel(state)}
       dollarFillProgress={0}
-      bodyAnimatedProps={bodyAnimatedProps}
-      hourAnimatedProps={hourAnimatedProps}
-      minuteAnimatedProps={minuteAnimatedProps}
-      dollarAnimatedProps={dollarAnimatedProps}
-      toupeeAnimatedProps={toupeeAnimatedProps}
+      bodyAnimatedProps={bodyAnimatedProps as unknown as AnimatedGroupProps}
+      hourAnimatedProps={hourAnimatedProps as unknown as AnimatedGroupProps}
+      minuteAnimatedProps={minuteAnimatedProps as unknown as AnimatedGroupProps}
+      dollarAnimatedProps={dollarAnimatedProps as unknown as AnimatedGroupProps}
+      toupeeAnimatedProps={toupeeAnimatedProps as unknown as AnimatedGroupProps}
       badgeAnimatedProps={badgeAnimatedProps}
       dollarClipAnimatedProps={dollarClipAnimatedProps}
     />
