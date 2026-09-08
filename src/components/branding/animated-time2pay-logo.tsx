@@ -23,6 +23,7 @@ import {
   getLogoAccessibilityLabel,
   getLogoBadge,
   getMinuteFillProgress,
+  getSessionMinuteFillProgress,
   isFiniteLogoState,
   isPendingLogoState,
   resolveLogoDate,
@@ -42,6 +43,7 @@ export type AnimatedTime2PayLogoProps = Omit<
 > & {
   state: Time2PayLogoState;
   displayTime?: Date | number;
+  sessionElapsedSeconds?: number;
   alarmTime?: Date | number;
   motion?: Time2PayLogoMotion;
   replayKey?: string | number;
@@ -78,6 +80,7 @@ function durationForState(state: Time2PayLogoState, reducedMotion: boolean): num
 export function AnimatedTime2PayLogo({
   state,
   displayTime,
+  sessionElapsedSeconds,
   alarmTime,
   motion = 'system',
   replayKey = 0,
@@ -93,13 +96,19 @@ export function AnimatedTime2PayLogo({
   const alarmTimestamp = alarmTime instanceof Date ? alarmTime.getTime() : alarmTime;
   const initialDate = resolveLogoDate(displayTimestamp);
   const initialAngles = getClockHandAngles(initialDate);
+  const initialMinuteFill =
+    sessionElapsedSeconds === undefined
+      ? getMinuteFillProgress(initialDate)
+      : getSessionMinuteFillProgress(sessionElapsedSeconds);
 
   const hourRotation = useSharedValue(initialAngles.hour + TIME2PAY_HOUR_ARTWORK_OFFSET);
   const minuteRotation = useSharedValue(initialAngles.minute);
   const bodyTranslateX = useSharedValue(0);
   const bodyScaleX = useSharedValue(1);
   const bodyScaleY = useSharedValue(1);
-  const dollarProgress = useSharedValue(state === 'clocked-in-idle' ? getMinuteFillProgress(initialDate) : 0);
+  const dollarProgress = useSharedValue(
+    state === 'clocked-in-idle' || state === 'paused-idle' ? initialMinuteFill : 0,
+  );
   const dollarTranslateY = useSharedValue(0);
   const dollarScale = useSharedValue(1);
   const toupeeTranslateX = useSharedValue(0);
@@ -109,10 +118,15 @@ export function AnimatedTime2PayLogo({
   const badgeOpacity = useSharedValue(getLogoBadge(state) === 'none' ? 0 : 1);
   const previousStateRef = useRef<Time2PayLogoState>(state);
   const completionRef = useRef(onAnimationComplete);
+  const sessionElapsedSecondsRef = useRef(sessionElapsedSeconds);
 
   useEffect(() => {
     completionRef.current = onAnimationComplete;
   }, [onAnimationComplete]);
+
+  useEffect(() => {
+    sessionElapsedSecondsRef.current = sessionElapsedSeconds;
+  }, [sessionElapsedSeconds]);
 
   const bodyAnimatedProps = useAnimatedProps(() => ({
     translateX: bodyTranslateX.get(),
@@ -205,7 +219,10 @@ export function AnimatedTime2PayLogo({
       const nowAngles = getClockHandAngles(now);
       const targetHour = nowAngles.hour + TIME2PAY_HOUR_ARTWORK_OFFSET;
       const targetMinute = nowAngles.minute;
-      const minuteFill = getMinuteFillProgress(now);
+      const minuteFill =
+        sessionElapsedSecondsRef.current === undefined
+          ? getMinuteFillProgress(now)
+          : getSessionMinuteFillProgress(sessionElapsedSecondsRef.current);
       const alarmAngles = getClockHandAngles(resolveLogoDate(alarmTimestamp));
 
       if (reducedMotion) {
@@ -689,7 +706,10 @@ export function AnimatedTime2PayLogo({
       minuteRotation.set(withTiming(angles.minute, { duration: reducedMotion ? 0 : 260 }));
 
       if (state === 'clocked-in-idle') {
-        const nextFill = getMinuteFillProgress(now);
+        const nextFill =
+          sessionElapsedSeconds === undefined
+            ? getMinuteFillProgress(now)
+            : getSessionMinuteFillProgress(sessionElapsedSeconds);
         const currentFill = dollarProgress.get();
         dollarProgress.set(
           nextFill < currentFill || reducedMotion
@@ -702,7 +722,7 @@ export function AnimatedTime2PayLogo({
     updateLiveTime();
     const interval = setInterval(updateLiveTime, 1000);
     return () => clearInterval(interval);
-  }, [displayTimestamp, dollarProgress, hourRotation, minuteRotation, reducedMotion, state]);
+  }, [displayTimestamp, dollarProgress, hourRotation, minuteRotation, reducedMotion, sessionElapsedSeconds, state]);
 
   return (
     <Time2PayLogoArtwork

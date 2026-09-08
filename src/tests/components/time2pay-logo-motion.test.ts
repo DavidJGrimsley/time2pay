@@ -5,6 +5,7 @@ import {
   getLogoAccessibilityLabel,
   getLogoBadge,
   getMinuteFillProgress,
+  getSessionMinuteFillProgress,
   isFiniteLogoState,
   isPendingLogoState,
   TIME2PAY_LOGO_MOTION_METRICS,
@@ -12,10 +13,10 @@ import {
 import { getLandingLogoCompletionTransition, getLandingLogoSize } from '@/components/landing/landing-logo-sequence';
 
 describe('Time2Pay logo motion calculations', () => {
-  it('calculates smooth hour and minute hand angles', () => {
+  it('keeps the hour hand smooth while snapping the minute hand to the displayed minute', () => {
     const angles = getClockHandAngles(new Date(2026, 0, 1, 3, 15, 30, 0));
 
-    expect(angles.minute).toBeCloseTo(93);
+    expect(angles.minute).toBeCloseTo(90);
     expect(angles.hour).toBeCloseTo(97.75);
   });
 
@@ -32,6 +33,14 @@ describe('Time2Pay logo motion calculations', () => {
 
     expect(endOfMinute).toBeGreaterThan(0.99);
     expect(nextMinute).toBe(0);
+  });
+
+  it('resets the session dollar fill for every new session minute', () => {
+    expect(getSessionMinuteFillProgress(0)).toBe(0);
+    expect(getSessionMinuteFillProgress(30)).toBe(0.5);
+    expect(getSessionMinuteFillProgress(59)).toBeCloseTo(59 / 60);
+    expect(getSessionMinuteFillProgress(60)).toBe(0);
+    expect(getSessionMinuteFillProgress(121)).toBeCloseTo(1 / 60);
   });
 
   it('clips the dollar from its exact bottom tip through the full top stroke', () => {

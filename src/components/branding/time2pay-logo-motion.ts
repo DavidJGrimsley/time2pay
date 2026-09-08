@@ -93,12 +93,15 @@ export function getClockHandAngles(value: Date | number): ClockHandAngles {
   const date = resolveLogoDate(value);
   const milliseconds = date.getMilliseconds();
   const seconds = date.getSeconds() + milliseconds / 1000;
-  const minutes = date.getMinutes() + seconds / 60;
-  const hours = (date.getHours() % 12) + minutes / 60;
+  const minute = date.getMinutes();
+  const hours = (date.getHours() % 12) + (minute + seconds / 60) / 60;
 
   return {
     hour: hours * 30,
-    minute: minutes * 6,
+    // The logo is a minute-precision clock: snapping this hand to the current
+    // minute keeps 11:15 visually at 11:15 instead of reading as 11:16 late
+    // in the minute. The hour hand remains smoothly calibrated.
+    minute: minute * 6,
   };
 }
 
@@ -106,6 +109,12 @@ export function getMinuteFillProgress(value: Date | number): number {
   const date = resolveLogoDate(value);
   const elapsedSeconds = date.getSeconds() + date.getMilliseconds() / 1000;
   return Math.min(1, Math.max(0, elapsedSeconds / 60));
+}
+
+export function getSessionMinuteFillProgress(elapsedSeconds: number): number {
+  if (!Number.isFinite(elapsedSeconds) || elapsedSeconds <= 0) return 0;
+
+  return (elapsedSeconds % 60) / 60;
 }
 
 export function isPendingLogoState(state: Time2PayLogoState): boolean {

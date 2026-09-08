@@ -11,6 +11,7 @@ describe('logo integrations', () => {
     expect(timerSource).toContain('const timerLogoSize = isLargeScreen ? 480 : Math.min(288');
     expect(timerSource).toContain('style={{ width: timerLogoSize, height: timerLogoSize }}');
     expect(timerSource).toContain('testID="timer-logo-frame"');
+    expect(timerSource).toContain('sessionElapsedSeconds={isClockedIn ? elapsedSeconds : 0}');
     expect(timerSource).not.toContain('Currently clocked in');
     expect(timerSource).toContain("flexDirection: 'column-reverse'");
     expect(timerSource).toContain('useAppTheme');

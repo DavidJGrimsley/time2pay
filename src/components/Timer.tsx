@@ -1336,6 +1336,7 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart, onSelectionCh
               <AnimatedTime2PayLogo
                 state={isLoading ? 'static' : timerLogo.phase}
                 previousStableState={timerLogo.previousStableState}
+                sessionElapsedSeconds={isClockedIn ? elapsedSeconds : 0}
                 size={timerLogoSize}
                 foregroundColor={logoForegroundColor}
                 accentColor={activeScheme === 'dark' ? '#8ae28a' : '#25834c'}
