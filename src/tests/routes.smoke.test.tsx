@@ -101,6 +101,10 @@ vi.mock('@/features/settings/customers-projects-screen', () => ({
   CustomersProjectsScreen: () => null,
 }));
 
+vi.mock('@/features/animations/animation-gallery-screen', () => ({
+  AnimationGalleryScreen: () => null,
+}));
+
 vi.mock('../app/settings', () => ({ default: () => null }));
 vi.mock('../app/settings/integrations', () => ({ default: () => null }));
 
@@ -128,5 +132,10 @@ describe('web route smoke tests', () => {
   it('renders the Settings Integrations route shell', async () => {
     const { default: IntegrationsRoute } = await import('../app/settings/integrations');
     expect(() => renderer.create(<IntegrationsRoute />)).not.toThrow();
+  });
+
+  it('renders the public Animations route shell', async () => {
+    const { default: AnimationsRoute } = await import('../app/animations');
+    expect(() => renderer.create(<AnimationsRoute />)).not.toThrow();
   });
 });

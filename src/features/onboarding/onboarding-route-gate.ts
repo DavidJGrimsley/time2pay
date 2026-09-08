@@ -5,6 +5,7 @@ export type HostedAccessGateStatus = 'checking' | 'allowed' | 'blocked' | 'error
 export type Time2PayRouteClassification = {
   normalizedPathname: string;
   isAccessRequiredRoute: boolean;
+  isAnimationsRoute: boolean;
   isAccountRoute: boolean;
   isAppRoute: boolean;
   isLegalDocumentRoute: boolean;
@@ -128,11 +129,13 @@ export function classifyTime2PayRoute(pathname: string): Time2PayRouteClassifica
   const isLegalDocumentRoute = isLegalDocumentPath(normalizedPathname);
   const isLegalUpdateRoute = isLegalUpdatePath(normalizedPathname);
   const isAccessRequiredRoute = normalizedPathname === '/access-required';
+  const isAnimationsRoute = normalizedPathname === '/animations';
   const isAccountRoute =
     isAccessRequiredRoute ||
     isSettingsPath(normalizedPathname);
   const isPublicRoute =
     isRootRoute ||
+    isAnimationsRoute ||
     isSignInRoute ||
     isPricingRoute ||
     isLegalDocumentRoute ||
@@ -142,6 +145,7 @@ export function classifyTime2PayRoute(pathname: string): Time2PayRouteClassifica
   return {
     normalizedPathname,
     isAccessRequiredRoute,
+    isAnimationsRoute,
     isAccountRoute,
     isAppRoute: !isPublicRoute && !isAccountRoute,
     isLegalDocumentRoute,
@@ -163,6 +167,13 @@ export function resolveHostedRouteGate(input: ResolveHostedRouteGateInput): Host
     return toDecision(route, {
       canAccessAccountRoutes: true,
       canAccessAppRoutes: true,
+    });
+  }
+
+  if (route.isAnimationsRoute) {
+    return toDecision(route, {
+      canAccessAccountRoutes: false,
+      canAccessAppRoutes: false,
     });
   }
 

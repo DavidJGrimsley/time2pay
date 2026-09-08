@@ -1,15 +1,9 @@
 import { Octicons } from '@expo/vector-icons';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Pressable, Text, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { Platform, Pressable, Text, TextInput, View } from 'react-native';
 import Animated, {
-  Easing,
   FadeIn,
   FadeOut,
-  interpolate,
-  useAnimatedStyle,
-  useReducedMotion,
-  useSharedValue,
-  withTiming,
 } from 'react-native-reanimated';
 import {
   createProject,
@@ -34,29 +28,29 @@ import {
   startRuntimeSession,
   stopRuntimeSession,
 } from '@/services/session-runtime';
-import {
-  SessionCompleteModal,
-  type SessionCompleteResult,
-} from '@/components/SessionCompleteModal';
+import { SessionCompleteModal, type SessionCompleteResult } from '@/components/SessionCompleteModal';
 import { CalendarDateField } from '@/components/calendar-date-field';
 import { InlineNotice, type NoticeTone } from '@/components/inline-notice';
 import { PickerField } from '@/components/picker-field';
-import {
-  REQUIRED_PROFILE_FIELD_LABELS,
-  type RequiredProfileField,
-} from '@/services/profile-completion';
+import { REQUIRED_PROFILE_FIELD_LABELS, type RequiredProfileField } from '@/services/profile-completion';
 import { prettifyBranchName } from '@/services/github';
 import { showActionErrorAlert, showBlockedAlert, showValidationAlert } from '@/services/system-alert';
 import { CollapsibleSection } from '@/features/settings/collapsible-section';
+import { AnimatedTime2PayLogo } from '@/components/branding/animated-time2pay-logo';
+import {
+  createTimerLogoControllerState,
+  getTimerStableLogoState,
+  shouldOpenTimerCompletionModal,
+  timerLogoReducer,
+} from '@/components/branding/timer-logo-controller';
+import type { Time2PayLogoState } from '@/components/branding/time2pay-logo-motion';
+import { useAppTheme } from '@/theme/provider';
 
 // Motion budget: timer state changes use short fade transitions and avoid scroll-linked work.
 const LAST_SELECTIONS_KEY = 'time2pay.timer.last-selection';
 const CREATE_CLIENT_PICKER_VALUE = '__create_client__';
 const CREATE_PROJECT_PICKER_VALUE = '__create_project__';
 const CREATE_TASK_PICKER_VALUE = '__create_task__';
-const CUSTOMER_PANEL_TRANSITION_MS = 260;
-const CUSTOMER_PANEL_EASING = Easing.bezier(0.77, 0, 0.175, 1);
-
 type LastSelection = {
   clientId: string | null;
   projectId: string | null;
@@ -92,51 +86,6 @@ type StatusNotice = {
   text: string;
   tone: NoticeTone;
 };
-
-function ClockIcon({ color = '#ffffff', size = 16 }: { color?: string; size?: number }) {
-  const stroke = Math.max(2, Math.round(size * 0.12));
-  const center = size / 2;
-  const minuteHandHeight = Math.max(4, Math.round(size * 0.3));
-  const hourHandWidth = Math.max(4, Math.round(size * 0.26));
-
-  return (
-    <View style={{ width: size + 6, height: size + 6 }} className="items-center justify-center">
-      <View
-        style={{
-          width: size,
-          height: size,
-          borderWidth: stroke,
-          borderColor: color,
-          borderRadius: 999,
-          position: 'relative',
-        }}
-      >
-        <View
-          style={{
-            position: 'absolute',
-            left: center - stroke / 2,
-            top: stroke,
-            width: stroke,
-            height: minuteHandHeight,
-            borderRadius: 2,
-            backgroundColor: color,
-          }}
-        />
-        <View
-          style={{
-            position: 'absolute',
-            left: center - stroke / 2,
-            top: center - stroke / 2,
-            width: hourHandWidth,
-            height: stroke,
-            borderRadius: 2,
-            backgroundColor: color,
-          }}
-        />
-      </View>
-    </View>
-  );
-}
 
 function formatSeconds(totalSeconds: number): string {
   const safe = Math.max(0, Math.floor(totalSeconds));
@@ -244,7 +193,10 @@ function toLocalTimePart(date: Date): string {
   return formatTime12Hour(date.getHours(), date.getMinutes());
 }
 
-function toLocalDateTimeParts(date: Date): { datePart: string; timePart: string } {
+function toLocalDateTimeParts(date: Date): {
+  datePart: string;
+  timePart: string;
+} {
   return {
     datePart: toLocalDatePart(date),
     timePart: toLocalTimePart(date),
@@ -354,9 +306,9 @@ function saveLastSelection(selection: LastSelection): void {
 
 export function Timer({ gate, selectionHandoff, onOpenGitHubStart, onSelectionChange }: TimerProps) {
   const { width: viewportWidth } = useStableWindowDimensions();
-  const reducedMotion = useReducedMotion();
-  const rowWidth = useSharedValue(0);
-  const customerExpansion = useSharedValue(1);
+  const { activeScheme } = useAppTheme();
+  const logoForegroundColor =
+    Platform.OS === 'web' ? 'var(--color-heading)' : activeScheme === 'dark' ? '#f8f7f3' : '#1a1f16';
   const defaults = loadLastSelection();
   const [clients, setClients] = useState<Client[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -380,11 +332,11 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart, onSelectionCh
   const [newTaskGithubBranch, setNewTaskGithubBranch] = useState('');
   const [isTaskNameAutoFilled, setIsTaskNameAutoFilled] = useState(false);
   const [isCreatingManualSession, setIsCreatingManualSession] = useState(false);
-  const [manualStartDate, setManualStartDate] = useState(() =>
-    toLocalDateTimeParts(new Date(Date.now() - 60 * 60 * 1000)).datePart,
+  const [manualStartDate, setManualStartDate] = useState(
+    () => toLocalDateTimeParts(new Date(Date.now() - 60 * 60 * 1000)).datePart,
   );
-  const [manualStartTime, setManualStartTime] = useState(() =>
-    toLocalDateTimeParts(new Date(Date.now() - 60 * 60 * 1000)).timePart,
+  const [manualStartTime, setManualStartTime] = useState(
+    () => toLocalDateTimeParts(new Date(Date.now() - 60 * 60 * 1000)).timePart,
   );
   const [manualEndDate, setManualEndDate] = useState(() => toLocalDateTimeParts(new Date()).datePart);
   const [manualEndTime, setManualEndTime] = useState(() => toLocalDateTimeParts(new Date()).timePart);
@@ -392,16 +344,10 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart, onSelectionCh
 
   const [notes, setNotes] = useState('');
   const [activeSession, setActiveSession] = useState<Session | null>(null);
-  const [activeBreaks, setActiveBreaks] = useState<{ start_time: string; end_time: string | null }[]>(
-    [],
-  );
+  const [activeBreaks, setActiveBreaks] = useState<{ start_time: string; end_time: string | null }[]>([]);
   const [isPaused, setIsPaused] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-  const [isClockingIn, setIsClockingIn] = useState(false);
-  const [isClockingOut, setIsClockingOut] = useState(false);
-  const [isPausing, setIsPausing] = useState(false);
-  const [isResuming, setIsResuming] = useState(false);
   const [message, setMessage] = useState<StatusNotice | null>(null);
 
   const [showCompleteModal, setShowCompleteModal] = useState(false);
@@ -410,6 +356,15 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart, onSelectionCh
   const appliedSelectionHandoffRef = useRef<string | null>(null);
 
   const isClockedIn = useMemo(() => !!activeSession, [activeSession]);
+  const [timerLogo, dispatchTimerLogo] = useReducer(
+    timerLogoReducer,
+    'clocked-out-idle',
+    createTimerLogoControllerState,
+  );
+  const timerStableState = getTimerStableLogoState({
+    isClockedIn: completedSessionId ? false : isClockedIn,
+    isPaused,
+  });
   const isInteractionLocked = gate?.locked ?? false;
   const lockReason = useMemo(() => {
     const fields = gate?.missingFields ?? [];
@@ -420,21 +375,34 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart, onSelectionCh
     const labels = fields.map((field) => REQUIRED_PROFILE_FIELD_LABELS[field]);
     return `Complete your profile (${labels.join(', ')}) before using dashboard actions.`;
   }, [gate?.missingFields]);
-  const clearMessage = (): void => setMessage(null);
-  const showSuccessMessage = (text: string): void => setMessage({ text, tone: 'success' });
-  const showInlineErrorMessage = (text: string): void => setMessage({ text, tone: 'error' });
-  const showBlockedMessage = (text: string): void => {
+  const clearMessage = useCallback((): void => setMessage(null), []);
+  const showSuccessMessage = useCallback((text: string): void => setMessage({ text, tone: 'success' }), []);
+  const showInlineErrorMessage = useCallback((text: string): void => setMessage({ text, tone: 'error' }), []);
+  const showBlockedMessage = useCallback((text: string): void => {
     showBlockedAlert(text);
-    showInlineErrorMessage(text);
-  };
-  const showValidationMessage = (text: string): void => {
+    setMessage({ text, tone: 'error' });
+  }, []);
+  const showValidationMessage = useCallback((text: string): void => {
     showValidationAlert(text);
-    showInlineErrorMessage(text);
-  };
-  const showActionErrorMessage = (text: string): void => {
+    setMessage({ text, tone: 'error' });
+  }, []);
+  const showActionErrorMessage = useCallback((text: string): void => {
     showActionErrorAlert(text);
-    showInlineErrorMessage(text);
-  };
+    setMessage({ text, tone: 'error' });
+  }, []);
+
+  useEffect(() => {
+    if (!isLoading) {
+      dispatchTimerLogo({ type: 'sync', stableState: timerStableState });
+    }
+  }, [isLoading, timerStableState]);
+
+  const handleTimerLogoAnimationComplete = useCallback((phase: Time2PayLogoState) => {
+    if (shouldOpenTimerCompletionModal(phase)) {
+      setShowCompleteModal(true);
+    }
+    dispatchTimerLogo({ type: 'animation-complete', phase });
+  }, []);
   const manualRangeError = useMemo(() => {
     if (!isCreatingManualSession || isClockedIn) {
       return null;
@@ -461,10 +429,7 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart, onSelectionCh
     () => projects.find((project) => project.id === selectedProjectId) ?? null,
     [projects, selectedProjectId],
   );
-  const selectedTask = useMemo(
-    () => tasks.find((task) => task.id === selectedTaskId) ?? null,
-    [tasks, selectedTaskId],
-  );
+  const selectedTask = useMemo(() => tasks.find((task) => task.id === selectedTaskId) ?? null, [tasks, selectedTaskId]);
 
   useEffect(() => {
     onSelectionChange?.({
@@ -553,16 +518,14 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart, onSelectionCh
         if (cancelled) {
           return;
         }
-        showInlineErrorMessage(
-          error instanceof Error ? error.message : 'Failed to apply GitHub selection.',
-        );
+        showInlineErrorMessage(error instanceof Error ? error.message : 'Failed to apply GitHub selection.');
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [selectionHandoff]);
+  }, [selectionHandoff, showInlineErrorMessage]);
 
   async function refreshClients(): Promise<void> {
     const clientRows = await listClients();
@@ -652,19 +615,19 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart, onSelectionCh
         showInlineErrorMessage(error instanceof Error ? error.message : 'Failed to initialize timer');
       })
       .finally(() => setIsLoading(false));
-  }, []);
+  }, [showInlineErrorMessage]);
 
   useEffect(() => {
     refreshProjects(selectedClientId).catch((error: unknown) => {
       showInlineErrorMessage(error instanceof Error ? error.message : 'Failed to load projects');
     });
-  }, [selectedClientId]);
+  }, [selectedClientId, showInlineErrorMessage]);
 
   useEffect(() => {
     refreshTasks(selectedProjectId).catch((error: unknown) => {
       showInlineErrorMessage(error instanceof Error ? error.message : 'Failed to load tasks');
     });
-  }, [selectedProjectId]);
+  }, [selectedProjectId, showInlineErrorMessage]);
 
   useEffect(() => {
     if (!activeSession || isPaused) {
@@ -828,6 +791,9 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart, onSelectionCh
   }
 
   const handleClockIn = useCallback(async (): Promise<void> => {
+    if (timerLogo.isTransitioning) {
+      return;
+    }
     clearMessage();
     if (isInteractionLocked) {
       showBlockedMessage(lockReason);
@@ -839,7 +805,7 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart, onSelectionCh
       return;
     }
 
-    setIsClockingIn(true);
+    dispatchTimerLogo({ type: 'start', action: 'clock-in' });
     try {
       await startRuntimeSession({
         id: createId('session'),
@@ -852,20 +818,33 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart, onSelectionCh
       await refreshActiveSession();
       setNotes('');
       showSuccessMessage('Clocked in successfully.');
+      dispatchTimerLogo({ type: 'succeed', action: 'clock-in' });
     } catch (error: unknown) {
       showActionErrorMessage(error instanceof Error ? error.message : 'Failed to clock in.');
-    } finally {
-      setIsClockingIn(false);
+      dispatchTimerLogo({ type: 'fail', action: 'clock-in' });
     }
-  }, [isInteractionLocked, lockReason, selectedClient, selectedProject, selectedTask, notes]);
+  }, [
+    isInteractionLocked,
+    lockReason,
+    notes,
+    clearMessage,
+    selectedClient,
+    selectedProject,
+    selectedTask,
+    showActionErrorMessage,
+    showBlockedMessage,
+    showSuccessMessage,
+    showValidationMessage,
+    timerLogo.isTransitioning,
+  ]);
 
   const handleClockOut = useCallback(async (): Promise<void> => {
-    if (!activeSession) {
+    if (!activeSession || timerLogo.isTransitioning) {
       return;
     }
 
     clearMessage();
-    setIsClockingOut(true);
+    dispatchTimerLogo({ type: 'start', action: 'clock-out' });
 
     try {
       await stopRuntimeSession(activeSession.id);
@@ -878,49 +857,57 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart, onSelectionCh
       });
       setCompletedSessionId(stoppedId);
       setCompletedSessionNotes(currentNotes);
-      setShowCompleteModal(true);
+      dispatchTimerLogo({ type: 'succeed', action: 'clock-out' });
     } catch (error: unknown) {
       showActionErrorMessage(error instanceof Error ? error.message : 'Failed to clock out.');
-    } finally {
-      setIsClockingOut(false);
+      dispatchTimerLogo({ type: 'fail', action: 'clock-out' });
     }
-  }, [activeSession, notes, selectedClientId, selectedProjectId, selectedTaskId]);
+  }, [
+    activeSession,
+    clearMessage,
+    notes,
+    selectedClientId,
+    selectedProjectId,
+    selectedTaskId,
+    showActionErrorMessage,
+    timerLogo.isTransitioning,
+  ]);
 
   const handlePause = useCallback(async (): Promise<void> => {
-    if (!activeSession) {
+    if (!activeSession || timerLogo.isTransitioning) {
       return;
     }
 
     clearMessage();
-    setIsPausing(true);
+    dispatchTimerLogo({ type: 'start', action: 'pause' });
     try {
       await pauseRuntimeSession(activeSession.id);
       await refreshActiveSession();
       showSuccessMessage('Session paused.');
+      dispatchTimerLogo({ type: 'succeed', action: 'pause' });
     } catch (error: unknown) {
       showActionErrorMessage(error instanceof Error ? error.message : 'Failed to pause session.');
-    } finally {
-      setIsPausing(false);
+      dispatchTimerLogo({ type: 'fail', action: 'pause' });
     }
-  }, [activeSession]);
+  }, [activeSession, clearMessage, showActionErrorMessage, showSuccessMessage, timerLogo.isTransitioning]);
 
   const handleResume = useCallback(async (): Promise<void> => {
-    if (!activeSession) {
+    if (!activeSession || timerLogo.isTransitioning) {
       return;
     }
 
     clearMessage();
-    setIsResuming(true);
+    dispatchTimerLogo({ type: 'start', action: 'resume' });
     try {
       await resumeRuntimeSession(activeSession.id);
       await refreshActiveSession();
       showSuccessMessage('Session resumed.');
+      dispatchTimerLogo({ type: 'succeed', action: 'resume' });
     } catch (error: unknown) {
       showActionErrorMessage(error instanceof Error ? error.message : 'Failed to resume session.');
-    } finally {
-      setIsResuming(false);
+      dispatchTimerLogo({ type: 'fail', action: 'resume' });
     }
-  }, [activeSession]);
+  }, [activeSession, clearMessage, showActionErrorMessage, showSuccessMessage, timerLogo.isTransitioning]);
 
   async function handleCreateManualSession(): Promise<void> {
     clearMessage();
@@ -1037,14 +1024,14 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart, onSelectionCh
     ? 'text-center text-7xl font-black text-heading'
     : 'text-3xl font-black text-heading';
   const actionButtonPaddingClassName = isLargeScreen ? 'px-8 py-7' : 'px-4 py-3';
-  const actionButtonLabelClassName = isLargeScreen
-    ? 'text-center text-3xl font-semibold'
-    : 'text-center font-semibold';
-  const actionIconSize = isLargeScreen ? 28 : 16;
+  const actionButtonLabelClassName = isLargeScreen ? 'text-center text-3xl font-semibold' : 'text-center font-semibold';
+  const timerLogoSize = isLargeScreen ? 480 : Math.min(288, Math.max(160, viewportWidth - 96));
+  const timerActionsLocked = isInteractionLocked || isLoading || timerLogo.isTransitioning;
+  const isClockInAnimating = timerLogo.pendingAction === 'clock-in';
+  const isClockOutAnimating = timerLogo.pendingAction === 'clock-out';
+  const isPauseAnimating = timerLogo.pendingAction === 'pause';
+  const isResumeAnimating = timerLogo.pendingAction === 'resume';
   const timerContainerClassName = isLargeScreen ? 'gap-4 rounded-xl bg-card p-6' : 'gap-3 rounded-xl bg-card p-4';
-  const timerHeaderTitleClassName = isLargeScreen
-    ? 'text-3xl font-bold text-heading'
-    : 'text-xl font-bold text-heading';
   const notesInputClassName = isLargeScreen
     ? `rounded-md border border-border bg-background px-4 py-4 text-xl text-foreground ${isInteractionLocked ? 'opacity-60' : ''}`
     : `rounded-md border border-border bg-background px-3 py-2 text-foreground ${isInteractionLocked ? 'opacity-60' : ''}`;
@@ -1054,585 +1041,556 @@ export function Timer({ gate, selectionHandoff, onOpenGitHubStart, onSelectionCh
   const createSessionTextClassName = isLargeScreen
     ? 'text-center text-2xl font-semibold text-heading'
     : 'text-center font-semibold text-heading';
-  const customerPanelStyle = useAnimatedStyle(() => {
-    const measuredWidth = rowWidth.get();
-    if (!isLargeScreen || measuredWidth <= 0) {
-      return {};
-    }
-
-    const customerWidth = interpolate(
-      customerExpansion.get(),
-      [0, 1],
-      [190, Math.min(560, measuredWidth * 0.42)],
-    );
-    return { width: customerWidth };
-  }, [isLargeScreen]);
-  const timeclockPanelStyle = useAnimatedStyle(() => {
-    const measuredWidth = rowWidth.get();
-    if (!isLargeScreen || measuredWidth <= 0) {
-      return {};
-    }
-
-    const customerWidth = interpolate(
-      customerExpansion.get(),
-      [0, 1],
-      [190, Math.min(560, measuredWidth * 0.42)],
-    );
-    return { width: Math.max(0, measuredWidth - customerWidth - 16) };
-  }, [isLargeScreen]);
-
   return (
     <Animated.View className="items-center">
       <Animated.View className={timerContainerClassName} style={containerWidthStyle}>
-      <View
-        className={
-          isLargeScreen
-            ? 'mb-1 flex-row items-center'
-            : 'mb-1 flex-row items-center justify-between'
-        }
-        style={isLargeScreen ? { gap: 16, minHeight: 64 } : undefined}
-      >
-        <View style={isLargeScreen ? { flex: 1 } : undefined}>
-          <Text className={timerHeaderTitleClassName}>
-            {isClockedIn ? (isPaused ? 'Currently paused' : 'Currently clocked in') : 'Currently clocked out'}
-          </Text>
-        </View>
-      </View>
-      <Animated.View
-        className="gap-3"
-        onLayout={(event) => {
-          rowWidth.set(event.nativeEvent.layout.width);
-        }}
-        style={isLargeScreen ? { flexDirection: 'row', alignItems: 'stretch', gap: 16 } : undefined}
-      >
-        <Animated.View style={customerPanelStyle}>
-          <CollapsibleSection
-            title="Customer"
-            defaultExpanded
-            onExpandedChange={(expanded) => {
-              const nextExpansion = expanded ? 1 : 0;
-              customerExpansion.set(
-                reducedMotion
-                  ? nextExpansion
-                  : withTiming(nextExpansion, {
-                      duration: CUSTOMER_PANEL_TRANSITION_MS,
-                      easing: CUSTOMER_PANEL_EASING,
-                    }),
-              );
-            }}
-          >
-        <Animated.View className="gap-3" style={isLargeScreen ? { flex: 1 } : undefined}>
-          <PickerField
-            label="Customer"
-            value={selectedClientId}
-            options={clients.map((client) => ({ id: client.id, label: client.name }))}
-            placeholder="Select customer"
-            createValue={CREATE_CLIENT_PICKER_VALUE}
-            large={isLargeScreen}
-            disabled={isClockedIn || isLoading || isInteractionLocked}
-            onSelect={(value) => {
-              if (isInteractionLocked) {
-                showBlockedMessage(lockReason);
-                return;
-              }
-              setSelectedClientId(value);
-              setIsCreatingClient(false);
-            }}
-            onCreateNew={() => {
-              if (isInteractionLocked) {
-                showBlockedMessage(lockReason);
-                return;
-              }
-              setIsCreatingClient(true);
-              setIsCreatingProject(false);
-              setIsCreatingTask(false);
-            }}
-          />
-
-      {isCreatingClient && !isClockedIn && !isInteractionLocked ? (
-        <Animated.View
-          className="gap-2 rounded-md border border-border bg-background p-3"
-          entering={FadeIn.duration(160)}
-          exiting={FadeOut.duration(140)}
+        <View
+          className="gap-3"
+          style={{ flexDirection: 'column-reverse' }}
         >
-          <TextInput
-            value={newClientName}
-            onChangeText={setNewClientName}
-            placeholder="Customer name"
-            className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
-          />
-          <TextInput
-            value={newClientEmail}
-            onChangeText={setNewClientEmail}
-            placeholder="Customer email"
-            keyboardType="email-address"
-            className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
-          />
-          <TextInput
-            value={newClientRate}
-            onChangeText={setNewClientRate}
-            placeholder="Hourly rate"
-            keyboardType="numeric"
-            className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
-          />
-          <TextInput
-            value={newClientGithubOrg}
-            onChangeText={setNewClientGithubOrg}
-            placeholder="GitHub org / owner (optional)"
-            autoCapitalize="none"
-            autoCorrect={false}
-            className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
-          />
-          <View className="flex-row gap-2">
-            <Pressable className="rounded-md bg-secondary px-3 py-2" onPress={() => handleCreateClient()}>
-              <Text className="font-semibold text-white">Save Customer</Text>
-            </Pressable>
-            {onOpenGitHubStart ? (
+          <View>
+            <CollapsibleSection
+              title="Customer"
+              defaultExpanded
+            >
+              <View className="gap-3">
+                <PickerField
+                  label="Customer"
+                  value={selectedClientId}
+                  options={clients.map((client) => ({
+                    id: client.id,
+                    label: client.name,
+                  }))}
+                  placeholder="Select customer"
+                  createValue={CREATE_CLIENT_PICKER_VALUE}
+                  large={isLargeScreen}
+                  disabled={isClockedIn || isLoading || isInteractionLocked}
+                  onSelect={(value) => {
+                    if (isInteractionLocked) {
+                      showBlockedMessage(lockReason);
+                      return;
+                    }
+                    setSelectedClientId(value);
+                    setIsCreatingClient(false);
+                  }}
+                  onCreateNew={() => {
+                    if (isInteractionLocked) {
+                      showBlockedMessage(lockReason);
+                      return;
+                    }
+                    setIsCreatingClient(true);
+                    setIsCreatingProject(false);
+                    setIsCreatingTask(false);
+                  }}
+                />
+
+                {isCreatingClient && !isClockedIn && !isInteractionLocked ? (
+                  <Animated.View
+                    className="gap-2 rounded-md border border-border bg-background p-3"
+                    entering={FadeIn.duration(160)}
+                    exiting={FadeOut.duration(140)}
+                  >
+                    <TextInput
+                      value={newClientName}
+                      onChangeText={setNewClientName}
+                      placeholder="Customer name"
+                      className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
+                    />
+                    <TextInput
+                      value={newClientEmail}
+                      onChangeText={setNewClientEmail}
+                      placeholder="Customer email"
+                      keyboardType="email-address"
+                      className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
+                    />
+                    <TextInput
+                      value={newClientRate}
+                      onChangeText={setNewClientRate}
+                      placeholder="Hourly rate"
+                      keyboardType="numeric"
+                      className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
+                    />
+                    <TextInput
+                      value={newClientGithubOrg}
+                      onChangeText={setNewClientGithubOrg}
+                      placeholder="GitHub org / owner (optional)"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
+                    />
+                    <View className="flex-row gap-2">
+                      <Pressable className="rounded-md bg-secondary px-3 py-2" onPress={() => handleCreateClient()}>
+                        <Text className="font-semibold text-white">Save Customer</Text>
+                      </Pressable>
+                      {onOpenGitHubStart ? (
+                        <Pressable
+                          className="rounded-md border px-3 py-2"
+                          style={{
+                            borderColor: '#24292f',
+                            backgroundColor: '#24292f',
+                          }}
+                          accessibilityRole="button"
+                          accessibilityLabel="Start customer from GitHub"
+                          onPress={onOpenGitHubStart}
+                        >
+                          <View className="flex-row items-center gap-2">
+                            <Octicons name="mark-github" size={16} color="#ffffff" />
+                            <Text className="font-semibold" style={{ color: '#ffffff' }}>
+                              Start from GitHub
+                            </Text>
+                          </View>
+                        </Pressable>
+                      ) : null}
+                      <Pressable
+                        className="rounded-md border border-border px-3 py-2"
+                        onPress={() => setIsCreatingClient(false)}
+                      >
+                        <Text className="font-semibold text-heading">Cancel</Text>
+                      </Pressable>
+                    </View>
+                  </Animated.View>
+                ) : null}
+
+                <PickerField
+                  label="Project"
+                  value={selectedProjectId}
+                  options={projects.map((project) => ({
+                    id: project.id,
+                    label: project.name,
+                  }))}
+                  placeholder="Select project"
+                  createValue={CREATE_PROJECT_PICKER_VALUE}
+                  large={isLargeScreen}
+                  disabled={isClockedIn || isLoading || isInteractionLocked || !selectedClientId}
+                  onSelect={(value) => {
+                    if (isInteractionLocked) {
+                      showBlockedMessage(lockReason);
+                      return;
+                    }
+                    setSelectedProjectId(value);
+                    setIsCreatingProject(false);
+                  }}
+                  onCreateNew={() => {
+                    if (isInteractionLocked) {
+                      showBlockedMessage(lockReason);
+                      return;
+                    }
+                    setIsCreatingProject(true);
+                    setIsCreatingClient(false);
+                    setIsCreatingTask(false);
+                  }}
+                />
+
+                {isCreatingProject && !isClockedIn && !isInteractionLocked ? (
+                  <Animated.View
+                    className="gap-2 rounded-md border border-border bg-background p-3"
+                    entering={FadeIn.duration(160)}
+                    exiting={FadeOut.duration(140)}
+                  >
+                    <TextInput
+                      value={newProjectName}
+                      onChangeText={setNewProjectName}
+                      placeholder="Project name"
+                      className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
+                    />
+                    <TextInput
+                      value={newProjectGithubRepo}
+                      onChangeText={setNewProjectGithubRepo}
+                      placeholder="GitHub repo name (optional)"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
+                    />
+                    <View className="flex-row gap-2">
+                      <Pressable className="rounded-md bg-secondary px-3 py-2" onPress={() => handleCreateProject()}>
+                        <Text className="font-semibold text-white">Save Project</Text>
+                      </Pressable>
+                      <Pressable
+                        className="rounded-md border border-border px-3 py-2"
+                        onPress={() => setIsCreatingProject(false)}
+                      >
+                        <Text className="font-semibold text-heading">Cancel</Text>
+                      </Pressable>
+                    </View>
+                  </Animated.View>
+                ) : null}
+
+                <PickerField
+                  label="Task"
+                  value={selectedTaskId}
+                  options={tasks.map((task) => ({
+                    id: task.id,
+                    label: task.name,
+                  }))}
+                  placeholder="Select task"
+                  createValue={CREATE_TASK_PICKER_VALUE}
+                  large={isLargeScreen}
+                  disabled={isClockedIn || isLoading || isInteractionLocked || !selectedProjectId}
+                  onSelect={(value) => {
+                    if (isInteractionLocked) {
+                      showBlockedMessage(lockReason);
+                      return;
+                    }
+                    setSelectedTaskId(value);
+                    setIsCreatingTask(false);
+                  }}
+                  onCreateNew={() => {
+                    if (isInteractionLocked) {
+                      showBlockedMessage(lockReason);
+                      return;
+                    }
+                    setIsCreatingTask(true);
+                    setIsCreatingClient(false);
+                    setIsCreatingProject(false);
+                    setIsTaskNameAutoFilled(false);
+                  }}
+                />
+
+                {isCreatingTask && !isClockedIn && !isInteractionLocked ? (
+                  <Animated.View
+                    className="gap-2 rounded-md border border-border bg-background p-3"
+                    entering={FadeIn.duration(160)}
+                    exiting={FadeOut.duration(140)}
+                  >
+                    <TextInput
+                      value={newTaskName}
+                      onChangeText={(value) => {
+                        setNewTaskName(value);
+                        setIsTaskNameAutoFilled(false);
+                      }}
+                      placeholder="Task name"
+                      className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
+                    />
+                    {isTaskNameAutoFilled ? (
+                      <Text className="text-xs text-muted">Auto-filled from branch name.</Text>
+                    ) : null}
+                    <TextInput
+                      value={newTaskGithubBranch}
+                      onChangeText={(value) => {
+                        setNewTaskGithubBranch(value);
+                        if (!newTaskName.trim()) {
+                          const prettyName = prettifyBranchName(value);
+                          if (prettyName) {
+                            setNewTaskName(prettyName);
+                            setIsTaskNameAutoFilled(true);
+                          }
+                        }
+                      }}
+                      placeholder="GitHub branch (optional)"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
+                    />
+                    <View className="flex-row gap-2">
+                      <Pressable className="rounded-md bg-secondary px-3 py-2" onPress={() => handleCreateTask()}>
+                        <Text className="font-semibold text-white">Save Task</Text>
+                      </Pressable>
+                      <Pressable
+                        className="rounded-md border border-border px-3 py-2"
+                        onPress={() => {
+                          setIsCreatingTask(false);
+                          setIsTaskNameAutoFilled(false);
+                        }}
+                      >
+                        <Text className="font-semibold text-heading">Cancel</Text>
+                      </Pressable>
+                    </View>
+                  </Animated.View>
+                ) : null}
+
+                <View className="gap-2">
+                  <Text
+                    className={
+                      isLargeScreen
+                        ? 'text-sm uppercase tracking-wide text-muted'
+                        : 'text-xs uppercase tracking-wide text-muted'
+                    }
+                  >
+                    Session Notes (Optional)
+                  </Text>
+                  <TextInput
+                    value={notes}
+                    onChangeText={setNotes}
+                    editable={!isInteractionLocked}
+                    onBlur={() => {
+                      handleNotesBlur().catch(() => undefined);
+                    }}
+                    placeholder="What you worked on this session"
+                    className={notesInputClassName}
+                  />
+                </View>
+              </View>
+            </CollapsibleSection>
+          </View>
+
+          <Animated.View
+            className={`w-full gap-2 ${isLargeScreen ? 'rounded-xl border border-border bg-background p-4' : ''}`}
+            style={isLargeScreen ? { justifyContent: 'space-between' } : undefined}
+          >
+            <Text className={timerValueClassName}>{formatSeconds(elapsedSeconds)}</Text>
+            <View
+              className="items-center justify-center self-center"
+              style={{ width: timerLogoSize, height: timerLogoSize }}
+              testID="timer-logo-frame"
+            >
+              <AnimatedTime2PayLogo
+                state={isLoading ? 'static' : timerLogo.phase}
+                previousStableState={timerLogo.previousStableState}
+                size={timerLogoSize}
+                foregroundColor={logoForegroundColor}
+                accentColor={activeScheme === 'dark' ? '#8ae28a' : '#25834c'}
+                statusColor={activeScheme === 'dark' ? '#86efac' : '#25834c'}
+                errorColor={activeScheme === 'dark' ? '#f87171' : '#dc2626'}
+                onAnimationComplete={handleTimerLogoAnimationComplete}
+                testID="timer-animated-logo"
+              />
+            </View>
+
+            {isClockedIn ? (
+              <View className="flex-row gap-2">
+                {isPaused ? (
+                  <Pressable
+                    className={`flex-1 rounded-2xl ${timerActionsLocked ? 'bg-secondary/60' : 'bg-secondary'} ${actionButtonPaddingClassName}`}
+                    onPress={handleResume}
+                    disabled={timerActionsLocked}
+                  >
+                    <View className="flex-row items-center justify-center gap-2">
+                      <Text className={`${actionButtonLabelClassName} text-white`}>
+                        {isResumeAnimating ? 'Resuming...' : 'Resume'}
+                      </Text>
+                    </View>
+                  </Pressable>
+                ) : (
+                  <Pressable
+                    className={`flex-1 rounded-2xl ${timerActionsLocked ? 'bg-primary/60' : 'bg-primary'} ${actionButtonPaddingClassName}`}
+                    onPress={handlePause}
+                    disabled={timerActionsLocked}
+                  >
+                    <View className="flex-row items-center justify-center gap-2">
+                      <Text className={`${actionButtonLabelClassName} text-heading`}>
+                        {isPauseAnimating ? 'Pausing...' : 'Pause'}
+                      </Text>
+                    </View>
+                  </Pressable>
+                )}
+                <Pressable
+                  className={`flex-1 rounded-2xl ${timerActionsLocked ? 'bg-danger/60' : 'bg-danger'} ${actionButtonPaddingClassName}`}
+                  onPress={handleClockOut}
+                  disabled={timerActionsLocked}
+                >
+                  <View className="flex-row items-center justify-center gap-2">
+                    <Text className={`${actionButtonLabelClassName} text-white`}>
+                      {isClockOutAnimating ? 'Clocking Out...' : 'Clock Out'}
+                    </Text>
+                  </View>
+                </Pressable>
+              </View>
+            ) : (
               <Pressable
-                className="rounded-md border px-3 py-2"
-                style={{ borderColor: '#24292f', backgroundColor: '#24292f' }}
-                accessibilityRole="button"
-                accessibilityLabel="Start customer from GitHub"
-                onPress={onOpenGitHubStart}
+                className={`rounded-2xl ${actionButtonPaddingClassName} ${timerActionsLocked ? 'bg-secondary/60' : 'bg-secondary'}`}
+                onPress={handleClockIn}
+                disabled={timerActionsLocked}
               >
-                <View className="flex-row items-center gap-2">
-                  <Octicons name="mark-github" size={16} color="#ffffff" />
-                  <Text className="font-semibold" style={{ color: '#ffffff' }}>
-                    Start from GitHub
+                <View className="flex-row items-center justify-center gap-2">
+                  <Text className={`${actionButtonLabelClassName} text-white`}>
+                    {isClockInAnimating ? 'Clocking In...' : 'Clock In'}
                   </Text>
                 </View>
               </Pressable>
-            ) : null}
-            <Pressable
-              className="rounded-md border border-border px-3 py-2"
-              onPress={() => setIsCreatingClient(false)}
-            >
-              <Text className="font-semibold text-heading">Cancel</Text>
-            </Pressable>
-          </View>
-        </Animated.View>
-      ) : null}
+            )}
+          </Animated.View>
+        </View>
 
-      <PickerField
-        label="Project"
-        value={selectedProjectId}
-        options={projects.map((project) => ({ id: project.id, label: project.name }))}
-        placeholder="Select project"
-        createValue={CREATE_PROJECT_PICKER_VALUE}
-        large={isLargeScreen}
-        disabled={isClockedIn || isLoading || isInteractionLocked || !selectedClientId}
-        onSelect={(value) => {
-          if (isInteractionLocked) {
-            showBlockedMessage(lockReason);
-            return;
-          }
-          setSelectedProjectId(value);
-          setIsCreatingProject(false);
-        }}
-        onCreateNew={() => {
-          if (isInteractionLocked) {
-            showBlockedMessage(lockReason);
-            return;
-          }
-          setIsCreatingProject(true);
-          setIsCreatingClient(false);
-          setIsCreatingTask(false);
-        }}
-      />
-
-      {isCreatingProject && !isClockedIn && !isInteractionLocked ? (
-        <Animated.View
-          className="gap-2 rounded-md border border-border bg-background p-3"
-          entering={FadeIn.duration(160)}
-          exiting={FadeOut.duration(140)}
-        >
-          <TextInput
-            value={newProjectName}
-            onChangeText={setNewProjectName}
-            placeholder="Project name"
-            className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
-          />
-          <TextInput
-            value={newProjectGithubRepo}
-            onChangeText={setNewProjectGithubRepo}
-            placeholder="GitHub repo name (optional)"
-            autoCapitalize="none"
-            autoCorrect={false}
-            className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
-          />
-          <View className="flex-row gap-2">
-            <Pressable className="rounded-md bg-secondary px-3 py-2" onPress={() => handleCreateProject()}>
-              <Text className="font-semibold text-white">Save Project</Text>
-            </Pressable>
-            <Pressable
-              className="rounded-md border border-border px-3 py-2"
-              onPress={() => setIsCreatingProject(false)}
-            >
-              <Text className="font-semibold text-heading">Cancel</Text>
-            </Pressable>
-          </View>
-        </Animated.View>
-      ) : null}
-
-      <PickerField
-        label="Task"
-        value={selectedTaskId}
-        options={tasks.map((task) => ({ id: task.id, label: task.name }))}
-        placeholder="Select task"
-        createValue={CREATE_TASK_PICKER_VALUE}
-        large={isLargeScreen}
-        disabled={isClockedIn || isLoading || isInteractionLocked || !selectedProjectId}
-        onSelect={(value) => {
-          if (isInteractionLocked) {
-            showBlockedMessage(lockReason);
-            return;
-          }
-          setSelectedTaskId(value);
-          setIsCreatingTask(false);
-        }}
-        onCreateNew={() => {
-          if (isInteractionLocked) {
-            showBlockedMessage(lockReason);
-            return;
-          }
-          setIsCreatingTask(true);
-          setIsCreatingClient(false);
-          setIsCreatingProject(false);
-          setIsTaskNameAutoFilled(false);
-        }}
-      />
-
-      {isCreatingTask && !isClockedIn && !isInteractionLocked ? (
-        <Animated.View
-          className="gap-2 rounded-md border border-border bg-background p-3"
-          entering={FadeIn.duration(160)}
-          exiting={FadeOut.duration(140)}
-        >
-          <TextInput
-            value={newTaskName}
-            onChangeText={(value) => {
-              setNewTaskName(value);
-              setIsTaskNameAutoFilled(false);
-            }}
-            placeholder="Task name"
-            className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
-          />
-          {isTaskNameAutoFilled ? (
-            <Text className="text-xs text-muted">Auto-filled from branch name.</Text>
-          ) : null}
-          <TextInput
-            value={newTaskGithubBranch}
-            onChangeText={(value) => {
-              setNewTaskGithubBranch(value);
-              if (!newTaskName.trim()) {
-                const prettyName = prettifyBranchName(value);
-                if (prettyName) {
-                  setNewTaskName(prettyName);
-                  setIsTaskNameAutoFilled(true);
-                }
-              }
-            }}
-            placeholder="GitHub branch (optional)"
-            autoCapitalize="none"
-            autoCorrect={false}
-            className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
-          />
-          <View className="flex-row gap-2">
-            <Pressable className="rounded-md bg-secondary px-3 py-2" onPress={() => handleCreateTask()}>
-              <Text className="font-semibold text-white">Save Task</Text>
-            </Pressable>
-            <Pressable
-              className="rounded-md border border-border px-3 py-2"
-              onPress={() => {
-                setIsCreatingTask(false);
-                setIsTaskNameAutoFilled(false);
-              }}
-            >
-              <Text className="font-semibold text-heading">Cancel</Text>
-            </Pressable>
-          </View>
-        </Animated.View>
-      ) : null}
-
-      <View className="gap-2">
-        <Text className={isLargeScreen ? 'text-sm uppercase tracking-wide text-muted' : 'text-xs uppercase tracking-wide text-muted'}>
-          Session Notes (Optional)
-        </Text>
-        <TextInput
-          value={notes}
-          onChangeText={setNotes}
-          editable={!isInteractionLocked}
-          onBlur={() => {
-            handleNotesBlur().catch(() => undefined);
-          }}
-          placeholder="What you worked on this session"
-          className={notesInputClassName}
-        />
-      </View>
-        </Animated.View>
-          </CollapsibleSection>
-        </Animated.View>
-
-        <Animated.View
-          className={`gap-2 ${isLargeScreen ? 'rounded-xl border border-border bg-background p-4' : ''}`}
-          style={[
-            isLargeScreen ? { justifyContent: 'space-between' } : undefined,
-            timeclockPanelStyle,
-          ]}
-        >
-          <Text className={timerValueClassName}>{formatSeconds(elapsedSeconds)}</Text>
+        {!isClockedIn ? (
           <View className="items-center">
-            <Image
-              source={{ uri: '/images/time2payLogo.png' }}
-              style={{ width: 72, height: 24 }}
-              resizeMode="contain"
-              accessibilityLabel="Time2Pay logo"
-            />
-          </View>
+            <Pressable
+              className={createSessionButtonClassName}
+              style={isLargeScreen ? { width: '40%', minWidth: 320 } : undefined}
+              onPress={() => {
+                if (isInteractionLocked) {
+                  showBlockedMessage(lockReason);
+                  return;
+                }
 
-      {isClockedIn ? (
-        <View className="flex-row gap-2">
-          {isPaused ? (
-            <Pressable
-              className={`flex-1 rounded-2xl ${isResuming ? 'bg-secondary/60' : 'bg-secondary'} ${actionButtonPaddingClassName}`}
-              onPress={handleResume}
-              disabled={isResuming}
+                setIsCreatingManualSession((open) => !open);
+              }}
+              disabled={isInteractionLocked}
             >
-              <View className="flex-row items-center justify-center gap-2">
-                {isResuming && <Text className={`${actionButtonLabelClassName} text-white animate-pulse`}>⏳</Text>}
-                <ClockIcon size={actionIconSize} />
-                <Text className={`${actionButtonLabelClassName} text-white`}>{isResuming ? 'Resuming...' : 'Resume'}</Text>
-              </View>
+              <Text className={createSessionTextClassName}>
+                {isCreatingManualSession ? 'Cancel Manual Session' : 'Create Session'}
+              </Text>
             </Pressable>
-          ) : (
-            <Pressable
-              className={`flex-1 rounded-2xl ${isPausing ? 'bg-primary/60' : 'bg-primary'} ${actionButtonPaddingClassName}`}
-              onPress={handlePause}
-              disabled={isPausing}
-            >
-              <View className="flex-row items-center justify-center gap-2">
-                {isPausing && <Text className={`${actionButtonLabelClassName} text-heading animate-pulse`}>⏳</Text>}
-                <ClockIcon size={actionIconSize} />
-                <Text className={`${actionButtonLabelClassName} text-heading`}>{isPausing ? 'Pausing...' : 'Pause'}</Text>
-              </View>
-            </Pressable>
-          )}
-          <Pressable
-            className={`flex-1 rounded-2xl ${isClockingOut ? 'bg-danger/60' : 'bg-danger'} ${actionButtonPaddingClassName}`}
-            onPress={handleClockOut}
-            disabled={isClockingOut}
+          </View>
+        ) : null}
+
+        {isCreatingManualSession && !isClockedIn && !isInteractionLocked ? (
+          <Animated.View
+            className="gap-2 rounded-md border border-border bg-background p-3"
+            entering={FadeIn.duration(160)}
+            exiting={FadeOut.duration(140)}
           >
-            <View className="flex-row items-center justify-center gap-2">
-              {isClockingOut && <Text className={`${actionButtonLabelClassName} text-white animate-pulse`}>⏳</Text>}
-              <ClockIcon size={actionIconSize} />
-              <Text className={`${actionButtonLabelClassName} text-white`}>{isClockingOut ? 'Clocking Out...' : 'Clock Out'}</Text>
+            <PickerField
+              label="Customer"
+              value={selectedClientId}
+              options={clients.map((client) => ({
+                id: client.id,
+                label: client.name,
+              }))}
+              placeholder="Select customer"
+              createValue={CREATE_CLIENT_PICKER_VALUE}
+              large={isLargeScreen}
+              disabled={isInteractionLocked}
+              onSelect={(value) => {
+                if (isInteractionLocked) {
+                  showBlockedMessage(lockReason);
+                  return;
+                }
+                setSelectedClientId(value);
+                setIsCreatingClient(false);
+              }}
+              onCreateNew={() => {
+                if (isInteractionLocked) {
+                  showBlockedMessage(lockReason);
+                  return;
+                }
+                setIsCreatingClient(true);
+                setIsCreatingProject(false);
+                setIsCreatingTask(false);
+              }}
+            />
+            <PickerField
+              label="Project"
+              value={selectedProjectId}
+              options={projects.map((project) => ({
+                id: project.id,
+                label: project.name,
+              }))}
+              placeholder="Select project"
+              createValue={CREATE_PROJECT_PICKER_VALUE}
+              large={isLargeScreen}
+              disabled={isInteractionLocked || !selectedClientId}
+              onSelect={(value) => {
+                if (isInteractionLocked) {
+                  showBlockedMessage(lockReason);
+                  return;
+                }
+                setSelectedProjectId(value);
+                setIsCreatingProject(false);
+              }}
+              onCreateNew={() => {
+                if (isInteractionLocked) {
+                  showBlockedMessage(lockReason);
+                  return;
+                }
+                setIsCreatingProject(true);
+                setIsCreatingClient(false);
+                setIsCreatingTask(false);
+              }}
+            />
+            <PickerField
+              label="Task"
+              value={selectedTaskId}
+              options={tasks.map((task) => ({ id: task.id, label: task.name }))}
+              placeholder="Select task"
+              createValue={CREATE_TASK_PICKER_VALUE}
+              large={isLargeScreen}
+              disabled={isInteractionLocked || !selectedProjectId}
+              onSelect={(value) => {
+                if (isInteractionLocked) {
+                  showBlockedMessage(lockReason);
+                  return;
+                }
+                setSelectedTaskId(value);
+                setIsCreatingTask(false);
+              }}
+              onCreateNew={() => {
+                if (isInteractionLocked) {
+                  showBlockedMessage(lockReason);
+                  return;
+                }
+                setIsCreatingTask(true);
+                setIsCreatingClient(false);
+                setIsCreatingProject(false);
+              }}
+            />
+            <CalendarDateField
+              label="Manual session start date"
+              value={manualStartDate}
+              onChange={setManualStartDate}
+            />
+            <View className="gap-2">
+              <Text className="text-xs uppercase tracking-wide text-muted">Manual session start time</Text>
+              <TextInput
+                value={manualStartTime}
+                onChangeText={setManualStartTime}
+                editable={!isInteractionLocked}
+                onBlur={() => {
+                  const normalized = normalizeTimeInput(manualStartTime);
+                  if (normalized) {
+                    setManualStartTime(normalized);
+                  }
+                }}
+                placeholder="h:mm AM/PM"
+                keyboardType="numbers-and-punctuation"
+                className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
+              />
             </View>
-          </Pressable>
-        </View>
-      ) : (
-        <Pressable
-          className={`rounded-2xl ${actionButtonPaddingClassName} ${isInteractionLocked || isLoading || isClockingIn ? 'bg-secondary/60' : 'bg-secondary'}`}
-          onPress={handleClockIn}
-          disabled={isClockingIn || isLoading || isInteractionLocked}
-        >
-          <View className="flex-row items-center justify-center gap-2">
-            {isClockingIn && <Text className={`${actionButtonLabelClassName} text-white animate-pulse`}>⏳</Text>}
-            <ClockIcon size={actionIconSize} />
-            <Text className={`${actionButtonLabelClassName} text-white`}>{isClockingIn ? 'Clocking In...' : 'Clock In'}</Text>
-          </View>
-        </Pressable>
-      )}
-        </Animated.View>
-      </Animated.View>
-
-      {!isClockedIn ? (
-        <View className="items-center">
-          <Pressable
-            className={createSessionButtonClassName}
-            style={isLargeScreen ? { width: '40%', minWidth: 320 } : undefined}
-            onPress={() => {
-              if (isInteractionLocked) {
-                showBlockedMessage(lockReason);
-                return;
-              }
-
-              setIsCreatingManualSession((open) => !open);
-            }}
-            disabled={isInteractionLocked}
-          >
-            <Text className={createSessionTextClassName}>
-              {isCreatingManualSession ? 'Cancel Manual Session' : 'Create Session'}
-            </Text>
-          </Pressable>
-        </View>
-      ) : null}
-
-      {isCreatingManualSession && !isClockedIn && !isInteractionLocked ? (
-        <Animated.View
-          className="gap-2 rounded-md border border-border bg-background p-3"
-          entering={FadeIn.duration(160)}
-          exiting={FadeOut.duration(140)}
-        >
-          <PickerField
-            label="Customer"
-            value={selectedClientId}
-            options={clients.map((client) => ({ id: client.id, label: client.name }))}
-            placeholder="Select customer"
-            createValue={CREATE_CLIENT_PICKER_VALUE}
-            large={isLargeScreen}
-            disabled={isInteractionLocked}
-            onSelect={(value) => {
-              if (isInteractionLocked) {
-                showBlockedMessage(lockReason);
-                return;
-              }
-              setSelectedClientId(value);
-              setIsCreatingClient(false);
-            }}
-            onCreateNew={() => {
-              if (isInteractionLocked) {
-                showBlockedMessage(lockReason);
-                return;
-              }
-              setIsCreatingClient(true);
-              setIsCreatingProject(false);
-              setIsCreatingTask(false);
-            }}
-          />
-          <PickerField
-            label="Project"
-            value={selectedProjectId}
-            options={projects.map((project) => ({ id: project.id, label: project.name }))}
-            placeholder="Select project"
-            createValue={CREATE_PROJECT_PICKER_VALUE}
-            large={isLargeScreen}
-            disabled={isInteractionLocked || !selectedClientId}
-            onSelect={(value) => {
-              if (isInteractionLocked) {
-                showBlockedMessage(lockReason);
-                return;
-              }
-              setSelectedProjectId(value);
-              setIsCreatingProject(false);
-            }}
-            onCreateNew={() => {
-              if (isInteractionLocked) {
-                showBlockedMessage(lockReason);
-                return;
-              }
-              setIsCreatingProject(true);
-              setIsCreatingClient(false);
-              setIsCreatingTask(false);
-            }}
-          />
-          <PickerField
-            label="Task"
-            value={selectedTaskId}
-            options={tasks.map((task) => ({ id: task.id, label: task.name }))}
-            placeholder="Select task"
-            createValue={CREATE_TASK_PICKER_VALUE}
-            large={isLargeScreen}
-            disabled={isInteractionLocked || !selectedProjectId}
-            onSelect={(value) => {
-              if (isInteractionLocked) {
-                showBlockedMessage(lockReason);
-                return;
-              }
-              setSelectedTaskId(value);
-              setIsCreatingTask(false);
-            }}
-            onCreateNew={() => {
-              if (isInteractionLocked) {
-                showBlockedMessage(lockReason);
-                return;
-              }
-              setIsCreatingTask(true);
-              setIsCreatingClient(false);
-              setIsCreatingProject(false);
-            }}
-          />
-          <CalendarDateField
-            label="Manual session start date"
-            value={manualStartDate}
-            onChange={setManualStartDate}
-          />
-          <View className="gap-2">
-            <Text className="text-xs uppercase tracking-wide text-muted">Manual session start time</Text>
+            <CalendarDateField label="Manual session end date" value={manualEndDate} onChange={setManualEndDate} />
+            <View className="gap-2">
+              <Text className="text-xs uppercase tracking-wide text-muted">Manual session end time</Text>
+              <TextInput
+                value={manualEndTime}
+                onChangeText={setManualEndTime}
+                editable={!isInteractionLocked}
+                onBlur={() => {
+                  const normalized = normalizeTimeInput(manualEndTime);
+                  if (normalized) {
+                    setManualEndTime(normalized);
+                  }
+                }}
+                placeholder="h:mm AM/PM"
+                keyboardType="numbers-and-punctuation"
+                className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
+              />
+            </View>
+            {manualRangeError ? <InlineNotice tone="error" message={manualRangeError} /> : null}
+            <Text className="text-xs uppercase tracking-wide text-muted">Notes (optional)</Text>
             <TextInput
-              value={manualStartTime}
-              onChangeText={setManualStartTime}
+              value={manualNotes}
+              onChangeText={setManualNotes}
               editable={!isInteractionLocked}
-              onBlur={() => {
-                const normalized = normalizeTimeInput(manualStartTime);
-                if (normalized) {
-                  setManualStartTime(normalized);
-                }
-              }}
-              placeholder="h:mm AM/PM"
-              keyboardType="numbers-and-punctuation"
+              placeholder="What was done in this session"
               className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
             />
-          </View>
-          <CalendarDateField
-            label="Manual session end date"
-            value={manualEndDate}
-            onChange={setManualEndDate}
-          />
-          <View className="gap-2">
-            <Text className="text-xs uppercase tracking-wide text-muted">Manual session end time</Text>
-            <TextInput
-              value={manualEndTime}
-              onChangeText={setManualEndTime}
-              editable={!isInteractionLocked}
-              onBlur={() => {
-                const normalized = normalizeTimeInput(manualEndTime);
-                if (normalized) {
-                  setManualEndTime(normalized);
-                }
-              }}
-              placeholder="h:mm AM/PM"
-              keyboardType="numbers-and-punctuation"
-              className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
-            />
-          </View>
-          {manualRangeError ? <InlineNotice tone="error" message={manualRangeError} /> : null}
-          <Text className="text-xs uppercase tracking-wide text-muted">Notes (optional)</Text>
-          <TextInput
-            value={manualNotes}
-            onChangeText={setManualNotes}
-            editable={!isInteractionLocked}
-            placeholder="What was done in this session"
-            className="rounded-md border border-border bg-card px-3 py-2 text-foreground"
-          />
-          <Pressable
-            className={`rounded-md px-4 py-2 ${manualRangeError || isInteractionLocked ? 'bg-secondary/60' : 'bg-secondary'}`}
-            onPress={handleCreateManualSession}
-            disabled={Boolean(manualRangeError) || isInteractionLocked}
-          >
-            <Text className="text-center font-semibold text-white">Save Manual Session</Text>
-          </Pressable>
-        </Animated.View>
-      ) : null}
+            <Pressable
+              className={`rounded-md px-4 py-2 ${manualRangeError || isInteractionLocked ? 'bg-secondary/60' : 'bg-secondary'}`}
+              onPress={handleCreateManualSession}
+              disabled={Boolean(manualRangeError) || isInteractionLocked}
+            >
+              <Text className="text-center font-semibold text-white">Save Manual Session</Text>
+            </Pressable>
+          </Animated.View>
+        ) : null}
 
-      {message ? (
-        <Animated.View entering={FadeIn.duration(160)} exiting={FadeOut.duration(140)}>
-          <InlineNotice tone={message.tone} message={message.text} />
-        </Animated.View>
-      ) : null}
+        {message ? (
+          <Animated.View entering={FadeIn.duration(160)} exiting={FadeOut.duration(140)}>
+            <InlineNotice tone={message.tone} message={message.text} />
+          </Animated.View>
+        ) : null}
 
-      <SessionCompleteModal
-        visible={showCompleteModal}
-        initialNotes={completedSessionNotes}
-        githubOrg={selectedClient?.github_org ?? null}
-        githubRepo={selectedProject?.github_repo ?? null}
-        githubBranch={selectedTask?.github_branch ?? null}
-        onSave={(result: SessionCompleteResult) => {
-          handleSessionCompleteSave(result).catch(() => undefined);
-        }}
-        onSkip={() => {
-          handleSessionCompleteSkip().catch(() => undefined);
-        }}
-      />
+        <SessionCompleteModal
+          visible={showCompleteModal}
+          initialNotes={completedSessionNotes}
+          githubOrg={selectedClient?.github_org ?? null}
+          githubRepo={selectedProject?.github_repo ?? null}
+          githubBranch={selectedTask?.github_branch ?? null}
+          onSave={(result: SessionCompleteResult) => {
+            handleSessionCompleteSave(result).catch(() => undefined);
+          }}
+          onSkip={() => {
+            handleSessionCompleteSkip().catch(() => undefined);
+          }}
+        />
       </Animated.View>
     </Animated.View>
   );

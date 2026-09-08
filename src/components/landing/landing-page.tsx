@@ -1,23 +1,15 @@
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { Octicons } from '@expo/vector-icons';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  Image,
-  Pressable,
-  ScrollView,
-  Text,
-  useColorScheme,
-  View,
-  type LayoutChangeEvent,
-  type ViewStyle,
-} from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Pressable, Platform, ScrollView, Text, View, type LayoutChangeEvent, type ViewStyle } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedRef,
+  useAnimatedStyle,
+  useReducedMotion,
   useScrollOffset,
   useSharedValue,
-  withDelay,
   withTiming,
 } from 'react-native-reanimated';
 import {
@@ -34,17 +26,16 @@ import { FeaturesScene } from './features-scene';
 import { LandingFooter } from './landing-footer';
 import { LandingHeader } from './landing-header';
 import { MercuryScene } from './mercury-scene';
-import {
-  type SectionLayout,
-  useHeroPieceStyle,
-  useParallaxStyle,
-  useSectionRevealStyle,
-} from './landing-motion';
+import { type SectionLayout, useHeroPieceStyle, useParallaxStyle, useSectionRevealStyle } from './landing-motion';
 import { useResolvedDataMode } from '@/hooks/use-resolved-data-mode';
 import { logRuntimeDiagnostic } from '@/services/runtime-diagnostics';
 import { useStableWindowDimensions } from '@/hooks/use-stable-window-dimensions';
 import { LandingSection } from './landing-section';
 import { SemanticText } from './semantic-elements';
+import { AnimatedTime2PayLogo } from '@/components/branding/animated-time2pay-logo';
+import type { Time2PayLogoState } from '@/components/branding/time2pay-logo-motion';
+import { getLandingLogoCompletionTransition, getLandingLogoSize } from './landing-logo-sequence';
+import { useAppTheme } from '@/theme/provider';
 
 // Motion budget: landing reveals are short transform/opacity transitions shared by scene components.
 type PercentageWidth = '100%' | '48.5%' | '31.8%';
@@ -98,7 +89,11 @@ function HeroStage({
   compact: boolean;
   stepCardStyle: { width: PercentageWidth };
 }) {
-  const workflowSteps: { icon: React.ComponentProps<typeof Octicons>['name']; title: string; body: string }[] = [
+  const workflowSteps: {
+    icon: React.ComponentProps<typeof Octicons>['name'];
+    title: string;
+    body: string;
+  }[] = [
     {
       icon: 'repo',
       title: 'Link a repo',
@@ -131,7 +126,11 @@ function HeroStage({
           <View className="flex-row items-center gap-3 md:max-w-[520px]">
             <View
               className="h-12 w-12 items-center justify-center rounded-[16px]"
-              style={{ backgroundColor: GH_OVERLAY, borderWidth: 1, borderColor: GH_BORDER }}
+              style={{
+                backgroundColor: GH_OVERLAY,
+                borderWidth: 1,
+                borderColor: GH_BORDER,
+              }}
             >
               <Octicons name="mark-github" size={24} color={GH_FG} />
             </View>
@@ -168,7 +167,11 @@ function HeroStage({
             <View key={step.title} style={stepCardStyle}>
               <View
                 className={`rounded-[24px] ${compact ? 'px-4 py-3.5' : 'px-4 py-4'}`}
-                style={{ backgroundColor: GH_OVERLAY, borderWidth: 1, borderColor: GH_BORDER }}
+                style={{
+                  backgroundColor: GH_OVERLAY,
+                  borderWidth: 1,
+                  borderColor: GH_BORDER,
+                }}
               >
                 <View className={`gap-3 ${stepCardStyle.width === '100%' ? 'md:flex-row md:items-start' : ''}`}>
                   <View
@@ -206,11 +209,7 @@ function HeroStage({
           <View>
             <View className="flex-row items-center gap-2">
               <Octicons name="git-commit" size={13} color={GH_MUTED} />
-              <SemanticText
-                as="p"
-                className="text-xs font-bold uppercase tracking-[2px]"
-                style={{ color: GH_MUTED }}
-              >
+              <SemanticText as="p" className="text-xs font-bold uppercase tracking-[2px]" style={{ color: GH_MUTED }}>
                 GitHub-aware sessions
               </SemanticText>
             </View>
@@ -227,7 +226,8 @@ function HeroStage({
             className={`text-sm ${compact ? 'leading-5 md:max-w-[360px]' : 'leading-6 md:max-w-[320px]'}`}
             style={{ color: GH_MUTED }}
           >
-            Paste a URL or connect repo access. Invoice PDFs carry the commit context so clients can verify what shipped—without needing a GitHub account.
+            Paste a URL or connect repo access. Invoice PDFs carry the commit context so clients can verify what
+            shipped—without needing a GitHub account.
           </SemanticText>
         </View>
       </View>
@@ -261,7 +261,9 @@ function BulletGrid({
         >
           <View
             className="flex-1 gap-4"
-            style={{ justifyContent: bullet.cta && onPress ? 'space-between' : 'flex-start' }}
+            style={{
+              justifyContent: bullet.cta && onPress ? 'space-between' : 'flex-start',
+            }}
           >
             <View className="gap-3">
               <SemanticText
@@ -292,9 +294,7 @@ function BulletGrid({
                   }
                 }}
               >
-                <Text className="text-sm font-semibold text-heading">
-                  {bullet.cta.label}
-                </Text>
+                <Text className="text-sm font-semibold text-heading">{bullet.cta.label}</Text>
               </Pressable>
             ) : null}
           </View>
@@ -323,7 +323,9 @@ function PricingHighlight({ compact }: { compact: boolean }) {
           </SemanticText>
         </View>
         <SemanticText as="p" className="text-base leading-7 text-foreground">
-          Month-to-month access for contractors who want sign-in, cloud storage, and Mercury integration managed for them. Pay $2/month and cancel whenever, or choose the $20 annual plan. The Mercury referral reward is coming soon while attribution reporting is connected.
+          Month-to-month access for contractors who want sign-in, cloud storage, and Mercury integration managed for
+          them. Pay $2/month and cancel whenever, or choose the $20 annual plan. The Mercury referral reward is coming
+          soon while attribution reporting is connected.
         </SemanticText>
       </View>
     </View>
@@ -332,7 +334,7 @@ function PricingHighlight({ compact }: { compact: boolean }) {
 
 export function LandingPage() {
   const router = useRouter();
-  const colorScheme = useColorScheme();
+  const { activeScheme } = useAppTheme();
   const { dataMode, hostedMode, resolved: dataModeResolved } = useResolvedDataMode();
   const isAuthenticated = useAuthUiStore((state) => state.isAuthenticated);
   const tourModeEnabled = useAuthUiStore((state) => state.tourModeEnabled);
@@ -341,15 +343,18 @@ export function LandingPage() {
   const resetForLocalMode = useAuthUiStore((state) => state.resetForLocalMode);
   const scrollRef = useAnimatedRef<ScrollView>();
   const scrollY = useScrollOffset(scrollRef);
+  const reducedMotion = useReducedMotion();
   const heroCopyProgress = useSharedValue(0);
-  const logoProgress = useSharedValue(0);
+  const [heroLogoState, setHeroLogoState] = useState<Time2PayLogoState>('landing-spin');
+  const landingTransitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [sectionLayouts, setSectionLayouts] = useState<Record<string, SectionLayout>>({});
   const { width, height } = useStableWindowDimensions();
 
   const viewportWidth = width > 0 ? width : 1280;
   const viewportHeight = height > 0 ? height : 900;
-  const isDark = colorScheme === 'dark';
+  const isDark = activeScheme === 'dark';
   const footerThemeColor = isDark ? '#f8f7f3' : '#1a1f16';
+  const logoForegroundColor = Platform.OS === 'web' ? 'var(--color-heading)' : footerThemeColor;
   const isDesktopViewport = viewportWidth >= 768;
   const isShortViewport = viewportHeight < 880;
   const isVeryShortViewport = viewportHeight < 760;
@@ -359,14 +364,12 @@ export function LandingPage() {
     ? Math.max(viewportSectionFloor, isVeryShortViewport ? 520 : isShortViewport ? 560 : 620)
     : undefined;
   const baseSectionMinHeight = isDesktopViewport
-    ? Math.max(viewportSectionFloor - (isVeryShortViewport ? 28 : isShortViewport ? 12 : 0), isVeryShortViewport ? 480 : 540)
+    ? Math.max(
+        viewportSectionFloor - (isVeryShortViewport ? 28 : isShortViewport ? 12 : 0),
+        isVeryShortViewport ? 480 : 540,
+      )
     : undefined;
-  const isLargeViewport = viewportWidth >= 1200;
-  const logoImageSize = (() => {
-    if (isLargeViewport) return isShortViewport ? 630 : 810;
-    if (isDesktopViewport) return isShortViewport ? 510 : 660;
-    return 420;
-  })();
+  const logoImageSize = getLandingLogoSize(viewportWidth, viewportHeight);
 
   const workflowStepStyle = useMemo<{ width: PercentageWidth }>(() => {
     if (viewportWidth >= 1140 || (viewportWidth >= 900 && isShortViewport)) {
@@ -387,22 +390,38 @@ export function LandingPage() {
       : 'text-4xl font-bold leading-tight text-heading md:text-6xl';
 
   useEffect(() => {
-    heroCopyProgress.value = 0;
-    logoProgress.value = 0;
+    heroCopyProgress.set(0);
+    setHeroLogoState('landing-spin');
 
-    heroCopyProgress.value = withTiming(1, {
-      duration: 760,
-      easing: Easing.bezier(0.22, 1, 0.36, 1),
-    });
+    return () => {
+      if (landingTransitionTimerRef.current) {
+        clearTimeout(landingTransitionTimerRef.current);
+      }
+    };
+  }, [heroCopyProgress]);
 
-    logoProgress.value = withDelay(
-      760,
-      withTiming(1, {
-        duration: 700,
-        easing: Easing.bezier(0.22, 1, 0.36, 1),
-      }),
-    );
-  }, [heroCopyProgress, logoProgress]);
+  const handleHeroLogoAnimationComplete = useCallback(
+    (completedState: Time2PayLogoState) => {
+      const transition = getLandingLogoCompletionTransition(completedState, reducedMotion);
+      if (!transition) return;
+
+      if (transition.revealHero) {
+        heroCopyProgress.set(
+          withTiming(1, {
+            duration: transition.delayMs,
+            easing: Easing.bezier(0.22, 1, 0.36, 1),
+          }),
+        );
+        landingTransitionTimerRef.current = setTimeout(() => {
+          setHeroLogoState(transition.nextState);
+        }, transition.delayMs);
+        return;
+      }
+
+      setHeroLogoState(transition.nextState);
+    },
+    [heroCopyProgress, reducedMotion],
+  );
 
   const registerSectionLayout = useCallback((id: string, event: LayoutChangeEvent) => {
     const { y, height: measuredHeight } = event.nativeEvent.layout;
@@ -410,11 +429,7 @@ export function LandingPage() {
     setSectionLayouts((current) => {
       const existing = current[id];
 
-      if (
-        existing &&
-        Math.abs(existing.y - y) < 1 &&
-        Math.abs(existing.height - measuredHeight) < 1
-      ) {
+      if (existing && Math.abs(existing.y - y) < 1 && Math.abs(existing.height - measuredHeight) < 1) {
         return current;
       }
 
@@ -523,7 +538,12 @@ export function LandingPage() {
   }, [dataMode, dataModeResolved, hostedMode, isAuthenticated, router, startTour]);
 
   const heroCopyStyle = useHeroPieceStyle(heroCopyProgress, 40);
-  const logoStyle = useHeroPieceStyle(logoProgress, 0);
+  const heroPrimaryGlowRevealStyle = useAnimatedStyle(() => ({
+    opacity: heroCopyProgress.get() * 0.22,
+  }));
+  const heroSecondaryGlowRevealStyle = useAnimatedStyle(() => ({
+    opacity: heroCopyProgress.get() * 0.14,
+  }));
   const heroGlowPrimaryStyle = useParallaxStyle(scrollY, sectionLayouts[heroSection.id], viewportHeight, 32);
   const heroGlowSecondaryStyle = useParallaxStyle(scrollY, sectionLayouts[heroSection.id], viewportHeight, 54);
   const workflowMotion = useSectionRevealStyle(scrollY, sectionLayouts[workflowSection.id], viewportHeight, 0.94);
@@ -539,10 +559,7 @@ export function LandingPage() {
       scrollEventThrottle={16}
       showsVerticalScrollIndicator={false}
     >
-      <LandingHeader
-        onOpenSignIn={handleSignIn}
-        onTourExperience={handleTourExperience}
-      />
+      <LandingHeader onOpenSignIn={handleSignIn} onTourExperience={handleTourExperience} />
 
       <LandingSection
         id={heroSection.id}
@@ -550,26 +567,41 @@ export function LandingPage() {
         minHeight={heroMinHeight}
         onLayout={(event) => registerSectionLayout(heroSection.id, event)}
       >
-        <View className={`relative flex-col ${isShortViewport ? 'gap-8' : 'gap-10'} md:flex-row md:items-stretch md:justify-between`}>
+        <View
+          className={`relative flex-col ${isShortViewport ? 'gap-8' : 'gap-10'} md:flex-row md:items-stretch md:justify-between`}
+        >
           <Animated.View
             className="absolute -left-10 top-0 h-56 w-56 rounded-full bg-primary"
-            style={[{ opacity: 0.22, zIndex: 0 }, heroGlowPrimaryStyle]}
+            style={[{ zIndex: 0 }, heroGlowPrimaryStyle, heroPrimaryGlowRevealStyle]}
           />
           <Animated.View
             className="absolute right-0 top-20 h-40 w-40 rounded-full bg-secondary"
-            style={[{ opacity: 0.14, zIndex: 0 }, heroGlowSecondaryStyle]}
+            style={[{ zIndex: 0 }, heroGlowSecondaryStyle, heroSecondaryGlowRevealStyle]}
           />
 
-          <Animated.View
-            className="md:w-[38%] md:self-stretch"
-            style={[logoStyle, { zIndex: 1, overflow: 'visible' }]}
+          <View
+            className="items-center justify-center md:w-[38%] md:self-stretch"
+            style={{ zIndex: 1, overflow: 'visible' }}
           >
-            <Image
-              source={{ uri: '/images/time2payLogo.png' }}
-              style={{ width: logoImageSize, height: logoImageSize }}
-              accessibilityLabel="Time2Pay logo"
-            />
-          </Animated.View>
+            <View
+              testID="landing-logo-stage"
+              style={{
+                width: logoImageSize,
+                height: logoImageSize,
+                overflow: 'visible',
+              }}
+            >
+              <AnimatedTime2PayLogo
+                state={heroLogoState}
+                size={logoImageSize}
+                foregroundColor={logoForegroundColor}
+                accentColor={isDark ? '#8ae28a' : '#25834c'}
+                statusColor={isDark ? '#86efac' : '#25834c'}
+                landingFlightDistance={Math.max(520, viewportHeight * 0.85)}
+                onAnimationComplete={handleHeroLogoAnimationComplete}
+              />
+            </View>
+          </View>
 
           <View className="flex-1 justify-center gap-8 md:max-w-[680px]" style={{ zIndex: 2 }}>
             <Animated.View className="gap-5" style={heroCopyStyle}>
@@ -582,9 +614,7 @@ export function LandingPage() {
               <SectionBody paragraphs={heroSection.body} compact={sectionBodyCompact} />
               <View className="flex-row flex-wrap gap-3">
                 <Pressable className="rounded-full bg-primary px-5 py-3" onPress={handleOnboarding}>
-                  <Text className="text-sm font-semibold text-heading">
-                    Get Started
-                  </Text>
+                  <Text className="text-sm font-semibold text-heading">Get Started</Text>
                 </Pressable>
                 <Pressable
                   className="rounded-full border border-border bg-background px-5 py-3"
@@ -645,10 +675,9 @@ export function LandingPage() {
           process.env.EXPO_OS === 'web'
             ? ({
                 backgroundColor: footerThemeColor,
-                backgroundImage:
-                  isDark
-                    ? 'linear-gradient(180deg, rgba(143, 212, 154, 0.92) 0%, rgba(201, 232, 206, 0.82) 38%, rgba(233, 242, 234, 0.92) 72%, #f8f7f3 95%, #f8f7f3 100%)'
-                    : 'linear-gradient(180deg, rgba(175, 228, 183, 0.9) 0%, rgba(115, 145, 121, 0.72) 38%, rgba(46, 54, 42, 0.82) 72%, #1a1f16 95%, #1a1f16 100%)',
+                backgroundImage: isDark
+                  ? 'linear-gradient(180deg, rgba(143, 212, 154, 0.92) 0%, rgba(201, 232, 206, 0.82) 38%, rgba(233, 242, 234, 0.92) 72%, #f8f7f3 95%, #f8f7f3 100%)'
+                  : 'linear-gradient(180deg, rgba(175, 228, 183, 0.9) 0%, rgba(115, 145, 121, 0.72) 38%, rgba(46, 54, 42, 0.82) 72%, #1a1f16 95%, #1a1f16 100%)',
               } as unknown as ViewStyle)
             : undefined
         }

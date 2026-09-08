@@ -38,7 +38,7 @@ function signedInComplete(overrides: Partial<ResolveHostedRouteGateInput> = {}) 
 }
 
 describe('classifyTime2PayRoute', () => {
-  it.each(['/', '/sign-in', '/pricing', '/privacy', '/terms', '/legal/updates'])(
+  it.each(['/', '/sign-in', '/pricing', '/privacy', '/terms', '/legal/updates', '/animations'])(
     'keeps %s public',
     (pathname) => {
       const route = classifyTime2PayRoute(pathname);
@@ -110,9 +110,23 @@ describe('resolveHostedRouteGate direct URL access', () => {
   });
 
   it('keeps public legal, pricing, and legal-update pages public for signed-out users', () => {
-    for (const pathname of ['/pricing', '/privacy', '/terms', '/legal/updates']) {
+    for (const pathname of ['/pricing', '/privacy', '/terms', '/legal/updates', '/animations']) {
       expect(gate({ pathname }).redirectTarget).toBeNull();
     }
+  });
+
+  it('keeps the animation lab public while hosted auth is unresolved', () => {
+    const decision = gate({
+      authReady: false,
+      hostedAccessGateReady: false,
+      hostedAccessGateStatus: 'checking',
+      pathname: '/animations',
+    });
+
+    expect(decision.isAnimationsRoute).toBe(true);
+    expect(decision.isPublicRoute).toBe(true);
+    expect(decision.shouldShowLoadingShell).toBe(false);
+    expect(decision.redirectTarget).toBeNull();
   });
 
   it('holds protected app URLs on the loading shell while hosted auth is unresolved', () => {
