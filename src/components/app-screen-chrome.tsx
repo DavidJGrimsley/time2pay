@@ -9,7 +9,7 @@ export function AppScreenChrome({ children }: PropsWithChildren) {
 
   return (
     <View className="flex-1 bg-background">
-      <View className="px-6 pt-6 pb-2">
+      <View className="px-6 pt-7 pb-5">
         <WorkspaceHeader />
       </View>
       <View className="flex-1">{children}</View>

@@ -1,4 +1,4 @@
-import { createElement, type PropsWithChildren } from 'react';
+import { createElement, useCallback, useEffect, useRef, useState, type PropsWithChildren } from 'react';
 import {
   Image,
   Pressable,
@@ -10,9 +10,12 @@ import {
 import Animated, {
   Extrapolation,
   interpolate,
+  useAnimatedReaction,
   useAnimatedStyle,
   type SharedValue,
 } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
+import { AnimatedTime2PayLogo } from '../branding/animated-time2pay-logo';
 import {
   mercuryBullets,
   mercuryCallout,
@@ -138,6 +141,77 @@ function MercuryBulletCard({
           {bullet.body}
         </SemanticText>
       </View>
+    </Animated.View>
+  );
+}
+
+function Time2PayAlarmWatermark({
+  progress,
+  compact,
+}: {
+  progress: SharedValue<number>;
+  compact: boolean;
+}) {
+  const [alarmActive, setAlarmActive] = useState(false);
+  const [replayKey, setReplayKey] = useState(0);
+  const isMountedRef = useRef(true);
+
+  useEffect(
+    () => () => {
+      isMountedRef.current = false;
+    },
+    [],
+  );
+
+  const replayAlarm = useCallback(() => {
+    if (!isMountedRef.current) return;
+    setAlarmActive(true);
+    setReplayKey((currentKey) => currentKey + 1);
+  }, []);
+
+  // This crosses the React boundary only when Mercury's watermark begins its scroll pass,
+  // never for every scroll frame.
+  useAnimatedReaction(
+    () => progress.value >= 0.01 && progress.value < 0.96,
+    (isInAlarmRange, wasInAlarmRange) => {
+      if (isInAlarmRange && !wasInAlarmRange) {
+        scheduleOnRN(replayAlarm);
+      }
+    },
+    [progress, replayAlarm],
+  );
+
+  const watermarkStyle = useAnimatedStyle(
+    () => ({
+      opacity: interpolate(progress.value, [0, 0.03, 0.86, 1], [0, 0.18, 0.18, 0.08], Extrapolation.CLAMP),
+    }),
+    [progress],
+  );
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      className="absolute left-[-72px] top-1/2"
+      style={[
+        {
+          width: compact ? 260 : 340,
+          height: compact ? 260 : 340,
+          marginTop: compact ? -130 : -170,
+        },
+        watermarkStyle,
+      ]}
+    >
+      <AnimatedTime2PayLogo
+        state={alarmActive ? 'alarm' : 'static'}
+        replayKey={replayKey}
+        size={compact ? 260 : 340}
+        foregroundColor={MERCURY_NAVY}
+        accentColor="#9bacc4"
+        statusColor="#71849f"
+        accessibilityLabel=""
+      />
     </Animated.View>
   );
 }
@@ -281,6 +355,8 @@ export function MercuryScene({
                   accessibilityLabel="Mercury icon watermark"
                 />
               </Animated.View>
+
+              <Time2PayAlarmWatermark progress={progress} compact={isCompactScene} />
             </View>
 
             <View className={`relative z-10 mx-auto flex h-full w-full max-w-[1400px] flex-col justify-center ${isCompactScene ? 'gap-7 md:gap-8' : 'gap-8 md:gap-10'} md:flex-row md:items-center md:justify-between`}>

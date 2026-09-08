@@ -40,4 +40,14 @@ describe('logo integrations', () => {
     expect(landingSource).not.toContain('logoProgress');
     expect(landingSource).not.toContain("'/images/time2payLogo.png'");
   });
+
+  it('adds a scroll-gated alarm watermark opposite the Mercury mark', () => {
+    const mercurySource = readSource('src/components/landing/mercury-scene.tsx');
+
+    expect(mercurySource).toContain('function Time2PayAlarmWatermark');
+    expect(mercurySource).toContain('useAnimatedReaction');
+    expect(mercurySource).toContain('scheduleOnRN(replayAlarm)');
+    expect(mercurySource).toContain("state={alarmActive ? 'alarm' : 'static'}");
+    expect(mercurySource).toContain('pointerEvents="none"');
+  });
 });
