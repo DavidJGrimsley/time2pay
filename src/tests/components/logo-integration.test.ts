@@ -41,13 +41,15 @@ describe('logo integrations', () => {
     expect(landingSource).not.toContain("'/images/time2payLogo.png'");
   });
 
-  it('adds a scroll-gated alarm watermark opposite the Mercury mark', () => {
+  it('scrubs the alarm watermark from Mercury scroll progress', () => {
     const mercurySource = readSource('src/components/landing/mercury-scene.tsx');
+    const animatedLogoSource = readSource('src/components/branding/animated-time2pay-logo.tsx');
 
     expect(mercurySource).toContain('function Time2PayAlarmWatermark');
-    expect(mercurySource).toContain('useAnimatedReaction');
-    expect(mercurySource).toContain('scheduleOnRN(replayAlarm)');
-    expect(mercurySource).toContain("state={alarmActive ? 'alarm' : 'static'}");
+    expect(mercurySource).toContain('state="alarm"');
+    expect(mercurySource).toContain('animationProgress={progress}');
     expect(mercurySource).toContain('pointerEvents="none"');
+    expect(animatedLogoSource).toContain('animationProgress?: SharedValue<number>');
+    expect(animatedLogoSource).toContain('isScrollControlledAlarm');
   });
 });

@@ -9,6 +9,7 @@ import {
   withRepeat,
   withSequence,
   withTiming,
+  type SharedValue,
 } from 'react-native-reanimated';
 import {
   TIME2PAY_HOUR_ARTWORK_OFFSET,
@@ -50,6 +51,8 @@ export type AnimatedTime2PayLogoProps = Omit<
   replayKey?: string | number;
   previousStableState?: Time2PayStableLogoState;
   landingFlightDistance?: number;
+  /** A 0–1 UI-thread progress value that scrubs the alarm sequence in either direction. */
+  animationProgress?: SharedValue<number>;
   onAnimationComplete?: (state: Time2PayLogoState) => void;
 };
 
@@ -87,6 +90,7 @@ export function AnimatedTime2PayLogo({
   replayKey = 0,
   previousStableState = 'clocked-out-idle',
   landingFlightDistance = 560,
+  animationProgress,
   onAnimationComplete,
   accessibilityLabel,
   ...logoProps
@@ -97,6 +101,8 @@ export function AnimatedTime2PayLogo({
   const alarmTimestamp = alarmTime instanceof Date ? alarmTime.getTime() : alarmTime;
   const initialDate = resolveLogoDate(displayTimestamp);
   const initialAngles = getClockHandAngles(initialDate);
+  const alarmAngles = getClockHandAngles(resolveLogoDate(alarmTimestamp));
+  const isScrollControlledAlarm = state === 'alarm' && animationProgress !== undefined;
   const initialMinuteFill =
     sessionElapsedSeconds === undefined
       ? getMinuteFillProgress(initialDate)
@@ -129,37 +135,82 @@ export function AnimatedTime2PayLogo({
     sessionElapsedSecondsRef.current = sessionElapsedSeconds;
   }, [sessionElapsedSeconds]);
 
-  const bodyAnimatedProps = useAnimatedProps(() => ({
-    transform: [bodyScaleX.get(), 0, 0, bodyScaleY.get(), bodyTranslateX.get(), 0],
-  }));
+  const bodyAnimatedProps = useAnimatedProps(() => {
+    const progress = isScrollControlledAlarm ? Math.min(Math.max(animationProgress!.get(), 0), 1) : 0;
+    const shake =
+      progress < 0.62
+        ? 0
+        : progress < 0.68
+          ? -9
+          : progress < 0.74
+            ? 9
+            : progress < 0.8
+              ? -6
+              : progress < 0.86
+                ? 6
+                : 0;
+
+    return {
+      transform: [
+        bodyScaleX.get(),
+        0,
+        0,
+        bodyScaleY.get(),
+        isScrollControlledAlarm ? shake : bodyTranslateX.get(),
+        0,
+      ],
+    };
+  }, [animationProgress, isScrollControlledAlarm]);
 
   const hourAnimatedProps = useAnimatedProps(() => {
-    const radians = (hourRotation.get() * Math.PI) / 180;
+    const progress = isScrollControlledAlarm ? Math.min(Math.max(animationProgress!.get(), 0), 1) : 0;
+    const spinProgress = Math.min(progress / 0.62, 1);
+    const start = initialAngles.hour + TIME2PAY_HOUR_ARTWORK_OFFSET;
+    const target = alarmAngles.hour + TIME2PAY_HOUR_ARTWORK_OFFSET + 1080;
+    const rotation = isScrollControlledAlarm ? start + (target - start) * spinProgress : hourRotation.get();
+    const radians = (rotation * Math.PI) / 180;
     const cosine = Math.cos(radians);
     const sine = Math.sin(radians);
     return { transform: [cosine, sine, -sine, cosine, 0, 0] };
-  });
+  }, [alarmAngles.hour, animationProgress, initialAngles.hour, isScrollControlledAlarm]);
 
   const minuteAnimatedProps = useAnimatedProps(() => {
-    const radians = (minuteRotation.get() * Math.PI) / 180;
+    const progress = isScrollControlledAlarm ? Math.min(Math.max(animationProgress!.get(), 0), 1) : 0;
+    const spinProgress = Math.min(progress / 0.62, 1);
+    const target = alarmAngles.minute + 1080;
+    const rotation = isScrollControlledAlarm
+      ? initialAngles.minute + (target - initialAngles.minute) * spinProgress
+      : minuteRotation.get();
+    const radians = (rotation * Math.PI) / 180;
     const cosine = Math.cos(radians);
     const sine = Math.sin(radians);
     return { transform: [cosine, sine, -sine, cosine, 0, 0] };
-  });
+  }, [alarmAngles.minute, animationProgress, initialAngles.minute, isScrollControlledAlarm]);
 
   const dollarAnimatedProps = useAnimatedProps(() => ({
     transform: [dollarScale.get(), 0, 0, dollarScale.get(), 0, dollarTranslateY.get()],
   }));
 
   const toupeeAnimatedProps = useAnimatedProps(() => {
-    const radians = (toupeeRotation.get() * Math.PI) / 180;
+    const progress = isScrollControlledAlarm ? Math.min(Math.max(animationProgress!.get(), 0), 1) : 0;
+    const rotation =
+      progress < 0.6
+        ? 0
+        : progress < 0.66
+          ? -8
+          : progress < 0.72
+            ? 8
+            : progress < 0.8
+              ? -4
+              : 0;
+    const radians = ((isScrollControlledAlarm ? rotation : toupeeRotation.get()) * Math.PI) / 180;
     const cosine = Math.cos(radians);
     const sine = Math.sin(radians);
     return {
       transform: [cosine, sine, -sine, cosine, toupeeTranslateX.get(), toupeeTranslateY.get()],
       opacity: toupeeOpacity.get(),
     };
-  });
+  }, [animationProgress, isScrollControlledAlarm]);
 
   const badgeAnimatedProps = useAnimatedProps(() => ({
     opacity: badgeOpacity.get(),
@@ -207,6 +258,13 @@ export function AnimatedTime2PayLogo({
     settle(toupeeRotation, 0);
     settle(toupeeOpacity, state === 'landing-spin' || (reducedMotion && state === 'landing-toupee') ? 0 : 1);
     settle(badgeOpacity, getLogoBadge(state) === 'none' ? 0 : 1);
+
+    if (isScrollControlledAlarm) {
+      dollarProgress.set(0);
+      return () => {
+        animatedValues.forEach((value) => cancelAnimation(value));
+      };
+    }
 
     let phaseTimer: ReturnType<typeof setTimeout> | undefined;
     let completionTimer: ReturnType<typeof setTimeout> | undefined;
@@ -667,6 +725,7 @@ export function AnimatedTime2PayLogo({
     };
   }, [
     alarmTimestamp,
+    animationProgress,
     badgeOpacity,
     bodyScaleX,
     bodyScaleY,
@@ -676,6 +735,7 @@ export function AnimatedTime2PayLogo({
     dollarScale,
     dollarTranslateY,
     hourRotation,
+    isScrollControlledAlarm,
     landingFlightDistance,
     minuteRotation,
     previousStableState,

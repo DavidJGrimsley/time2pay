@@ -1,4 +1,4 @@
-import { createElement, useCallback, useEffect, useRef, useState, type PropsWithChildren } from 'react';
+import { createElement, type PropsWithChildren } from 'react';
 import {
   Image,
   Pressable,
@@ -10,11 +10,9 @@ import {
 import Animated, {
   Extrapolation,
   interpolate,
-  useAnimatedReaction,
   useAnimatedStyle,
   type SharedValue,
 } from 'react-native-reanimated';
-import { scheduleOnRN } from 'react-native-worklets';
 import { AnimatedTime2PayLogo } from '../branding/animated-time2pay-logo';
 import {
   mercuryBullets,
@@ -152,35 +150,6 @@ function Time2PayAlarmWatermark({
   progress: SharedValue<number>;
   compact: boolean;
 }) {
-  const [alarmActive, setAlarmActive] = useState(false);
-  const [replayKey, setReplayKey] = useState(0);
-  const isMountedRef = useRef(true);
-
-  useEffect(
-    () => () => {
-      isMountedRef.current = false;
-    },
-    [],
-  );
-
-  const replayAlarm = useCallback(() => {
-    if (!isMountedRef.current) return;
-    setAlarmActive(true);
-    setReplayKey((currentKey) => currentKey + 1);
-  }, []);
-
-  // This crosses the React boundary only when Mercury's watermark begins its scroll pass,
-  // never for every scroll frame.
-  useAnimatedReaction(
-    () => progress.value >= 0.01 && progress.value < 0.96,
-    (isInAlarmRange, wasInAlarmRange) => {
-      if (isInAlarmRange && !wasInAlarmRange) {
-        scheduleOnRN(replayAlarm);
-      }
-    },
-    [progress, replayAlarm],
-  );
-
   const watermarkStyle = useAnimatedStyle(
     () => ({
       opacity: interpolate(progress.value, [0, 0.03, 0.86, 1], [0, 0.18, 0.18, 0.08], Extrapolation.CLAMP),
@@ -204,8 +173,8 @@ function Time2PayAlarmWatermark({
       ]}
     >
       <AnimatedTime2PayLogo
-        state={alarmActive ? 'alarm' : 'static'}
-        replayKey={replayKey}
+        state="alarm"
+        animationProgress={progress}
         size={compact ? 260 : 340}
         foregroundColor={MERCURY_NAVY}
         accentColor="#9bacc4"
