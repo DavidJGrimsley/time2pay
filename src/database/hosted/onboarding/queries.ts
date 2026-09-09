@@ -4,10 +4,14 @@ import { getSupabaseClient } from '@/services/supabase-client';
 export const TIME2PAY_ONBOARDING_FLOW_ID = 'time2pay-onboarding';
 export const TIME2PAY_ONBOARDING_FLOW_VERSION = 1;
 
-export const time2PayOnboardingStepIds = ['welcome', 'features', 'auth', 'legal'] as const;
+export const time2PayOnboardingStepIds = ['welcome', 'features', 'auth', 'legal', 'mercury'] as const;
 
 export type Time2PayOnboardingStepId = (typeof time2PayOnboardingStepIds)[number];
-export type HostedOnboardingGateStatus = 'needs-onboarding' | 'needs-legal' | 'complete';
+export type HostedOnboardingGateStatus =
+  | 'needs-onboarding'
+  | 'needs-legal'
+  | 'needs-mercury'
+  | 'complete';
 
 export type LegalDocumentRequirement = {
   documentId: string;
@@ -185,8 +189,17 @@ export async function getHostedOnboardingGateSnapshot(
     };
   }
 
+  const status: HostedOnboardingGateStatus =
+    missingDocumentIds.length > 0
+      ? 'needs-legal'
+      : completedAt
+        ? 'complete'
+        : completedStepIds.includes('legal')
+          ? 'needs-mercury'
+          : 'needs-legal';
+
   return {
-    status: missingDocumentIds.length > 0 || !completedAt ? 'needs-legal' : 'complete',
+    status,
     flowId: TIME2PAY_ONBOARDING_FLOW_ID,
     flowVersion: TIME2PAY_ONBOARDING_FLOW_VERSION,
     completedStepIds,
@@ -214,6 +227,32 @@ export async function recordHostedOnboardingStepCompleted(
     authUserId,
     stepId,
     eventType: 'step_completed',
+    metadata,
+  });
+}
+
+export async function recordHostedOnboardingAnswer(
+  stepId: Time2PayOnboardingStepId,
+  answerKey: string,
+  answerValue: unknown,
+  metadata: Record<string, unknown> = {},
+): Promise<void> {
+  const authUserId = await requireOnboardingUserId();
+  const stateRow = await loadOnboardingStateRow(authUserId);
+  const completedStepIds = mergeStepIds(normalizeStepIds(stateRow?.completed_step_ids), [stepId]);
+
+  await upsertOnboardingState({
+    authUserId,
+    completedStepIds,
+    completedAt: stateRow?.completed_at ?? null,
+    metadata,
+  });
+  await recordOnboardingEvent({
+    authUserId,
+    stepId,
+    eventType: 'answer_selected',
+    answerKey,
+    answerValue,
     metadata,
   });
 }
@@ -259,6 +298,10 @@ export async function completeHostedOnboarding(
 
   if (snapshot.missingDocumentIds.length > 0) {
     throw new Error('Review and accept the current Terms of Service and Privacy Policy first.');
+  }
+
+  if (!snapshot.completedAt && !snapshot.completedStepIds.includes('mercury')) {
+    throw new Error('Choose a Mercury setup option before entering Time2Pay.');
   }
 
   const completedAt = nowIso();

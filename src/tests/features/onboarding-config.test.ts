@@ -8,4 +8,10 @@ describe('onboarding invoice explanation', () => {
     expect(copy).toContain('milestone invoices');
     expect(copy).toContain('completed milestone with its related sessions');
   });
+
+  it('keeps basic Mercury access distinct from advanced payment permissions', () => {
+    expect(onboardingConfig.mercury.existingCustomerBody).toContain('read-only');
+    expect(onboardingConfig.mercury.advancedAccessBody).toContain('additional API permissions');
+    expect(onboardingConfig.mercury.body).toContain('optional');
+  });
 });

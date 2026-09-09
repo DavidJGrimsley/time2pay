@@ -617,6 +617,7 @@ export default function RootLayout() {
         <Stack.Screen name="onboarding/features" options={{ title: 'Time2Pay Features' }} />
         <Stack.Screen name="onboarding/auth" options={{ title: 'Time2Pay Account' }} />
         <Stack.Screen name="onboarding/legal" options={{ title: 'Time2Pay Legal' }} />
+        <Stack.Screen name="onboarding/mercury" options={{ title: 'Connect Mercury' }} />
         <Stack.Protected guard={routeGate.canMountAccountRoutes}>
           <Stack.Screen name="settings" options={{ title: 'Settings' }} />
           <Stack.Screen name="access-required" options={{ title: 'Hosted Access' }} />

@@ -2,8 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   acceptHostedLegalDocument,
-  recordHostedOnboardingStepCompleted,
+  completeHostedOnboarding,
   getHostedOnboardingGateSnapshot,
+  recordHostedOnboardingAnswer,
+  recordHostedOnboardingStepCompleted,
 } from '@/database/hosted/onboarding/queries';
 import { getSupabaseClient, getSupabaseUser, requireSupabaseUserId } from '@/services/supabase-client';
 
@@ -130,6 +132,38 @@ describe('hosted onboarding queries', () => {
     });
   });
 
+  it('reports needs-mercury after legal review for a new hosted user', async () => {
+    const queries = {
+      user_profiles: makeQuery({
+        data: { auth_user_id: 'user-1', full_name: null, email: 'user@example.com' },
+        error: null,
+      }),
+      user_onboarding_state: makeQuery({
+        data: {
+          completed_step_ids: ['welcome', 'features', 'auth', 'legal'],
+          completed_at: null,
+        },
+        error: null,
+      }),
+      user_legal_acceptances: makeQuery({
+        data: [
+          { document_id: 'terms', document_version: '2026-03-28' },
+          { document_id: 'privacy', document_version: '2026-03-28' },
+        ],
+        error: null,
+      }),
+    };
+    getSupabaseClientMock.mockReturnValue({
+      from: vi.fn((table: keyof typeof queries) => queries[table]),
+    } as unknown as ReturnType<typeof getSupabaseClient>);
+
+    await expect(getHostedOnboardingGateSnapshot(requiredDocuments)).resolves.toMatchObject({
+      status: 'needs-mercury',
+      completedStepIds: ['welcome', 'features', 'auth', 'legal'],
+      missingDocumentIds: [],
+    });
+  });
+
   it('reports needs-legal when a completed user accepted an older material document version', async () => {
     const nextRequiredDocuments = [
       { documentId: 'terms', documentVersion: '2026-08-12' },
@@ -236,6 +270,90 @@ describe('hosted onboarding queries', () => {
         event_type: 'step_completed',
         metadata: { source: 'test' },
       }),
+    );
+  });
+
+  it('records the Mercury choice while completing the Mercury step', async () => {
+    const state = makeQuery({
+      data: {
+        completed_step_ids: ['welcome', 'features', 'auth', 'legal'],
+        completed_at: null,
+      },
+      error: null,
+    });
+    const events = makeQuery({ data: null, error: null });
+    const queries = {
+      user_profiles: makeQuery({
+        data: { auth_user_id: 'user-1', full_name: null, email: 'user@example.com' },
+        error: null,
+      }),
+      user_onboarding_state: state,
+      user_onboarding_events: events,
+    };
+    getSupabaseClientMock.mockReturnValue({
+      from: vi.fn((table: keyof typeof queries) => queries[table]),
+    } as unknown as ReturnType<typeof getSupabaseClient>);
+
+    await recordHostedOnboardingAnswer('mercury', 'customer-path', 'not-now', {
+      source: 'test',
+    });
+
+    expect(state.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        auth_user_id: 'user-1',
+        completed_step_ids: ['welcome', 'features', 'auth', 'legal', 'mercury'],
+        completed_at: null,
+        metadata: { source: 'test' },
+      }),
+      { onConflict: 'auth_user_id' },
+    );
+    expect(events.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        auth_user_id: 'user-1',
+        step_id: 'mercury',
+        event_type: 'answer_selected',
+        answer_key: 'customer-path',
+        answer_value: 'not-now',
+        metadata: { source: 'test' },
+      }),
+    );
+  });
+
+  it('does not force previously completed users through the new Mercury step', async () => {
+    const state = makeQuery({
+      data: {
+        completed_step_ids: ['welcome', 'features', 'auth', 'legal'],
+        completed_at: '2026-08-11T12:00:00.000Z',
+      },
+      error: null,
+    });
+    const events = makeQuery({ data: null, error: null });
+    const queries = {
+      user_profiles: makeQuery({
+        data: { auth_user_id: 'user-1', full_name: null, email: 'user@example.com' },
+        error: null,
+      }),
+      user_onboarding_state: state,
+      user_legal_acceptances: makeQuery({
+        data: [
+          { document_id: 'terms', document_version: '2026-03-28' },
+          { document_id: 'privacy', document_version: '2026-03-28' },
+        ],
+        error: null,
+      }),
+      user_onboarding_events: events,
+    };
+    getSupabaseClientMock.mockReturnValue({
+      from: vi.fn((table: keyof typeof queries) => queries[table]),
+    } as unknown as ReturnType<typeof getSupabaseClient>);
+
+    await expect(completeHostedOnboarding(requiredDocuments)).resolves.toBeUndefined();
+
+    expect(state.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        completed_step_ids: ['welcome', 'features', 'auth', 'legal'],
+      }),
+      { onConflict: 'auth_user_id' },
     );
   });
 });
