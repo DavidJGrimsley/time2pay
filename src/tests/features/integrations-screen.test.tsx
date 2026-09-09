@@ -13,6 +13,9 @@ const mocks = vi.hoisted(() => ({
   initializeDatabase: vi.fn(),
   getCurrentGitHubSessionState: vi.fn(),
   getMercuryCredentialStatus: vi.fn(),
+  getMercuryOAuthStatus: vi.fn(),
+  startMercuryOAuth: vi.fn(),
+  disconnectMercuryOAuth: vi.fn(),
   saveMercuryApiKey: vi.fn(),
   deleteMercuryApiKey: vi.fn(),
   testMercuryApiKey: vi.fn(),
@@ -69,6 +72,12 @@ vi.mock('@/services/mercury-credentials', () => ({
   setMercuryArAccess: mocks.setMercuryArAccess,
 }));
 
+vi.mock('@/services/mercury-oauth', () => ({
+  getMercuryOAuthStatus: mocks.getMercuryOAuthStatus,
+  startMercuryOAuth: mocks.startMercuryOAuth,
+  disconnectMercuryOAuth: mocks.disconnectMercuryOAuth,
+}));
+
 vi.mock('@/services/system-alert', () => ({
   showActionErrorAlert: mocks.showActionErrorAlert,
   showSystemConfirm: mocks.showSystemConfirm,
@@ -119,6 +128,15 @@ describe('IntegrationsScreen', () => {
       arAccessAvailable: null,
       arAccessVerifiedAt: null,
     });
+    mocks.getMercuryOAuthStatus.mockResolvedValue({
+      available: true,
+      connectionState: 'disconnected',
+      environment: 'sandbox',
+      scopes: [],
+      connectedAt: null,
+      lastRefreshedAt: null,
+      accessTokenExpiresAt: null,
+    });
     mocks.upsertUserProfile.mockResolvedValue(undefined);
     mocks.saveMercuryApiKey.mockResolvedValue({
       configured: true,
@@ -146,7 +164,7 @@ describe('IntegrationsScreen', () => {
     ).toBeTruthy();
   });
 
-  it('shows the Mercury key section for hosted, authenticated accounts', async () => {
+  it('shows connected-account and advanced-key sections for hosted accounts', async () => {
     const { IntegrationsScreen } = await import('@/features/settings/integrations/integrations-screen');
 
     let root!: renderer.ReactTestRenderer;
@@ -157,7 +175,13 @@ describe('IntegrationsScreen', () => {
     expect(
       root.root.find(
         (node: renderer.ReactTestInstance) =>
-          String(node.type) === 'Text' && node.props.children === 'Mercury production API key',
+          String(node.type) === 'Text' && node.props.children === 'Connected account',
+      ),
+    ).toBeTruthy();
+    expect(
+      root.root.find(
+        (node: renderer.ReactTestInstance) =>
+          String(node.type) === 'Text' && node.props.children === 'Advanced Mercury API key access',
       ),
     ).toBeTruthy();
     expect(
@@ -222,7 +246,7 @@ describe('IntegrationsScreen', () => {
     expect(
       root.root.findAll(
         (node: renderer.ReactTestInstance) =>
-          String(node.type) === 'Text' && node.props.children === 'Mercury production API key',
+          String(node.type) === 'Text' && node.props.children === 'Advanced Mercury API key access',
       ),
     ).toHaveLength(0);
     expect(
@@ -235,6 +259,35 @@ describe('IntegrationsScreen', () => {
         .findByProps({ testID: 'mercury-integration-card' })
         .findByProps({ testID: 'mercury-powered-by' }),
     ).toBeTruthy();
+  });
+
+  it('shows OAuth connection status independently from the advanced key', async () => {
+    mocks.getMercuryOAuthStatus.mockResolvedValue({
+      available: true,
+      connectionState: 'connected',
+      environment: 'sandbox',
+      scopes: ['read', 'offline_access'],
+      connectedAt: '2026-09-08T00:00:00.000Z',
+      lastRefreshedAt: null,
+      accessTokenExpiresAt: '2026-09-08T01:00:00.000Z',
+    });
+    const { IntegrationsScreen } = await import('@/features/settings/integrations/integrations-screen');
+    let root!: renderer.ReactTestRenderer;
+    await act(async () => {
+      root = renderer.create(<IntegrationsScreen />);
+    });
+    expect(
+      root.root.findAll(
+        (node: renderer.ReactTestInstance) =>
+          String(node.type) === 'Text' && node.props.children === 'Connected',
+      ),
+    ).toHaveLength(1);
+    expect(
+      root.root.findAll(
+        (node: renderer.ReactTestInstance) =>
+          String(node.type) === 'Text' && node.props.children === 'Reconnect Mercury',
+      ),
+    ).toHaveLength(1);
   });
 
   it('renders an initialization failure above both provider cards', async () => {

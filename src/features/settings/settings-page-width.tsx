@@ -1,11 +1,7 @@
 import type { PropsWithChildren } from 'react';
 import { View } from 'react-native';
 
-/** Keeps settings pages comfortably readable on desktop while retaining full width on smaller screens. */
+/** Keeps the route surface full-width so desktop wheel input works anywhere in a settings page. */
 export function SettingsPageWidth({ children }: PropsWithChildren) {
-  return (
-    <View className="w-full flex-1 self-center lg:w-3/5 lg:max-w-[1440px]">
-      {children}
-    </View>
-  );
+  return <View className="w-full flex-1 self-stretch">{children}</View>;
 }

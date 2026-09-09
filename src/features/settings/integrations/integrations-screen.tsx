@@ -79,12 +79,17 @@ export function IntegrationsScreen() {
     mercuryApiKey,
     setMercuryApiKey,
     mercuryCredentialStatus,
+    mercuryOAuthStatus,
+    isStartingMercuryOAuth,
+    isDisconnectingMercuryOAuth,
     isSavingMercuryKey,
     isTestingMercuryKey,
     isTogglingMercuryAr,
     isDeletingMercuryKey,
     openExternalUrl,
     startGitHubOAuth,
+    handleStartMercuryOAuth,
+    handleDisconnectMercuryOAuth,
     handleSaveIntegrations,
     handleSaveMercuryKey,
     handleTestMercuryKey,
@@ -97,7 +102,9 @@ export function IntegrationsScreen() {
       className="flex-1 bg-background"
       contentInsetAdjustmentBehavior="automatic"
       contentContainerClassName="gap-3 p-6"
+      showsVerticalScrollIndicator={false}
     >
+      <View className="w-full self-center gap-3 lg:w-3/5 lg:max-w-[1440px]">
       <Text className="text-3xl font-extrabold text-heading">Integrations</Text>
       <Text className="text-muted">
         Connect GitHub for repository lookups and Mercury for banking, invoicing, and referrals.
@@ -204,7 +211,63 @@ export function IntegrationsScreen() {
             <MercuryPoweredBy />
           </View>
           {shouldShowHostedMercuryCredentials ? (
-            <View className="gap-2.5 rounded-md border border-border bg-background p-3">
+            <View className="gap-3">
+              <View className="gap-2.5 rounded-md border border-border bg-background p-3">
+                <View className="flex-row items-center gap-2">
+                  <Image
+                    source={{ uri: '/mercury-brand-kit/mercury-brand-kit/mercury_logo_icon.png' }}
+                    style={{ width: 20, height: 20 }}
+                    resizeMode="contain"
+                    accessibilityLabel="Mercury"
+                  />
+                  <Text className="text-sm font-semibold text-heading">Connected account</Text>
+                  {mercuryOAuthStatus?.connectionState === 'connected' ? (
+                    <View className="ml-auto rounded-full bg-success/15 px-2 py-0.5">
+                      <Text className="text-xs font-bold text-success">Connected</Text>
+                    </View>
+                  ) : null}
+                </View>
+                <Text className="text-sm text-muted">
+                  {mercuryOAuthStatus?.connectionState === 'connected'
+                    ? `Read-only access is connected${mercuryOAuthStatus.environment ? ` to ${mercuryOAuthStatus.environment}` : ''}. Time2Pay can show your accounts and transactions.`
+                    : mercuryOAuthStatus?.connectionState === 'reauthorization_required'
+                      ? 'Your Mercury authorization expired. Reconnect to resume account and transaction reads.'
+                      : mercuryOAuthStatus?.available === false
+                        ? 'Mercury OAuth is not configured on this server yet.'
+                        : 'Connect Mercury with read-only access to view accounts and transactions. OAuth tokens stay on the server.'}
+                </Text>
+                <View className="flex-row flex-wrap gap-2">
+                  <Pressable
+                    className="rounded-md bg-heading px-4 py-2"
+                    style={{ opacity: isLoading || isStartingMercuryOAuth || mercuryOAuthStatus?.available === false ? 0.6 : 1 }}
+                    onPress={handleStartMercuryOAuth}
+                    disabled={isLoading || isStartingMercuryOAuth || mercuryOAuthStatus?.available === false}
+                  >
+                    <Text className="text-sm font-semibold text-background">
+                      {isStartingMercuryOAuth
+                        ? 'Redirecting...'
+                        : mercuryOAuthStatus?.connectionState === 'connected' ||
+                            mercuryOAuthStatus?.connectionState === 'reauthorization_required'
+                          ? 'Reconnect Mercury'
+                          : 'Connect Mercury'}
+                    </Text>
+                  </Pressable>
+                  {mercuryOAuthStatus?.connectionState === 'connected' ||
+                  mercuryOAuthStatus?.connectionState === 'reauthorization_required' ? (
+                    <Pressable
+                      className="rounded-md border border-danger px-4 py-2"
+                      onPress={handleDisconnectMercuryOAuth}
+                      disabled={isDisconnectingMercuryOAuth}
+                    >
+                      <Text className="text-sm font-semibold text-danger">
+                        {isDisconnectingMercuryOAuth ? 'Disconnecting...' : 'Disconnect'}
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              </View>
+
+              <View className="gap-2.5 rounded-md border border-border bg-background p-3">
               <View className="flex-row items-center gap-2">
                 <Image
                   source={{ uri: '/mercury-brand-kit/mercury-brand-kit/mercury_logo_icon.png' }}
@@ -212,7 +275,7 @@ export function IntegrationsScreen() {
                   resizeMode="contain"
                   accessibilityLabel="Mercury"
                 />
-                <Text className="text-sm font-semibold text-heading">Mercury production API key</Text>
+                <Text className="text-sm font-semibold text-heading">Advanced Mercury API key access</Text>
                 {mercuryCredentialStatus?.configured ? (
                   <View className="ml-auto rounded-full bg-success/15 px-2 py-0.5">
                     <Text className="text-xs font-bold text-success">Saved</Text>
@@ -222,7 +285,7 @@ export function IntegrationsScreen() {
               <Text className="text-sm text-muted">
                 {mercuryCredentialStatus?.configured
                   ? `Saved key ending in ${mercuryCredentialStatus.keyLastFour ?? '....'}.`
-                  : 'No Mercury production key is saved for this hosted profile.'}
+                  : 'Optional. Add a production API key for payments, recipients, invoicing, and other advanced actions.'}
               </Text>
               <TextInput
                 value={mercuryApiKey}
@@ -344,6 +407,7 @@ export function IntegrationsScreen() {
                   </Pressable>
                 ) : null}
               </View>
+              </View>
             </View>
           ) : null}
           {tourModeEnabled ? (
@@ -418,6 +482,7 @@ export function IntegrationsScreen() {
           </View>
         </View>
       </Modal>
+      </View>
     </ScrollView>
   );
 }

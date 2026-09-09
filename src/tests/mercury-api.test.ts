@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const accountsListMock = vi.fn();
+const accountTransactionsListMock = vi.fn();
 const invoiceListMock = vi.fn();
 const invoiceCreateMock = vi.fn();
 const ensureCustomerMock = vi.fn();
@@ -13,7 +14,7 @@ const buildMercuryLineItemsMock = vi.fn((payload) => payload.lineItems ?? []);
 const findBestCheckingAccountMock = vi.fn(() => ({ id: 'account_best' }));
 const toDayStringMock = vi.fn((input: string) => input.slice(0, 10));
 const createMercuryClientMock = vi.fn(() => ({
-  accounts: { list: accountsListMock },
+  accounts: { list: accountsListMock, listTransactions: accountTransactionsListMock },
   ar: {
     invoices: { list: invoiceListMock, create: invoiceCreateMock },
     customers: { ensureCustomer: ensureCustomerMock },
@@ -58,6 +59,7 @@ describe('/api/mercury POST', () => {
   beforeEach(() => {
     vi.resetModules();
     accountsListMock.mockReset();
+    accountTransactionsListMock.mockReset();
     invoiceListMock.mockReset();
     invoiceCreateMock.mockReset();
     ensureCustomerMock.mockReset();
@@ -72,6 +74,7 @@ describe('/api/mercury POST', () => {
     createMercuryClientMock.mockClear();
     vi.doUnmock('@/server/db/_shared/auth');
     vi.doUnmock('@/server/mercury/credentials');
+    vi.doUnmock('@/server/mercury/oauth');
     delete process.env.MERCURY_API_KEY;
     delete process.env.MERCURY_ENVIRONMENT;
     delete process.env.MERCURY_BASE_URL;
@@ -179,9 +182,49 @@ describe('/api/mercury POST', () => {
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({
-      error: 'No Mercury API key is saved for this account.',
+      error: 'Connect Mercury in Settings to use account and transaction reads.',
     });
     expect(createMercuryClientMock).not.toHaveBeenCalled();
+  });
+
+  it('prefers a signed-in user OAuth grant for account transaction reads', async () => {
+    vi.doMock('@/server/db/_shared/auth', () => ({
+      requireAuthUserId: vi.fn().mockResolvedValue('user-1'),
+    }));
+    vi.doMock('@/server/mercury/credentials', () => ({
+      getDecryptedMercuryApiKeyForUser: vi.fn().mockResolvedValue(null),
+    }));
+    vi.doMock('@/server/mercury/oauth', () => ({
+      MercuryOAuthError: class MercuryOAuthError extends Error {},
+      getValidMercuryOAuthAccessForUser: vi.fn().mockResolvedValue({
+        accessToken: 'oauth_access_token',
+        environment: 'sandbox',
+      }),
+      getMercuryApiBaseUrl: vi.fn(() => 'https://api-sandbox.mercury.com/api/v1'),
+    }));
+    accountTransactionsListMock.mockResolvedValue({ items: [{ id: 'txn_1', amount: -12 }] });
+    const { POST } = await import('@/app/api/mercury+api');
+
+    const response = await POST(
+      hostedMercuryRequest({
+        action: 'listTransactions',
+        payload: { accountId: 'account_1', limit: 25 },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      transactions: [{ id: 'txn_1', amount: -12 }],
+    });
+    expect(createMercuryClientMock).toHaveBeenCalledWith({
+      apiKey: 'oauth_access_token',
+      environment: 'sandbox',
+      baseUrl: 'https://api-sandbox.mercury.com/api/v1',
+    });
+    expect(accountTransactionsListMock).toHaveBeenCalledWith('account_1', {
+      limit: 25,
+      order: 'desc',
+    });
   });
 
   it('returns Settings recovery guidance when a shared account request receives a Mercury 401', async () => {

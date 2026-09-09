@@ -35,15 +35,17 @@ export function BankOverview({ showHeader = true }: { showHeader?: boolean }) {
 
       <View className="items-center">
         <View className="w-full" style={contentWidthStyle}>
-          <MercuryKeyGate headerAccessory={<MercuryPoweredBy />}>
-            <View style={{ gap: 16 }}>
+          <View style={{ gap: 16 }}>
+            <MercuryKeyGate headerAccessory={<MercuryPoweredBy />} requirement="read">
               <ControlledMercuryBankOverview adapter={mercuryUiAdapter} />
+            </MercuryKeyGate>
+            <MercuryKeyGate requirement="advanced">
               <MercuryCustomerContactPanel
                 adapter={mercuryCustomerContactAdapter}
                 onError={showActionErrorAlert}
               />
-            </View>
-          </MercuryKeyGate>
+            </MercuryKeyGate>
+          </View>
         </View>
       </View>
     </View>

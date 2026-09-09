@@ -3,7 +3,12 @@ import { clients, projects, tasks } from '@/database/hosted/clients-projects/sch
 import { invoiceSessionLinks } from '@/database/hosted/invoice-session-links/schema';
 import { invoices } from '@/database/hosted/invoices/schema';
 import { milestoneChecklistItems, projectMilestones } from '@/database/hosted/milestones/schema';
-import { mercuryCredentials, mercuryReferrals } from '@/database/hosted/mercury/schema';
+import {
+  mercuryCredentials,
+  mercuryOAuthAttempts,
+  mercuryOAuthConnections,
+  mercuryReferrals,
+} from '@/database/hosted/mercury/schema';
 import {
   userLegalAcceptances,
   userOnboardingEvents,
@@ -23,6 +28,8 @@ export const userProfilesRelations = relations(userProfiles, ({ many }) => ({
   sessionBreaks: many(sessionBreaks),
   invoiceSessionLinks: many(invoiceSessionLinks),
   mercuryCredentials: many(mercuryCredentials),
+  mercuryOAuthConnections: many(mercuryOAuthConnections),
+  mercuryOAuthAttempts: many(mercuryOAuthAttempts),
   mercuryReferrals: many(mercuryReferrals),
   onboardingState: many(userOnboardingState),
   onboardingEvents: many(userOnboardingEvents),
@@ -53,6 +60,23 @@ export const userLegalAcceptancesRelations = relations(userLegalAcceptances, ({ 
 export const mercuryCredentialsRelations = relations(mercuryCredentials, ({ one }) => ({
   userProfile: one(userProfiles, {
     fields: [mercuryCredentials.authUserId],
+    references: [userProfiles.authUserId],
+  }),
+}));
+
+export const mercuryOAuthConnectionsRelations = relations(
+  mercuryOAuthConnections,
+  ({ one }) => ({
+    userProfile: one(userProfiles, {
+      fields: [mercuryOAuthConnections.authUserId],
+      references: [userProfiles.authUserId],
+    }),
+  }),
+);
+
+export const mercuryOAuthAttemptsRelations = relations(mercuryOAuthAttempts, ({ one }) => ({
+  userProfile: one(userProfiles, {
+    fields: [mercuryOAuthAttempts.authUserId],
     references: [userProfiles.authUserId],
   }),
 }));

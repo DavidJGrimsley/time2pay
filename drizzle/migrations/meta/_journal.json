@@ -64,12 +64,19 @@
       "when": 1788578772314,
       "tag": "0008_unified_invoice_sources",
       "breakpoints": true
-    }
-    ,{
+    },
+    {
       "idx": 9,
       "version": "7",
       "when": 1788578772315,
       "tag": "0009_project_hourly_rates",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1788914598910,
+      "tag": "0010_mercury_oauth_connection",
       "breakpoints": true
     }
   ]

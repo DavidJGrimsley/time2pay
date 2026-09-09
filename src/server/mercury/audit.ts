@@ -6,7 +6,12 @@ export type MercuryCredentialAction =
   | 'rotated'
   | 'tested'
   | 'deleted'
-  | 'ar_probed';
+  | 'ar_probed'
+  | 'oauth_connected'
+  | 'oauth_reconnected'
+  | 'oauth_refreshed'
+  | 'oauth_refresh_failed'
+  | 'oauth_disconnected';
 
 export type MercuryCredentialEventInput = {
   authUserId: string;

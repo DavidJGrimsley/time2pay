@@ -9,6 +9,13 @@ import {
   testMercuryApiKey,
   type MercuryCredentialStatus,
 } from '@/services/mercury-credentials';
+import {
+  disconnectMercuryOAuth,
+  getMercuryOAuthStatus,
+  startMercuryOAuth,
+  type MercuryOAuthConnectionStatus,
+} from '@/services/mercury-oauth';
+import { invalidateMercuryResourceCache } from '@/services/mercury';
 import { getCurrentGitHubSessionState, type GitHubSessionState } from '@/services/github-auth';
 import { isHostedMode } from '@/services/runtime-mode';
 import { showActionErrorAlert, showSystemConfirm, showValidationAlert } from '@/services/system-alert';
@@ -50,6 +57,10 @@ export function useIntegrationsScreen() {
   const [mercuryApiKey, setMercuryApiKey] = useState('');
   const [mercuryCredentialStatus, setMercuryCredentialStatus] =
     useState<MercuryCredentialStatus | null>(null);
+  const [mercuryOAuthStatus, setMercuryOAuthStatus] =
+    useState<MercuryOAuthConnectionStatus | null>(null);
+  const [isStartingMercuryOAuth, setIsStartingMercuryOAuth] = useState(false);
+  const [isDisconnectingMercuryOAuth, setIsDisconnectingMercuryOAuth] = useState(false);
   const [isSavingMercuryKey, setIsSavingMercuryKey] = useState(false);
   const [isTestingMercuryKey, setIsTestingMercuryKey] = useState(false);
   const [isTogglingMercuryAr, setIsTogglingMercuryAr] = useState(false);
@@ -105,16 +116,58 @@ export function useIntegrationsScreen() {
     }
   }, [shouldShowHostedMercuryCredentials]);
 
+  const refreshMercuryOAuthStatus = useCallback(async (): Promise<void> => {
+    if (!shouldShowHostedMercuryCredentials) {
+      setMercuryOAuthStatus(null);
+      return;
+    }
+    try {
+      setMercuryOAuthStatus(await getMercuryOAuthStatus());
+    } catch (error: unknown) {
+      setMercuryOAuthStatus(null);
+      setMercuryStatus({
+        message: error instanceof Error ? error.message : 'Failed to load Mercury connection.',
+        tone: 'error',
+      });
+    }
+  }, [shouldShowHostedMercuryCredentials]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search ?? '');
+    const outcome = params.get('mercury_oauth');
+    if (!outcome) return;
+    const messages: Record<string, IntegrationsStatus> = {
+      connected: { message: 'Mercury connected successfully.', tone: 'success' },
+      reconnected: { message: 'Mercury reconnected successfully.', tone: 'success' },
+      cancelled: { message: 'Mercury connection was cancelled.', tone: 'neutral' },
+      error: { message: 'Mercury connection failed. Please try again.', tone: 'error' },
+    };
+    setMercuryStatus(messages[outcome] ?? messages.error);
+    if (outcome === 'connected' || outcome === 'reconnected') {
+      invalidateMercuryResourceCache('accounts');
+    }
+    params.delete('mercury_oauth');
+    const nextSearch = params.toString();
+    const pathname = window.location.pathname || '/settings/integrations';
+    window.history?.replaceState?.(
+      null,
+      '',
+      `${pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash || ''}`,
+    );
+  }, []);
+
   useEffect(() => {
     initializeDatabase()
       .then(async () => {
-        const [githubPatResult, githubSessionResult, mercuryResult] = await Promise.allSettled([
+        const results = await Promise.allSettled([
           loadGitHubPat(),
           refreshGitHubSessionState(),
           refreshMercuryCredentialStatus(),
+          refreshMercuryOAuthStatus(),
         ]);
 
-        for (const result of [githubPatResult, githubSessionResult, mercuryResult]) {
+        for (const result of results) {
           if (result.status === 'rejected' && typeof console !== 'undefined') {
             console.warn('Failed to load integrations data:', result.reason);
           }
@@ -127,7 +180,12 @@ export function useIntegrationsScreen() {
         });
       })
       .finally(() => setIsLoading(false));
-  }, [loadGitHubPat, refreshGitHubSessionState, refreshMercuryCredentialStatus]);
+  }, [
+    loadGitHubPat,
+    refreshGitHubSessionState,
+    refreshMercuryCredentialStatus,
+    refreshMercuryOAuthStatus,
+  ]);
 
   function openExternalUrl(url: string, options?: { authRelated?: boolean }): void {
     if (options?.authRelated && shouldRouteAuthIntegrationsToSignIn) {
@@ -313,6 +371,50 @@ export function useIntegrationsScreen() {
     }
   }
 
+  async function handleStartMercuryOAuth(): Promise<void> {
+    setMercuryStatus(null);
+    if (Platform.OS !== 'web' || typeof window === 'undefined') {
+      setMercuryStatus({
+        message: 'Open Time2Pay Settings in a web browser to connect Mercury.',
+        tone: 'neutral',
+      });
+      return;
+    }
+    setIsStartingMercuryOAuth(true);
+    try {
+      const result = await startMercuryOAuth();
+      window.location.assign(result.authorizationUrl);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to start Mercury OAuth.';
+      setMercuryStatus({ message, tone: 'error' });
+      setIsStartingMercuryOAuth(false);
+    }
+  }
+
+  async function handleDisconnectMercuryOAuth(): Promise<void> {
+    setMercuryStatus(null);
+    const confirmed = await showSystemConfirm({
+      title: 'Disconnect Mercury?',
+      message: 'This removes Time2Pay’s saved Mercury OAuth tokens. Your Mercury account is not deleted.',
+      confirmLabel: 'Disconnect',
+      cancelLabel: 'Cancel',
+    });
+    if (!confirmed) return;
+    setIsDisconnectingMercuryOAuth(true);
+    try {
+      setMercuryOAuthStatus(await disconnectMercuryOAuth());
+      invalidateMercuryResourceCache('accounts');
+      setMercuryStatus({ message: 'Mercury disconnected.', tone: 'success' });
+    } catch (error: unknown) {
+      setMercuryStatus({
+        message: error instanceof Error ? error.message : 'Failed to disconnect Mercury.',
+        tone: 'error',
+      });
+    } finally {
+      setIsDisconnectingMercuryOAuth(false);
+    }
+  }
+
   return {
     isLoading,
     isSavingIntegrations,
@@ -334,12 +436,21 @@ export function useIntegrationsScreen() {
     mercuryApiKey,
     setMercuryApiKey,
     mercuryCredentialStatus,
+    mercuryOAuthStatus,
+    isStartingMercuryOAuth,
+    isDisconnectingMercuryOAuth,
     isSavingMercuryKey,
     isTestingMercuryKey,
     isTogglingMercuryAr,
     isDeletingMercuryKey,
     openExternalUrl,
     startGitHubOAuth,
+    handleStartMercuryOAuth: () => {
+      handleStartMercuryOAuth().catch(() => undefined);
+    },
+    handleDisconnectMercuryOAuth: () => {
+      handleDisconnectMercuryOAuth().catch(() => undefined);
+    },
     handleSaveIntegrations: () => {
       handleSaveIntegrations().catch(() => undefined);
     },
