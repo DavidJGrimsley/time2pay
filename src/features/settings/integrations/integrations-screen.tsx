@@ -102,7 +102,9 @@ export function IntegrationsScreen() {
       className="flex-1 bg-background"
       contentInsetAdjustmentBehavior="automatic"
       contentContainerClassName="gap-3 p-6"
+      showsVerticalScrollIndicator={false}
     >
+      <View className="w-full self-center gap-3 lg:w-3/5 lg:max-w-[1440px]">
       <Text className="text-3xl font-extrabold text-heading">Integrations</Text>
       <Text className="text-muted">
         Connect GitHub for repository lookups and Mercury for banking, invoicing, and referrals.
@@ -480,6 +482,7 @@ export function IntegrationsScreen() {
           </View>
         </View>
       </Modal>
+      </View>
     </ScrollView>
   );
 }
