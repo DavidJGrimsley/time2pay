@@ -11,6 +11,7 @@ vi.mock('react-native', async () => {
   }
 
   return {
+    Image: makeComponent('Image'),
     Pressable: makeComponent('Pressable'),
     Text: makeComponent('Text'),
     View: makeComponent('View'),
@@ -90,6 +91,14 @@ vi.mock('@/services/mercury-ui-adapters', () => ({
   mercuryUiAdapter: {},
 }));
 
+vi.mock('@/components/mercury-disclosure', async () => {
+  const ReactModule = await import('react');
+  return {
+    MercuryDisclosure: () => ReactModule.createElement('MercuryDisclosure'),
+    MercuryPoweredBy: () => ReactModule.createElement('MercuryPoweredBy'),
+  };
+});
+
 vi.mock('@/database/db', () => ({
   getUserProfile: vi.fn().mockResolvedValue({ invoice_builder_mode: 't2p' }),
   upsertUserProfile: vi.fn().mockResolvedValue(undefined),
@@ -107,5 +116,24 @@ describe('InvoicesOverview', () => {
     const rendered = JSON.stringify(tree);
     expect(rendered).toContain('Time2Pay');
     expect(rendered).toContain('Mercury');
+    expect(instanceRef.current?.root.findAllByType('MercuryDisclosure' as never)).toHaveLength(0);
+    expect(instanceRef.current?.root.findAllByType('MercuryPoweredBy' as never)).toHaveLength(0);
+
+    const mercuryToggle = instanceRef.current?.root.find(
+      (node: renderer.ReactTestInstance) =>
+        String(node.type) === 'Pressable' &&
+        node.findAll(
+          (child: renderer.ReactTestInstance) =>
+            String(child.type) === 'Text' && child.props.children === 'Mercury',
+        ).length > 0,
+    );
+    expect(mercuryToggle).toBeTruthy();
+
+    await renderer.act(async () => {
+      mercuryToggle?.props.onPress();
+    });
+
+    expect(instanceRef.current?.root.findAllByType('MercuryDisclosure' as never)).toHaveLength(1);
+    expect(instanceRef.current?.root.findAllByType('MercuryPoweredBy' as never)).toHaveLength(1);
   });
 });

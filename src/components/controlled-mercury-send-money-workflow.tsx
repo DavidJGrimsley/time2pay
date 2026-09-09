@@ -13,6 +13,7 @@ import {
   type MercuryUiAdapter,
 } from '@mr.dj2u/mercury-ui';
 import { MercuryLoadingPanel } from '@/components/mercury-loading-panel';
+import { MercuryPoweredBy } from '@/components/mercury-disclosure';
 import {
   getCachedMercuryAccountsSnapshot,
   getCachedMercuryRecipientsSnapshot,
@@ -115,6 +116,7 @@ export function ControlledMercurySendMoneyWorkflow({
       <MercuryLoadingPanel
         subtitle="Initiate recipient payments through Mercury with a required idempotency key."
         message="Checking Mercury accounts and recipients..."
+        headerAccessory={<MercuryPoweredBy />}
       />
     );
   }
@@ -131,7 +133,18 @@ export function ControlledMercurySendMoneyWorkflow({
       }}
     >
       <View style={{ gap: 8 }}>
-        <MercuryLogo variant="horizontal" size={280} />
+        <View
+          style={{
+            alignItems: 'flex-start',
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+            gap: 12,
+            justifyContent: 'space-between',
+          }}
+        >
+          <MercuryLogo variant="horizontal" size={280} />
+          <MercuryPoweredBy />
+        </View>
         <Text style={{ color: '#d4e0d0', fontSize: 15 }}>
           Initiate recipient payments through Mercury with a required idempotency key.
         </Text>

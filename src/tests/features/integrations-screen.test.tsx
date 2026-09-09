@@ -83,6 +83,11 @@ vi.mock('@/services/runtime-config', () => ({
   readTrimmedPublicRuntimeConfigValue: () => 'test-client-id',
 }));
 
+vi.mock('@/components/mercury-disclosure', () => ({
+  MercuryDisclosure: () => React.createElement('MercuryDisclosure', { testID: 'mercury-disclosure' }),
+  MercuryPoweredBy: () => React.createElement('MercuryPoweredBy', { testID: 'mercury-powered-by' }),
+}));
+
 vi.mock('@/services/site-origin', () => ({
   requireConfiguredSiteOrigin: vi.fn(),
   resolveBrowserSiteOrigin: () => 'https://example.test',
@@ -155,6 +160,16 @@ describe('IntegrationsScreen', () => {
           String(node.type) === 'Text' && node.props.children === 'Mercury production API key',
       ),
     ).toBeTruthy();
+    expect(
+      root.root
+        .findByProps({ testID: 'mercury-integration-card' })
+        .findByProps({ testID: 'mercury-disclosure' }),
+    ).toBeTruthy();
+    expect(
+      root.root
+        .findByProps({ testID: 'mercury-integration-card' })
+        .findByProps({ testID: 'mercury-powered-by' }),
+    ).toBeTruthy();
   });
 
   it('labels a configured Mercury key as saved rather than connected', async () => {
@@ -210,6 +225,16 @@ describe('IntegrationsScreen', () => {
           String(node.type) === 'Text' && node.props.children === 'Mercury production API key',
       ),
     ).toHaveLength(0);
+    expect(
+      root.root
+        .findByProps({ testID: 'mercury-integration-card' })
+        .findByProps({ testID: 'mercury-disclosure' }),
+    ).toBeTruthy();
+    expect(
+      root.root
+        .findByProps({ testID: 'mercury-integration-card' })
+        .findByProps({ testID: 'mercury-powered-by' }),
+    ).toBeTruthy();
   });
 
   it('renders an initialization failure above both provider cards', async () => {

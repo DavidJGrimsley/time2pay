@@ -3,6 +3,7 @@ import { Pressable, Text, View } from 'react-native';
 import { BankOverview } from '@/components/bank-overview';
 import { PaymentsOverview } from '@/components/payments-overview';
 import { AnimatedSizeView } from '@/components/animated-size-view';
+import { MercuryDisclosure } from '@/components/mercury-disclosure';
 
 type MercurySection = 'bank' | 'payments';
 
@@ -32,10 +33,12 @@ export function MercuryOverview() {
 
   return (
     <View className="gap-3">
-      <Text className="text-3xl font-extrabold text-heading">Mercury</Text>
-      <Text className="text-muted">
-        Mercury checking and send-money tools in one place.
-      </Text>
+      <View className="gap-1">
+        <Text className="text-3xl font-extrabold text-heading">Mercury</Text>
+        <Text className="text-muted">
+          Mercury checking and send-money tools in one place.
+        </Text>
+      </View>
       <View className="flex-row flex-wrap gap-2">
         <Pressable
           accessibilityRole="button"
@@ -83,6 +86,7 @@ export function MercuryOverview() {
           <BankOverview showHeader={false} />
         )}
       </AnimatedSizeView>
+      <MercuryDisclosure />
     </View>
   );
 }
