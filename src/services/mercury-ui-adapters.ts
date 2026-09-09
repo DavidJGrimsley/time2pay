@@ -13,6 +13,7 @@ import {
   ensureMercuryCustomer,
   listMercuryAccounts,
   listMercuryRecipients,
+  listMercuryTransactions,
   sendMercuryMoney,
   updateMercuryRecipient,
 } from '@/services/mercury';
@@ -31,8 +32,11 @@ export function formatMercuryCustomerSyncError(error: unknown): string {
   return rawMessage;
 }
 
-export const mercuryUiAdapter: MercuryUiAdapter = {
+export const mercuryUiAdapter: MercuryUiAdapter & {
+  listTransactions: typeof listMercuryTransactions;
+} = {
   listAccounts: listMercuryAccounts,
+  listTransactions: listMercuryTransactions,
   listRecipients: listMercuryRecipients,
   createInvoice: createMercuryInvoice,
   createRecipient: createMercuryRecipient,

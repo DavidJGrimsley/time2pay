@@ -6,6 +6,7 @@ import {
   index,
   integer,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uuid,
@@ -79,12 +80,82 @@ export const mercuryCredentialEvents = pgTable(
     ),
     actionCheck: check(
       'mercury_credential_events_action_check',
-      sql`${table.action} in ('created', 'rotated', 'tested', 'deleted', 'ar_probed')`,
+      sql`${table.action} in ('created', 'rotated', 'tested', 'deleted', 'ar_probed', 'oauth_connected', 'oauth_reconnected', 'oauth_refreshed', 'oauth_refresh_failed', 'oauth_disconnected')`,
     ),
     authUserFk: foreignKey({
       columns: [table.authUserId],
       foreignColumns: [userProfiles.authUserId],
       name: 'fk_mercury_credential_events_auth_user_id_user_profiles',
+    }).onDelete('cascade'),
+  }),
+);
+
+export const mercuryOAuthConnections = pgTable(
+  'mercury_oauth_connections',
+  {
+    authUserId: uuid('auth_user_id').notNull(),
+    environment: text('environment').notNull(),
+    status: text('status').notNull().default('connected'),
+    accessTokenVaultSecretId: uuid('access_token_vault_secret_id'),
+    refreshTokenVaultSecretId: uuid('refresh_token_vault_secret_id'),
+    scopes: text('scopes').array().notNull(),
+    accessTokenExpiresAt: timestamp('access_token_expires_at', { withTimezone: true }),
+    connectedAt: timestamp('connected_at', { withTimezone: true }),
+    lastRefreshedAt: timestamp('last_refreshed_at', { withTimezone: true }),
+    disconnectedAt: timestamp('disconnected_at', { withTimezone: true }),
+    rotationVersion: integer('rotation_version').notNull().default(0),
+    ...lifecycleColumns,
+  },
+  (table) => ({
+    primaryKey: primaryKey({
+      columns: [table.authUserId, table.environment],
+      name: 'mercury_oauth_connections_pkey',
+    }),
+    authUserIdIdx: index('idx_mercury_oauth_connections_auth_user_id').on(table.authUserId),
+    statusCheck: check(
+      'mercury_oauth_connections_status_check',
+      sql`${table.status} in ('connected', 'reauthorization_required', 'disconnected')`,
+    ),
+    environmentCheck: check(
+      'mercury_oauth_connections_environment_check',
+      sql`${table.environment} in ('production', 'sandbox')`,
+    ),
+    authUserFk: foreignKey({
+      columns: [table.authUserId],
+      foreignColumns: [userProfiles.authUserId],
+      name: 'fk_mercury_oauth_connections_auth_user_id_user_profiles',
+    }).onDelete('cascade'),
+  }),
+);
+
+export const mercuryOAuthAttempts = pgTable(
+  'mercury_oauth_attempts',
+  {
+    stateHash: text('state_hash').primaryKey().notNull(),
+    authUserId: uuid('auth_user_id').notNull(),
+    environment: text('environment').notNull(),
+    flow: text('flow').notNull(),
+    pkceVerifierVaultSecretId: uuid('pkce_verifier_vault_secret_id'),
+    redirectUri: text('redirect_uri').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    consumedAt: timestamp('consumed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    authUserIdIdx: index('idx_mercury_oauth_attempts_auth_user_id').on(table.authUserId),
+    expiresAtIdx: index('idx_mercury_oauth_attempts_expires_at').on(table.expiresAt),
+    environmentCheck: check(
+      'mercury_oauth_attempts_environment_check',
+      sql`${table.environment} in ('production', 'sandbox')`,
+    ),
+    flowCheck: check(
+      'mercury_oauth_attempts_flow_check',
+      sql`${table.flow} in ('connect', 'reconnect')`,
+    ),
+    authUserFk: foreignKey({
+      columns: [table.authUserId],
+      foreignColumns: [userProfiles.authUserId],
+      name: 'fk_mercury_oauth_attempts_auth_user_id_user_profiles',
     }).onDelete('cascade'),
   }),
 );
@@ -139,3 +210,7 @@ export type MercuryCredentialHistoryRow = typeof mercuryCredentialHistory.$infer
 export type NewMercuryCredentialHistoryRow = typeof mercuryCredentialHistory.$inferInsert;
 export type MercuryCredentialEventRow = typeof mercuryCredentialEvents.$inferSelect;
 export type NewMercuryCredentialEventRow = typeof mercuryCredentialEvents.$inferInsert;
+export type MercuryOAuthConnectionRow = typeof mercuryOAuthConnections.$inferSelect;
+export type NewMercuryOAuthConnectionRow = typeof mercuryOAuthConnections.$inferInsert;
+export type MercuryOAuthAttemptRow = typeof mercuryOAuthAttempts.$inferSelect;
+export type NewMercuryOAuthAttemptRow = typeof mercuryOAuthAttempts.$inferInsert;

@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
-import { findBestCheckingAccount, type MercuryAccount } from '@mr.dj2u/mercury';
+import {
+  findBestCheckingAccount,
+  type MercuryAccount,
+  type MercuryTransaction,
+} from '@mr.dj2u/mercury';
 import {
   AccountsSelect,
   MercuryLogo,
@@ -13,7 +17,9 @@ import { MercuryPoweredBy } from '@/components/mercury-disclosure';
 import { getCachedMercuryAccountsSnapshot } from '@/services/mercury';
 
 type ControlledMercuryBankOverviewProps = {
-  adapter: Pick<MercuryUiAdapter, 'listAccounts'>;
+  adapter: Pick<MercuryUiAdapter, 'listAccounts'> & {
+    listTransactions: (accountId: string, limit?: number) => Promise<MercuryTransaction[]>;
+  };
   subtitle?: string;
 };
 
@@ -42,6 +48,23 @@ function formatMoney(value: unknown): string {
   }).format(amount);
 }
 
+function firstText(record: MercuryTransaction, keys: string[]): string | null {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return null;
+}
+
+function formatTransactionDate(transaction: MercuryTransaction): string {
+  const value = firstText(transaction, ['postedAt', 'createdAt', 'date', 'estimatedDeliveryDate']);
+  if (!value) return 'Date unavailable';
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp)
+    ? new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' }).format(new Date(timestamp))
+    : value;
+}
+
 export function ControlledMercuryBankOverview({
   adapter,
   subtitle = 'Mercury account context for invoice routing.',
@@ -55,6 +78,9 @@ export function ControlledMercuryBankOverview({
     cachedDefaultAccount?.id ? `${cachedDefaultAccount.id}` : null,
   );
   const [isLoading, setIsLoading] = useState(() => cachedAccounts === null);
+  const [transactions, setTransactions] = useState<MercuryTransaction[]>([]);
+  const [isLoadingTransactions, setIsLoadingTransactions] = useState(false);
+  const [transactionError, setTransactionError] = useState<string | null>(null);
   const [status, setStatus] = useState(() => ({
     message:
       cachedAccounts === null
@@ -140,6 +166,38 @@ export function ControlledMercuryBankOverview({
   const available = balances?.available ?? balances?.availableBalance ?? selectedAccount?.availableBalance;
   const current = balances?.current ?? balances?.currentBalance ?? selectedAccount?.currentBalance;
 
+  useEffect(() => {
+    const accountId = selectedAccount?.id ? `${selectedAccount.id}` : '';
+    if (!accountId) {
+      setTransactions([]);
+      setTransactionError(null);
+      return;
+    }
+
+    let active = true;
+    setIsLoadingTransactions(true);
+    setTransactionError(null);
+    adapter
+      .listTransactions(accountId, 25)
+      .then((rows) => {
+        if (active) setTransactions(rows);
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        setTransactions([]);
+        setTransactionError(
+          error instanceof Error ? error.message : 'Failed to load recent transactions.',
+        );
+      })
+      .finally(() => {
+        if (active) setIsLoadingTransactions(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [adapter, selectedAccount?.id]);
+
   if (isLoading) {
     return (
       <MercuryLoadingPanel
@@ -223,6 +281,58 @@ export function ControlledMercuryBankOverview({
           <Text style={{ color: '#d4e0d0', fontSize: 14 }}>Current: {formatMoney(current)}</Text>
         </View>
       )}
+
+      {selectedAccount ? (
+        <View style={{ gap: 10 }}>
+          <Text style={{ color: '#f4fff4', fontSize: 16, fontWeight: '700' }}>
+            Recent transactions
+          </Text>
+          {isLoadingTransactions ? (
+            <Text style={{ color: '#d4e0d0', fontSize: 14 }}>Loading transactions...</Text>
+          ) : transactionError ? (
+            <MercuryStatusNotice message={transactionError} tone="error" />
+          ) : transactions.length === 0 ? (
+            <Text style={{ color: '#d4e0d0', fontSize: 14 }}>No recent transactions found.</Text>
+          ) : (
+            transactions.map((transaction, index) => {
+              const description =
+                firstText(transaction, [
+                  'counterpartyName',
+                  'bankDescription',
+                  'note',
+                  'kind',
+                ]) ?? 'Mercury transaction';
+              const statusText = firstText(transaction, ['status']);
+              return (
+                <View
+                  key={`${transaction.id ?? 'transaction'}-${index}`}
+                  style={{
+                    flexDirection: 'row',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                    borderTopWidth: index === 0 ? 0 : 1,
+                    borderTopColor: '#2f4333',
+                    paddingTop: index === 0 ? 0 : 10,
+                  }}
+                >
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text style={{ color: '#f4fff4', fontSize: 14, fontWeight: '600' }}>
+                      {description}
+                    </Text>
+                    <Text style={{ color: '#aebcab', fontSize: 12 }}>
+                      {formatTransactionDate(transaction)}
+                      {statusText ? ` · ${statusText}` : ''}
+                    </Text>
+                  </View>
+                  <Text style={{ color: '#f4fff4', fontSize: 14, fontWeight: '700' }}>
+                    {formatMoney(transaction.amount)}
+                  </Text>
+                </View>
+              );
+            })
+          )}
+        </View>
+      ) : null}
     </View>
   );
 }

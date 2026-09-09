@@ -19,6 +19,7 @@ type MercuryActionName =
   | 'testInvoiceAccess'
   | 'ensureCustomer'
   | 'listAccounts'
+  | 'listTransactions'
   | 'createInvoice'
   | 'listRecipients'
   | 'createRecipient'
@@ -30,6 +31,7 @@ type MercuryActionPayloadMap = {
   testInvoiceAccess: undefined;
   ensureCustomer: { name: string; email: string };
   listAccounts: undefined;
+  listTransactions: { accountId: string; limit?: number };
   createInvoice: MercuryInvoicePayload;
   listRecipients: undefined;
   createRecipient: MercuryRecord;
@@ -42,6 +44,7 @@ type MercuryActionResponseMap = {
   testInvoiceAccess: { ok: true; environment: string };
   ensureCustomer: { customerId: string };
   listAccounts: { accounts: MercuryAccount[] };
+  listTransactions: { transactions: MercuryTransaction[] };
   createInvoice: { invoice: MercuryInvoiceResponse };
   listRecipients: { recipients: MercuryRecipient[] };
   createRecipient: { recipient: MercuryRecipient };
@@ -245,6 +248,14 @@ export async function listMercuryAccounts(): Promise<MercuryAccount[]> {
     const result = await mercuryAction('listAccounts');
     return result.accounts;
   });
+}
+
+export async function listMercuryTransactions(
+  accountId: string,
+  limit = 25,
+): Promise<MercuryTransaction[]> {
+  const result = await mercuryAction('listTransactions', { accountId, limit });
+  return result.transactions;
 }
 
 export async function createMercuryInvoice(

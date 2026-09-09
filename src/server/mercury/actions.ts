@@ -13,6 +13,11 @@ import {
 import { requireAuthUserId } from '@/server/db/_shared/auth';
 import { getDecryptedMercuryApiKeyForUser } from '@/server/mercury/credentials';
 import { formatMercuryUnauthorizedMessage } from '@/server/mercury/messages';
+import {
+  getMercuryApiBaseUrl,
+  getValidMercuryOAuthAccessForUser,
+  MercuryOAuthError,
+} from '@/server/mercury/oauth';
 import { redactMercuryError, redactMercuryString } from '@/server/mercury/redact';
 
 type MercuryAccessMode = 'local' | 'hosted' | 'tour';
@@ -22,6 +27,7 @@ type MercuryActionPayload =
   | { action: 'testInvoiceAccess' }
   | { action: 'ensureCustomer'; payload: { name: string; email: string } }
   | { action: 'listAccounts' }
+  | { action: 'listTransactions'; payload: { accountId: string; limit?: number } }
   | { action: 'createInvoice'; payload: MercuryInvoicePayload }
   | { action: 'listRecipients' }
   | { action: 'createRecipient'; payload: Record<string, unknown> }
@@ -38,16 +44,51 @@ type MercuryResolvedConfig = {
   baseUrl?: string;
 };
 
+const OAUTH_READ_ACTIONS = new Set<MercuryActionRequest['action']>([
+  'testConnection',
+  'listAccounts',
+  'listTransactions',
+]);
+
 function hasBearerToken(request: Request): boolean {
   const authorization = request.headers.get('authorization') ?? '';
   return authorization.startsWith('Bearer ') && Boolean(authorization.slice('Bearer '.length).trim());
 }
 
-async function resolveHostedMercuryConfig(request: Request): Promise<MercuryResolvedConfig> {
+async function resolveHostedMercuryConfig(
+  request: Request,
+  action: MercuryActionRequest['action'],
+): Promise<MercuryResolvedConfig> {
   const authUserId = await requireAuthUserId(request);
+  if (OAUTH_READ_ACTIONS.has(action)) {
+    try {
+      const oauthAccess = await getValidMercuryOAuthAccessForUser(authUserId);
+      if (oauthAccess) {
+        return {
+          apiKey: oauthAccess.accessToken,
+          environment: oauthAccess.environment,
+          baseUrl: getMercuryApiBaseUrl(oauthAccess.environment),
+        };
+      }
+    } catch (error) {
+      const isConfigurationError =
+        error instanceof MercuryOAuthError &&
+        ['oauth_not_configured', 'oauth_configuration_invalid', 'oauth_site_origin_missing'].includes(
+          error.code,
+        );
+      if (!isConfigurationError) {
+        throw error;
+      }
+    }
+  }
+
   const apiKey = await getDecryptedMercuryApiKeyForUser(authUserId);
   if (!apiKey) {
-    throw new Error('No Mercury API key is saved for this account.');
+    throw new Error(
+      OAUTH_READ_ACTIONS.has(action)
+        ? 'Connect Mercury in Settings to use account and transaction reads.'
+        : 'Save an advanced Mercury API key in Settings to use this feature.',
+    );
   }
 
   return {
@@ -78,11 +119,11 @@ async function resolveMercuryConfig(
   const accessMode = payload.accessMode ?? 'local';
 
   if (hasBearerToken(request)) {
-    return resolveHostedMercuryConfig(request);
+    return resolveHostedMercuryConfig(request, payload.action);
   }
 
   if (accessMode === 'hosted') {
-    return resolveHostedMercuryConfig(request);
+    return resolveHostedMercuryConfig(request, payload.action);
   }
 
   if (accessMode === 'tour') {
@@ -194,6 +235,25 @@ async function createInvoice(
 async function listAccounts(client: MercuryClient): Promise<Response> {
   const result = await client.accounts.list({ limit: 200 });
   return Response.json({ accounts: result.items });
+}
+
+async function listTransactions(
+  client: MercuryClient,
+  payload: { accountId: string; limit?: number },
+): Promise<Response> {
+  const accountId = payload?.accountId?.trim();
+  if (!accountId) {
+    throw new Error('Account ID is required to list transactions.');
+  }
+  const requestedLimit = Number(payload.limit ?? 25);
+  const limit = Number.isFinite(requestedLimit)
+    ? Math.min(Math.max(Math.floor(requestedLimit), 1), 100)
+    : 25;
+  const result = await client.accounts.listTransactions(accountId, {
+    limit,
+    order: 'desc',
+  });
+  return Response.json({ transactions: result.items });
 }
 
 async function listRecipients(client: MercuryClient): Promise<Response> {
@@ -344,7 +404,8 @@ export async function handleMercuryActionRequest(request: Request): Promise<Resp
     client = getMercuryClient(config);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Invalid request.';
-    return Response.json({ error: redactMercuryString(message) }, { status: 400 });
+    const status = error instanceof MercuryOAuthError ? error.status : 400;
+    return Response.json({ error: redactMercuryString(message) }, { status });
   }
 
   try {
@@ -357,6 +418,8 @@ export async function handleMercuryActionRequest(request: Request): Promise<Resp
         return await ensureCustomer(client, payload.payload);
       case 'listAccounts':
         return await listAccounts(client);
+      case 'listTransactions':
+        return await listTransactions(client, payload.payload);
       case 'createInvoice':
         return await createInvoice(client, payload.payload);
       case 'listRecipients':

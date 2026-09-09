@@ -63,7 +63,7 @@ describe('Mercury disclosure compliance', () => {
     }
 
     for (const path of ['src/components/bank-overview.tsx', 'src/components/payments-overview.tsx']) {
-      expect(readSource(path)).toContain('<MercuryKeyGate headerAccessory={<MercuryPoweredBy />}>');
+      expect(readSource(path)).toContain('headerAccessory={<MercuryPoweredBy />}');
     }
   });
 

@@ -50,6 +50,8 @@ Set these in `.env`:
 - `MERCURY_API_KEY_ENCRYPTION_SECRET` (legacy credential compatibility): decrypts pre-Vault Mercury credential rows at runtime and during `npm run mercury:backfill-vault`; remove it only after those rows are migrated
 - `MERCURY_SANDBOX_API_KEY` (required for tour mode Mercury flows): Mercury sandbox API key
 - `MERCURY_SANDBOX_BASE_URL` (required for tour mode Mercury flows): defaults to `https://api-sandbox.mercury.com/api/v1`
+- `MERCURY_OAUTH_CLIENT_ID` and `MERCURY_OAUTH_CLIENT_SECRET` (required for Mercury connected accounts): server-only OAuth credentials issued by Mercury
+- `MERCURY_OAUTH_ENVIRONMENT` (optional): `production` (default) or `sandbox`; this selects both Mercury's OAuth and API hosts
 - `GITHUB_CLIENT_SECRET` (optional): server-side GitHub OAuth app client secret
 - `EXPO_PUBLIC_GITHUB_CLIENT_ID` (optional): GitHub OAuth app client id used by the client UI and server token exchange
 - `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY` (required for embedded web Checkout): Stripe publishable key for the same sandbox or live mode as `STRIPE_SECRET_KEY`
@@ -79,7 +81,7 @@ Plesk note:
 - Set `EXPO_PUBLIC_TIME2PAY_DATA_MODE=hosted` in the selected env file or in the Plesk Node app environment.
 - If this is missing or set to `local`, hosted auth/data flows are intentionally disabled.
 
-If a signed-in hosted user has no saved Mercury API key, Mercury production actions return `400`.
+If a signed-in hosted user has neither a Mercury OAuth connection nor a saved Mercury API key, Mercury account and transaction reads return `400`. Payments, recipients, and invoicing always require the separate advanced API key.
 If `MERCURY_SANDBOX_API_KEY` is missing, tour mode Mercury actions return `400`.
 If GitHub OAuth env vars are missing, `/api/github` returns `501` and the Sign in with GitHub button is hidden.
 If hosted env vars are missing while `EXPO_PUBLIC_TIME2PAY_DATA_MODE=hosted`, startup fails fast.
@@ -168,17 +170,17 @@ npm run web
 
 Use this for fast UI iteration. For production-equivalent API-route/PWA checks, use the production-style server above.
 
-## Self-Hosting (Each User Uses Their Own Key)
+## Self-Hosting (Mercury Connected Accounts)
 
-Production Mercury access is now user-scoped in hosted mode. Each signed-in user saves their own Mercury production API key in **Profile -> Integrations**, where Time2Pay encrypts it before storing it in Supabase.
+Mercury read access is user-scoped in hosted mode. A signed-in user connects Mercury from **Settings -> Integrations**; access and rotating refresh tokens are stored server-side in Supabase Vault. The browser receives only connection status. A manual API key remains available as a separate advanced credential for payments, recipients, and invoicing.
 
 1. Clone repo and install deps: `npm ci`
 2. Create `.env` from `.env.example`
-3. Set hosted/Supabase vars and `MERCURY_API_KEY_ENCRYPTION_SECRET`
+3. Set hosted/Supabase vars and the Mercury OAuth vars from `.env.example`
 4. Run `npm run db:migrate`
 5. Build: `npm run build:web`
 6. Start: `npm run serve:prod:env`
-7. Sign in, save your Mercury production API key in **Profile -> Integrations**, then use the Mercury invoice builder
+7. Sign in and connect Mercury in **Settings -> Integrations**. Add an advanced production API key only if you need payment, recipient, or invoice actions.
 
 Update flow:
 
@@ -186,6 +188,17 @@ Update flow:
 2. `npm ci`
 3. `npm run build:web`
 4. Restart server
+
+## Mercury OAuth Setup
+
+Mercury must approve the OAuth integration and issue a client ID and client secret. For each deployment environment:
+
+1. Set `MERCURY_OAUTH_CLIENT_ID`, `MERCURY_OAUTH_CLIENT_SECRET`, `MERCURY_OAUTH_ENVIRONMENT`, and `EXPO_PUBLIC_SITE_ORIGIN`.
+2. Register the exact callback `<EXPO_PUBLIC_SITE_ORIGIN>/api/mercury-oauth/callback` with Mercury. For local web development this is normally `http://localhost:3000/api/mercury-oauth/callback`.
+3. Run `npm run db:migrate` so the OAuth connection and one-time PKCE attempt tables exist.
+4. Rebuild and restart the server, then use **Connect Mercury** in **Settings -> Integrations**.
+
+Time2Pay requests `read offline_access`, uses Authorization Code + PKCE S256, and rotates single-use refresh tokens under a database lock. Disconnecting deletes local OAuth tokens; it does not delete the user's Mercury account. Never prefix the client secret with `EXPO_PUBLIC_`.
 
 ## GitHub OAuth Setup (Optional)
 

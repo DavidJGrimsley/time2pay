@@ -1,5 +1,7 @@
 import { handleMercuryActionRequest } from '@/server/mercury/actions';
 
 export async function POST(request: Request): Promise<Response> {
-  return handleMercuryActionRequest(request);
+  const response = await handleMercuryActionRequest(request);
+  response.headers.set('Cache-Control', 'no-store');
+  return response;
 }

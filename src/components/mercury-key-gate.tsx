@@ -3,6 +3,7 @@ import { Image, Linking, Pressable, Text, View } from 'react-native';
 import { Link, type Href } from 'expo-router';
 import { CosmosLoadingAnimation } from '@/components/UI/Loading';
 import { useMercuryKeyStatus } from '@/hooks/use-mercury-key-status';
+import { useMercuryOAuthStatus } from '@/hooks/use-mercury-oauth-status';
 
 const MERCURY_NAVY = '#272735';
 const MERCURY_SOFT = '#eef2f7';
@@ -86,19 +87,25 @@ function MercuryBlockedCard({
 type MercuryKeyGateProps = PropsWithChildren<{
   requireArAccess?: boolean;
   headerAccessory?: ReactNode;
+  requirement?: 'read' | 'advanced' | 'ar';
 }>;
 
 export function MercuryKeyGate({
   children,
   requireArAccess = false,
   headerAccessory,
+  requirement,
 }: MercuryKeyGateProps) {
   const { isLoading, accessMode, configured, arAccessAvailable, requiresSignIn } =
     useMercuryKeyStatus();
+  const { isLoading: isOAuthLoading, status: oauthStatus } = useMercuryOAuthStatus();
+  const resolvedRequirement = requirement ?? (requireArAccess ? 'ar' : 'advanced');
+  const hasReadAccess =
+    accessMode === 'tour' || configured === true || oauthStatus?.connectionState === 'connected';
 
-  if (isLoading || accessMode === null) {
+  if (isLoading || isOAuthLoading || accessMode === null) {
     return (
-        <View
+      <View
         style={{
           alignItems: 'center',
           borderRadius: 12,
@@ -108,7 +115,7 @@ export function MercuryKeyGate({
           gap: 8,
           padding: 20,
         }}
-        >
+      >
         {headerAccessory ? <View style={{ alignSelf: 'flex-end' }}>{headerAccessory}</View> : null}
         <CosmosLoadingAnimation size={56} />
         <Text style={{ fontSize: 13, color: '#4a4a6a' }}>Checking Mercury connection...</Text>
@@ -120,7 +127,7 @@ export function MercuryKeyGate({
     return (
       <MercuryBlockedCard
         title="Hosted mode required"
-        message="Mercury features use your saved API key from your hosted profile. Switch to hosted mode or use tour mode for a sandbox preview."
+        message="Mercury connections are available in hosted mode. Switch to hosted mode or use tour mode for a sandbox preview."
         headerAccessory={headerAccessory}
       />
     );
@@ -130,7 +137,7 @@ export function MercuryKeyGate({
     return (
       <MercuryBlockedCard
         title="Sign in required"
-        message="Sign in to use Mercury banking and payment features with your saved API key."
+        message="Sign in to connect Mercury and use banking features."
         ctaLabel="Sign In"
         ctaHref="/sign-in"
         headerAccessory={headerAccessory}
@@ -138,11 +145,27 @@ export function MercuryKeyGate({
     );
   }
 
-  if (!configured) {
+  if (resolvedRequirement === 'read' && !hasReadAccess) {
     return (
       <MercuryBlockedCard
         title="Mercury not connected"
-        message="Save your Mercury production API key in Settings to unlock banking and payment features."
+        message={
+          oauthStatus?.connectionState === 'reauthorization_required'
+            ? 'Your Mercury authorization expired. Reconnect Mercury in Settings to resume account and transaction reads.'
+            : 'Connect Mercury in Settings to unlock account and transaction reads.'
+        }
+        ctaLabel="Open Settings"
+        ctaHref="/settings/integrations"
+        headerAccessory={headerAccessory}
+      />
+    );
+  }
+
+  if (resolvedRequirement !== 'read' && !configured) {
+    return (
+      <MercuryBlockedCard
+        title="Advanced Mercury access required"
+        message="This action needs a manually configured Mercury API key with the appropriate write permissions. Add one under Advanced Mercury access in Settings."
         ctaLabel="Open Settings"
         ctaHref="/settings/integrations"
         headerAccessory={headerAccessory}
@@ -154,7 +177,7 @@ export function MercuryKeyGate({
   // from their profile only after confirming they have a Mercury Plus or
   // higher plan. We can't auto-detect the plan tier reliably, so the user
   // is the source of truth.
-  if (requireArAccess && arAccessAvailable !== true) {
+  if (resolvedRequirement === 'ar' && arAccessAvailable !== true) {
     return (
       <MercuryBlockedCard
         title="Mercury invoicing requires Plus plan"
