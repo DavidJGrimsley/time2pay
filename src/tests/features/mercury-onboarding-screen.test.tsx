@@ -8,12 +8,25 @@ const mocks = vi.hoisted(() => ({
   getReferralStatus: vi.fn(),
   loadGateSnapshot: vi.fn(),
   openUrl: vi.fn(),
+  oauthIsLoading: false,
+  oauthStatus: null as null | {
+    available: boolean;
+    connectionState: 'disconnected' | 'connected' | 'reauthorization_required';
+    environment: 'sandbox' | 'production' | null;
+    scopes: string[];
+    connectedAt: string | null;
+    lastRefreshedAt: string | null;
+    accessTokenExpiresAt: string | null;
+  },
   recordChoice: vi.fn(),
   routerPush: vi.fn(),
   routerReplace: vi.fn(),
   setOnboardingGateError: vi.fn(),
   syncOnboardingGate: vi.fn(),
+  startMercuryOAuth: vi.fn(),
   trackReferralClick: vi.fn(),
+  windowLocationAssign: vi.fn(),
+  windowReplaceState: vi.fn(),
 }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -59,6 +72,17 @@ vi.mock('@/services/mercury-referrals', () => ({
   getMercuryReferralStatus: mocks.getReferralStatus,
   MERCURY_REFERRAL_URL: 'https://mercury.com/r/time2pay',
   trackMercuryReferralClick: mocks.trackReferralClick,
+}));
+
+vi.mock('@/services/mercury-oauth', () => ({
+  startMercuryOAuth: mocks.startMercuryOAuth,
+}));
+
+vi.mock('@/hooks/use-mercury-oauth-status', () => ({
+  useMercuryOAuthStatus: () => ({
+    isLoading: mocks.oauthIsLoading,
+    status: mocks.oauthStatus,
+  }),
 }));
 
 vi.mock('@/stores/auth-ui-store', () => ({
@@ -120,8 +144,30 @@ describe('MercuryOnboardingScreen', () => {
       missingDocumentIds: [],
     });
     mocks.openUrl.mockResolvedValue(undefined);
+    mocks.oauthIsLoading = false;
+    mocks.oauthStatus = {
+      available: true,
+      connectionState: 'disconnected',
+      environment: 'sandbox',
+      scopes: [],
+      connectedAt: null,
+      lastRefreshedAt: null,
+      accessTokenExpiresAt: null,
+    };
     mocks.recordChoice.mockResolvedValue(undefined);
+    mocks.startMercuryOAuth.mockResolvedValue({
+      authorizationUrl: 'https://oauth2-sandbox.mercury.com/oauth2/auth',
+    });
     mocks.trackReferralClick.mockResolvedValue({ status: 'clicked' });
+    vi.stubGlobal('window', {
+      history: { replaceState: mocks.windowReplaceState },
+      location: {
+        assign: mocks.windowLocationAssign,
+        hash: '',
+        pathname: '/onboarding/mercury',
+        search: '',
+      },
+    });
   });
 
   it('records Not now and finishes the optional step', async () => {
@@ -152,7 +198,7 @@ describe('MercuryOnboardingScreen', () => {
     expect(mocks.routerReplace).toHaveBeenCalledWith('/dashboard');
   });
 
-  it('keeps the existing-customer connection separate from advanced access', async () => {
+  it('starts basic read OAuth from the existing-customer path and returns to onboarding', async () => {
     const { default: MercuryOnboardingScreen } = await import(
       '@/features/onboarding/mercury-onboarding-screen'
     );
@@ -172,9 +218,44 @@ describe('MercuryOnboardingScreen', () => {
     ).toBe(true);
 
     await renderer.act(async () => {
-      pressableWithText(instance.root, 'Open Integrations')?.props.onPress();
+      pressableWithText(instance.root, 'Connect Mercury')?.props.onPress();
+      await Promise.resolve();
     });
-    expect(mocks.routerPush).toHaveBeenCalledWith('/settings/integrations');
+    expect(mocks.startMercuryOAuth).toHaveBeenCalledWith('/onboarding/mercury');
+    expect(mocks.windowLocationAssign).toHaveBeenCalledWith(
+      'https://oauth2-sandbox.mercury.com/oauth2/auth',
+    );
+  });
+
+  it('shows the connected state without mixing in advanced access', async () => {
+    mocks.oauthStatus = {
+      available: true,
+      connectionState: 'connected',
+      environment: 'sandbox',
+      scopes: ['read', 'offline_access'],
+      connectedAt: '2026-09-09T12:00:00.000Z',
+      lastRefreshedAt: null,
+      accessTokenExpiresAt: '2026-09-09T13:00:00.000Z',
+    };
+    const { default: MercuryOnboardingScreen } = await import(
+      '@/features/onboarding/mercury-onboarding-screen'
+    );
+    let instance!: renderer.ReactTestRenderer;
+
+    await renderer.act(async () => {
+      instance = renderer.create(<MercuryOnboardingScreen />);
+    });
+    await renderer.act(async () => {
+      pressableWithText(instance.root, 'I already use Mercury')?.props.onPress();
+    });
+
+    expect(instance.root.findByProps({ message: 'Mercury is connected with basic read access.' })).toBeDefined();
+    expect(pressableWithText(instance.root, 'Connect Mercury')).toBeUndefined();
+    expect(
+      instance.root
+        .findAllByType(Text)
+        .some((node) => node.props.children === 'Advanced access is separate'),
+    ).toBe(true);
   });
 
   it('opens and tracks the partner link for a new Mercury customer', async () => {

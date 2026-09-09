@@ -19,6 +19,7 @@ type AttemptRow = {
   flow: 'connect' | 'reconnect';
   pkce_verifier_vault_secret_id: string;
   redirect_uri: string;
+  return_path: string;
   expires_at: string;
 };
 type FakeDb = {
@@ -93,7 +94,8 @@ const fakeDb: FakeDb = {
         flow: params[3] as 'connect' | 'reconnect',
         pkce_verifier_vault_secret_id: params[4] as string,
         redirect_uri: params[5] as string,
-        expires_at: params[6] as string,
+        return_path: params[6] as string,
+        expires_at: params[7] as string,
       };
       return { rows: [] };
     }
@@ -195,6 +197,7 @@ describe('Mercury OAuth server lifecycle', () => {
     expect(state.attempt?.state_hash).toBe(
       createHash('sha256').update(url.searchParams.get('state') ?? '').digest('hex'),
     );
+    expect(state.attempt?.return_path).toBe('/settings/integrations');
     expect(url.searchParams.get('code_challenge')).toBe(
       createHash('sha256').update(verifier ?? '').digest('base64url'),
     );
@@ -213,13 +216,15 @@ describe('Mercury OAuth server lifecycle', () => {
       startMercuryOAuthForUser,
     } = await import('@/server/mercury/oauth');
 
-    const firstStart = await startMercuryOAuthForUser('user-1');
+    const firstStart = await startMercuryOAuthForUser('user-1', '/onboarding/mercury');
     const firstState = new URL(firstStart.authorizationUrl).searchParams.get('state');
     const firstCallback = await handleMercuryOAuthCallback(
       new Request(`https://time2pay.test/api/mercury-oauth/callback?code=code-1&state=${firstState}`),
     );
     expect(firstCallback.status).toBe(303);
-    expect(firstCallback.headers.get('location')).toContain('mercury_oauth=connected');
+    expect(firstCallback.headers.get('location')).toBe(
+      'https://time2pay.test/onboarding/mercury?mercury_oauth=connected',
+    );
     const firstAccessId = state.connection?.access_token_vault_secret_id ?? '';
     const firstRefreshId = state.connection?.refresh_token_vault_secret_id ?? '';
     expect(state.vault.get(firstAccessId)).toBe('access-1');

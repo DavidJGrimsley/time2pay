@@ -9,6 +9,8 @@ import {
 } from '@/components/mercury-disclosure';
 import { AppLoadingShell } from '@/components/app-loading-shell';
 import { InlineNotice, type NoticeTone } from '@/components/inline-notice';
+import { useMercuryOAuthStatus } from '@/hooks/use-mercury-oauth-status';
+import { startMercuryOAuth } from '@/services/mercury-oauth';
 import {
   getMercuryReferralStatus,
   MERCURY_REFERRAL_URL,
@@ -52,12 +54,43 @@ export default function MercuryOnboardingScreen() {
   const [choice, setChoice] = useState<MercuryOnboardingChoice | null>(null);
   const [referral, setReferral] = useState<MercuryReferralStatus | null>(null);
   const [isOpeningReferral, setIsOpeningReferral] = useState(false);
+  const [isStartingMercuryOAuth, setIsStartingMercuryOAuth] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
   const [status, setStatus] = useState<StatusNotice | null>(null);
   const authReady = useAuthUiStore((state) => state.authReady);
   const isAuthenticated = useAuthUiStore((state) => state.isAuthenticated);
   const syncOnboardingGate = useAuthUiStore((state) => state.syncOnboardingGate);
   const setOnboardingGateError = useAuthUiStore((state) => state.setOnboardingGateError);
+  const { isLoading: isOAuthLoading, status: oauthStatus } = useMercuryOAuthStatus();
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search ?? '');
+    const outcome = params.get('mercury_oauth');
+    if (!outcome) {
+      return;
+    }
+
+    const messages: Record<string, StatusNotice> = {
+      connected: { message: 'Mercury connected successfully.', tone: 'success' },
+      reconnected: { message: 'Mercury reconnected successfully.', tone: 'success' },
+      cancelled: { message: 'Mercury connection was cancelled.', tone: 'neutral' },
+      error: { message: 'Mercury connection failed. Please try again.', tone: 'error' },
+    };
+    setStatus(messages[outcome] ?? messages.error);
+
+    params.delete('mercury_oauth');
+    const nextSearch = params.toString();
+    const pathname = window.location.pathname || '/onboarding/mercury';
+    window.history?.replaceState?.(
+      null,
+      '',
+      `${pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash || ''}`,
+    );
+  }, []);
 
   useEffect(() => {
     if (!authReady) {
@@ -112,6 +145,29 @@ export default function MercuryOnboardingScreen() {
     }
   };
 
+  const startMercuryReadConnection = async () => {
+    setStatus(null);
+    if (Platform.OS !== 'web' || typeof window === 'undefined') {
+      setStatus({
+        tone: 'neutral',
+        message: 'Open Time2Pay in a web browser to connect Mercury.',
+      });
+      return;
+    }
+
+    setIsStartingMercuryOAuth(true);
+    try {
+      const result = await startMercuryOAuth('/onboarding/mercury');
+      window.location.assign(result.authorizationUrl);
+    } catch (error: unknown) {
+      setStatus({
+        tone: 'error',
+        message: error instanceof Error ? error.message : 'Failed to start Mercury OAuth.',
+      });
+      setIsStartingMercuryOAuth(false);
+    }
+  };
+
   const finishOnboarding = async (selectedChoice: MercuryOnboardingChoice) => {
     setIsCompleting(true);
     setStatus(null);
@@ -139,6 +195,8 @@ export default function MercuryOnboardingScreen() {
   };
 
   const referralStatus = readableReferralStatus(referral);
+  const isMercuryConnected = oauthStatus?.connectionState === 'connected';
+  const needsMercuryReauthorization = oauthStatus?.connectionState === 'reauthorization_required';
 
   if (!authReady) {
     return <AppLoadingShell />;
@@ -232,15 +290,42 @@ export default function MercuryOnboardingScreen() {
             Read-only OAuth access covers account and transaction visibility. It does not enable
             invoice creation or payment actions.
           </Text>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.push('/settings/integrations')}
-            style={[styles.secondaryButton, { borderColor: colors.primary }]}>
-            <Text style={[styles.secondaryButtonText, { color: colors.primary }]}>Open Integrations</Text>
-          </Pressable>
+          {isOAuthLoading ? (
+            <InlineNotice tone="neutral" message="Checking your Mercury connection..." />
+          ) : isMercuryConnected ? (
+            <InlineNotice tone="success" message="Mercury is connected with basic read access." />
+          ) : needsMercuryReauthorization ? (
+            <InlineNotice
+              tone="neutral"
+              message="Mercury needs to be reconnected before Time2Pay can read account data."
+            />
+          ) : oauthStatus?.available === false ? (
+            <InlineNotice
+              tone="neutral"
+              message="Mercury connection is not available yet. You can continue and connect later."
+            />
+          ) : null}
+          {!isMercuryConnected && oauthStatus?.available !== false ? (
+            <Pressable
+              accessibilityRole="button"
+              disabled={isStartingMercuryOAuth || isOAuthLoading}
+              onPress={() => {
+                startMercuryReadConnection().catch(() => undefined);
+              }}
+              style={[styles.secondaryButton, { borderColor: colors.primary }]}>
+              <Text style={[styles.secondaryButtonText, { color: colors.primary }]}>
+                {isStartingMercuryOAuth
+                  ? 'Opening Mercury...'
+                  : needsMercuryReauthorization
+                    ? 'Reconnect Mercury'
+                    : 'Connect Mercury'}
+              </Text>
+            </Pressable>
+          ) : null}
           <Text style={[styles.helperText, { color: colors.text }]}>
-            You can continue now and connect later. Once connected, this step will recognize your
-            Mercury status automatically.
+            {isMercuryConnected
+              ? 'Basic read access is ready. Advanced invoicing and payment access stays separate.'
+              : 'Connecting is optional during onboarding. You can continue now and connect later.'}
           </Text>
         </View>
       ) : null}

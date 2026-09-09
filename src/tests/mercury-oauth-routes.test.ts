@@ -28,11 +28,11 @@ vi.mock('@/server/mercury/oauth', () => ({
   handleMercuryOAuthCallback: mocks.callback,
 }));
 
-function actionRequest(action: string): Request {
+function actionRequest(action: string, values: Record<string, unknown> = {}): Request {
   return new Request('https://time2pay.test/api/mercury-oauth', {
     method: 'POST',
     headers: { Authorization: 'Bearer session', 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action }),
+    body: JSON.stringify({ action, ...values }),
   });
 }
 
@@ -75,13 +75,25 @@ describe('Mercury OAuth routes', () => {
     mocks.disconnect.mockResolvedValue({ available: true, connectionState: 'disconnected' });
     const { POST } = await import('@/app/api/mercury-oauth+api');
 
-    const started = await POST(actionRequest('start'));
+    const started = await POST(
+      actionRequest('start', { returnPath: '/onboarding/mercury' }),
+    );
     expect(started.status).toBe(200);
-    expect(mocks.start).toHaveBeenCalledWith('user-1');
+    expect(mocks.start).toHaveBeenCalledWith('user-1', '/onboarding/mercury');
 
     const disconnected = await POST(actionRequest('disconnect'));
     expect(disconnected.status).toBe(200);
     expect(mocks.disconnect).toHaveBeenCalledWith('user-1');
+  });
+
+  it('rejects OAuth return paths outside the server allowlist', async () => {
+    const { POST } = await import('@/app/api/mercury-oauth+api');
+    const response = await POST(
+      actionRequest('start', { returnPath: 'https://attacker.test/callback' }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(mocks.start).not.toHaveBeenCalled();
   });
 
   it('delegates the public provider callback without requiring a browser session', async () => {

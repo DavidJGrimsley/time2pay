@@ -1,4 +1,8 @@
 import { getSupabaseClient } from '@/services/supabase-client';
+import {
+  DEFAULT_MERCURY_OAUTH_RETURN_PATH,
+  type MercuryOAuthReturnPath,
+} from '@/services/mercury-oauth-return-paths';
 
 export type MercuryOAuthEnvironment = 'production' | 'sandbox';
 export type MercuryOAuthConnectionState =
@@ -19,7 +23,7 @@ export type MercuryOAuthConnectionStatus = {
 
 type MercuryOAuthAction =
   | { action: 'status' }
-  | { action: 'start' }
+  | { action: 'start'; returnPath: MercuryOAuthReturnPath }
   | { action: 'disconnect' };
 
 async function getHostedBearerToken(): Promise<string> {
@@ -59,8 +63,10 @@ export function getMercuryOAuthStatus(): Promise<MercuryOAuthConnectionStatus> {
   return oauthAction({ action: 'status' });
 }
 
-export function startMercuryOAuth(): Promise<{ authorizationUrl: string }> {
-  return oauthAction({ action: 'start' });
+export function startMercuryOAuth(
+  returnPath: MercuryOAuthReturnPath = DEFAULT_MERCURY_OAUTH_RETURN_PATH,
+): Promise<{ authorizationUrl: string }> {
+  return oauthAction({ action: 'start', returnPath });
 }
 
 export function disconnectMercuryOAuth(): Promise<MercuryOAuthConnectionStatus> {

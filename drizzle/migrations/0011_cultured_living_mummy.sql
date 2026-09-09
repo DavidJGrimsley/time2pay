@@ -1,0 +1,1 @@
+ALTER TABLE "mercury_oauth_attempts" ADD COLUMN "return_path" text DEFAULT '/settings/integrations' NOT NULL;

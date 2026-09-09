@@ -1,4 +1,5 @@
 import { requireAuthUserId } from '@/server/db/_shared/auth';
+import { MERCURY_OAUTH_RETURN_PATHS } from '@/services/mercury-oauth-return-paths';
 import { z } from 'zod';
 import {
   disconnectMercuryOAuthForUser,
@@ -9,7 +10,12 @@ import {
 
 const mercuryOAuthActionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('status') }).strict(),
-  z.object({ action: z.literal('start') }).strict(),
+  z
+    .object({
+      action: z.literal('start'),
+      returnPath: z.enum(MERCURY_OAUTH_RETURN_PATHS).optional(),
+    })
+    .strict(),
   z.object({ action: z.literal('disconnect') }).strict(),
 ]);
 
@@ -54,7 +60,7 @@ export async function POST(request: Request): Promise<Response> {
       case 'status':
         return json(await getMercuryOAuthConnectionStatusForUser(authUserId));
       case 'start':
-        return json(await startMercuryOAuthForUser(authUserId));
+        return json(await startMercuryOAuthForUser(authUserId, payload.returnPath));
       case 'disconnect':
         return json(await disconnectMercuryOAuthForUser(authUserId));
       default:
