@@ -4,6 +4,7 @@ import {
 } from '@mr.dj2u/mercury-ui';
 import { useStableWindowDimensions } from '@/hooks/use-stable-window-dimensions';
 import { ControlledMercuryBankOverview } from '@/components/controlled-mercury-bank-overview';
+import { MercuryPoweredBy } from '@/components/mercury-disclosure';
 import { MercuryKeyGate } from '@/components/mercury-key-gate';
 import {
   mercuryCustomerContactAdapter,
@@ -34,7 +35,7 @@ export function BankOverview({ showHeader = true }: { showHeader?: boolean }) {
 
       <View className="items-center">
         <View className="w-full" style={contentWidthStyle}>
-          <MercuryKeyGate>
+          <MercuryKeyGate headerAccessory={<MercuryPoweredBy />}>
             <View style={{ gap: 16 }}>
               <ControlledMercuryBankOverview adapter={mercuryUiAdapter} />
               <MercuryCustomerContactPanel

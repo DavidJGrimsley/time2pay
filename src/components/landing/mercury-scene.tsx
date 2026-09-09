@@ -3,7 +3,6 @@ import {
   Image,
   Pressable,
   Text,
-  useColorScheme,
   View,
   type LayoutChangeEvent,
 } from 'react-native';
@@ -25,6 +24,11 @@ import {
   usePinnedSceneProgress,
 } from './landing-motion';
 import { SemanticText } from './semantic-elements';
+import {
+  MERCURY_AFFILIATE_LINK_DISCLOSURE,
+  MercuryDisclosure,
+  MercuryPoweredBy,
+} from '@/components/mercury-disclosure';
 
 // Motion budget: Mercury cards use the same pinned-scene progress and avoid layout-affecting animation.
 const MERCURY_NAVY = '#272735';
@@ -193,7 +197,6 @@ export function MercuryScene({
   onLayout,
   onOpenLink,
 }: MercurySceneProps) {
-  const isDark = useColorScheme() === 'dark';
   const isShortViewport = viewportHeight < 900;
   const isVeryShortViewport = viewportHeight < 780;
   const isPinnedScene = process.env.EXPO_OS === 'web' && viewportWidth >= 920 && viewportHeight >= 760;
@@ -328,103 +331,119 @@ export function MercuryScene({
               <Time2PayAlarmWatermark progress={progress} compact={isCompactScene} />
             </View>
 
-            <View className={`relative z-10 mx-auto flex h-full w-full max-w-[1400px] flex-col justify-center ${isCompactScene ? 'gap-7 md:gap-8' : 'gap-8 md:gap-10'} md:flex-row md:items-center md:justify-between`}>
-              <Animated.View className="md:w-[41%]" style={copyStyle}>
-                <View className={isCompactScene ? 'gap-3.5' : 'gap-5'}>
-                  <Animated.View
-                    className="self-start rounded-full px-4 py-2"
-                    style={[
-                      {
-                        backgroundColor: '#e8edf6',
-                      },
-                      badgeStyle,
-                    ]}
-                  >
-                    <SemanticText
-                      as="p"
-                      className="text-xs font-bold uppercase tracking-[2px]"
-                      style={{ color: MERCURY_NAVY }}
+            <View className={`relative z-10 mx-auto flex h-full w-full max-w-[1400px] flex-col ${isCompactScene ? 'gap-5 md:gap-6' : 'gap-6 md:gap-8'}`}>
+              <View className={`flex h-full w-full flex-col justify-center ${isCompactScene ? 'gap-7 md:gap-8' : 'gap-8 md:gap-10'} md:flex-row md:items-center md:justify-between`}>
+                <Animated.View className="md:w-[41%]" style={copyStyle}>
+                  <View className={isCompactScene ? 'gap-3.5' : 'gap-5'}>
+                    <Animated.View
+                      className="self-start rounded-full px-4 py-2"
+                      style={[
+                        {
+                          backgroundColor: '#e8edf6',
+                        },
+                        badgeStyle,
+                      ]}
                     >
-                      Mercury integration
-                    </SemanticText>
-                  </Animated.View>
-
-                  <View className="flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                    <Image
-                      source={{ uri: MERCURY_LOGO_HORIZONTAL }}
-                      style={{ width: logoWidth, height: isCompactScene ? 48 : 72 }}
-                      resizeMode="contain"
-                      accessibilityLabel="Mercury wordmark"
-                    />
-
-                    {onOpenLink ? (
-                      <Animated.View style={badgeStyle} className="md:self-start">
-                        <Pressable
-                          className="rounded-[22px] px-4 py-3"
-                          style={{
-                            width: isCompactScene ? 260 : 300,
-                            backgroundColor: isDark ? '#ffffff' : MERCURY_NAVY,
-                            borderWidth: 1,
-                            borderColor: isDark ? MERCURY_LINE : MERCURY_NAVY,
-                          }}
-                          onPress={() => onOpenLink(mercuryPrimaryCta.href)}
-                        >
-                          <Text
-                            className="text-center text-sm font-semibold"
-                            style={{ lineHeight: 20, color: isDark ? MERCURY_NAVY : '#ffffff' }}
-                          >
-                            {mercuryPrimaryCta.label}
-                          </Text>
-                        </Pressable>
-                      </Animated.View>
-                    ) : null}
-                  </View>
-
-                  <View className={isCompactScene ? 'gap-3' : 'gap-4'}>
-                    <SemanticText
-                      as="p"
-                      className="text-xs font-bold uppercase tracking-[2px]"
-                      style={{ color: MERCURY_NAVY, opacity: 0.56 }}
-                    >
-                      {mercuryCallout.eyebrow}
-                    </SemanticText>
-                    <SemanticText
-                      as="h2"
-                      className={titleClassName}
-                      style={{ color: MERCURY_NAVY }}
-                    >
-                      {mercuryCallout.title}
-                    </SemanticText>
-                  </View>
-
-                  <View className={isCompactScene ? 'gap-2.5' : 'gap-4'}>
-                    {(isCompactScene ? mercuryCallout.body.slice(0, 1) : mercuryCallout.body).map((paragraph) => (
                       <SemanticText
-                        key={paragraph}
                         as="p"
-                        className={isCompactScene ? 'text-base leading-7' : 'text-base leading-8 md:text-lg'}
-                        style={{ color: MERCURY_NAVY, opacity: 0.82 }}
+                        className="text-xs font-bold uppercase tracking-[2px]"
+                        style={{ color: MERCURY_NAVY }}
                       >
-                        {paragraph}
+                        Mercury integration
                       </SemanticText>
+                    </Animated.View>
+
+                    <View>
+                      <Image
+                        source={{ uri: MERCURY_LOGO_HORIZONTAL }}
+                        style={{ width: logoWidth, height: isCompactScene ? 48 : 72 }}
+                        resizeMode="contain"
+                        accessibilityLabel="Mercury wordmark"
+                      />
+                    </View>
+
+                    <View className={isCompactScene ? 'gap-3' : 'gap-4'}>
+                      <SemanticText
+                        as="p"
+                        className="text-xs font-bold uppercase tracking-[2px]"
+                        style={{ color: MERCURY_NAVY, opacity: 0.56 }}
+                      >
+                        {mercuryCallout.eyebrow}
+                      </SemanticText>
+                      <SemanticText
+                        as="h2"
+                        className={titleClassName}
+                        style={{ color: MERCURY_NAVY }}
+                      >
+                        {mercuryCallout.title}
+                      </SemanticText>
+                    </View>
+
+                    <View className={isCompactScene ? 'gap-2.5' : 'gap-4'}>
+                      {(isCompactScene ? mercuryCallout.body.slice(0, 1) : mercuryCallout.body).map((paragraph) => (
+                        <SemanticText
+                          key={paragraph}
+                          as="p"
+                          className={isCompactScene ? 'text-base leading-7' : 'text-base leading-8 md:text-lg'}
+                          style={{ color: MERCURY_NAVY, opacity: 0.82 }}
+                        >
+                          {paragraph}
+                        </SemanticText>
+                      ))}
+                    </View>
+                  </View>
+                </Animated.View>
+
+                <View className="gap-3 md:w-[54%]">
+                  <View className="self-end">
+                    <MercuryPoweredBy />
+                  </View>
+                  <View className={`flex-row flex-wrap justify-between ${isCompactScene ? 'gap-3' : 'gap-4'}`}>
+                    {mercuryBullets.map((bullet, index) => (
+                      <MercuryBulletCard
+                        key={bullet.id}
+                        bullet={bullet}
+                        index={index}
+                        progress={progress}
+                        width={bulletWidth}
+                        compact={isCompactScene}
+                      />
                     ))}
                   </View>
+                  {onOpenLink ? (
+                    <Animated.View style={badgeStyle} className="w-full gap-2.5">
+                      <Pressable
+                        testID="mercury-referral-cta"
+                        className="w-full rounded-[22px] px-4 py-3.5"
+                        style={{
+                          backgroundColor: '#AFE4B7',
+                          borderWidth: 2,
+                          borderColor: '#bb7e5d',
+                        }}
+                        onPress={() => onOpenLink(mercuryPrimaryCta.href)}
+                      >
+                        <Text
+                          className="text-center text-sm font-semibold"
+                          style={{ lineHeight: 20, color: '#1a1f16' }}
+                        >
+                          {mercuryPrimaryCta.label}
+                        </Text>
+                      </Pressable>
+                      <View testID="mercury-referral-disclosure">
+                        <SemanticText
+                          as="p"
+                          className="text-xs leading-5"
+                          style={{ color: MERCURY_NAVY, opacity: 0.8 }}
+                        >
+                          {MERCURY_AFFILIATE_LINK_DISCLOSURE}
+                        </SemanticText>
+                      </View>
+                    </Animated.View>
+                  ) : null}
                 </View>
-              </Animated.View>
-
-              <View className="md:w-[54%]">
-                <View className={`flex-row flex-wrap justify-between ${isCompactScene ? 'gap-3' : 'gap-4'}`}>
-                  {mercuryBullets.map((bullet, index) => (
-                    <MercuryBulletCard
-                      key={bullet.id}
-                      bullet={bullet}
-                      index={index}
-                      progress={progress}
-                      width={bulletWidth}
-                      compact={isCompactScene}
-                    />
-                  ))}
-                </View>
+              </View>
+              <View className="border-t pt-3" style={{ borderTopColor: MERCURY_LINE }}>
+                <MercuryDisclosure />
               </View>
             </View>
           </Animated.View>

@@ -9,6 +9,7 @@ import {
   type MercuryUiAdapter,
 } from '@mr.dj2u/mercury-ui';
 import { MercuryLoadingPanel } from '@/components/mercury-loading-panel';
+import { MercuryPoweredBy } from '@/components/mercury-disclosure';
 import { getCachedMercuryAccountsSnapshot } from '@/services/mercury';
 
 type ControlledMercuryBankOverviewProps = {
@@ -140,7 +141,13 @@ export function ControlledMercuryBankOverview({
   const current = balances?.current ?? balances?.currentBalance ?? selectedAccount?.currentBalance;
 
   if (isLoading) {
-    return <MercuryLoadingPanel subtitle={subtitle} message="Checking Mercury accounts..." />;
+    return (
+      <MercuryLoadingPanel
+        subtitle={subtitle}
+        message="Checking Mercury accounts..."
+        headerAccessory={<MercuryPoweredBy />}
+      />
+    );
   }
 
   return (
@@ -155,7 +162,18 @@ export function ControlledMercuryBankOverview({
       }}
     >
       <View style={{ gap: 8 }}>
-        <MercuryLogo variant="horizontal" size={280} />
+        <View
+          style={{
+            alignItems: 'flex-start',
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+            gap: 12,
+            justifyContent: 'space-between',
+          }}
+        >
+          <MercuryLogo variant="horizontal" size={280} />
+          <MercuryPoweredBy />
+        </View>
         <Text style={{ color: '#d4e0d0', fontSize: 14 }}>{subtitle}</Text>
       </View>
 

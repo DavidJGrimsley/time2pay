@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Octicons } from '@expo/vector-icons';
 import { Image, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { InlineNotice } from '@/components/inline-notice';
+import { MercuryDisclosure, MercuryPoweredBy } from '@/components/mercury-disclosure';
 import { readTrimmedPublicRuntimeConfigValue } from '@/services/runtime-config';
 import { useIntegrationsScreen } from './integrations-logic';
 import { GITHUB_PAT_CREATE_URL, GITHUB_PAT_DOCS_URL } from './github-oauth-shared';
@@ -198,7 +199,10 @@ export function IntegrationsScreen() {
 
       {shouldShowHostedMercuryCredentials || tourModeEnabled ? (
         <View testID="mercury-integration-card" className="gap-3 rounded-xl bg-card p-4">
-          <Text className="text-xl font-bold text-heading">Mercury</Text>
+          <View className="flex-row items-start justify-between gap-3">
+            <Text className="flex-1 text-xl font-bold text-heading">Mercury</Text>
+            <MercuryPoweredBy />
+          </View>
           {shouldShowHostedMercuryCredentials ? (
             <View className="gap-2.5 rounded-md border border-border bg-background p-3">
               <View className="flex-row items-center gap-2">
@@ -351,6 +355,7 @@ export function IntegrationsScreen() {
           {mercuryStatus ? (
             <InlineNotice tone={mercuryStatus.tone} message={mercuryStatus.message} />
           ) : null}
+          <MercuryDisclosure />
         </View>
       ) : null}
 

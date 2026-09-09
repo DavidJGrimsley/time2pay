@@ -1,4 +1,4 @@
-import type { PropsWithChildren } from 'react';
+import type { PropsWithChildren, ReactNode } from 'react';
 import { Image, Linking, Pressable, Text, View } from 'react-native';
 import { Link, type Href } from 'expo-router';
 import { CosmosLoadingAnimation } from '@/components/UI/Loading';
@@ -15,12 +15,14 @@ function MercuryBlockedCard({
   ctaLabel,
   ctaHref,
   ctaExternalUrl,
+  headerAccessory,
 }: {
   title: string;
   message: string;
   ctaLabel?: string;
   ctaHref?: string;
   ctaExternalUrl?: string;
+  headerAccessory?: ReactNode;
 }) {
   const ctaButton =
     ctaLabel && (ctaHref || ctaExternalUrl) ? (
@@ -49,14 +51,25 @@ function MercuryBlockedCard({
         gap: 12,
       }}
     >
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-        <Image
-          source={{ uri: MERCURY_LOGO_ICON }}
-          style={{ width: 24, height: 24 }}
-          resizeMode="contain"
-          accessibilityLabel="Mercury"
-        />
-        <Text style={{ fontSize: 16, fontWeight: '700', color: MERCURY_NAVY }}>{title}</Text>
+      <View
+        style={{
+          alignItems: 'flex-start',
+          flexDirection: 'row',
+          flexWrap: 'wrap',
+          gap: 10,
+          justifyContent: 'space-between',
+        }}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Image
+            source={{ uri: MERCURY_LOGO_ICON }}
+            style={{ width: 24, height: 24 }}
+            resizeMode="contain"
+            accessibilityLabel="Mercury"
+          />
+          <Text style={{ fontSize: 16, fontWeight: '700', color: MERCURY_NAVY }}>{title}</Text>
+        </View>
+        {headerAccessory}
       </View>
       <Text style={{ fontSize: 13, lineHeight: 20, color: '#4a4a6a' }}>{message}</Text>
       {ctaHref && ctaLabel ? (
@@ -72,15 +85,20 @@ function MercuryBlockedCard({
 
 type MercuryKeyGateProps = PropsWithChildren<{
   requireArAccess?: boolean;
+  headerAccessory?: ReactNode;
 }>;
 
-export function MercuryKeyGate({ children, requireArAccess = false }: MercuryKeyGateProps) {
+export function MercuryKeyGate({
+  children,
+  requireArAccess = false,
+  headerAccessory,
+}: MercuryKeyGateProps) {
   const { isLoading, accessMode, configured, arAccessAvailable, requiresSignIn } =
     useMercuryKeyStatus();
 
   if (isLoading || accessMode === null) {
     return (
-      <View
+        <View
         style={{
           alignItems: 'center',
           borderRadius: 12,
@@ -90,7 +108,8 @@ export function MercuryKeyGate({ children, requireArAccess = false }: MercuryKey
           gap: 8,
           padding: 20,
         }}
-      >
+        >
+        {headerAccessory ? <View style={{ alignSelf: 'flex-end' }}>{headerAccessory}</View> : null}
         <CosmosLoadingAnimation size={56} />
         <Text style={{ fontSize: 13, color: '#4a4a6a' }}>Checking Mercury connection...</Text>
       </View>
@@ -102,6 +121,7 @@ export function MercuryKeyGate({ children, requireArAccess = false }: MercuryKey
       <MercuryBlockedCard
         title="Hosted mode required"
         message="Mercury features use your saved API key from your hosted profile. Switch to hosted mode or use tour mode for a sandbox preview."
+        headerAccessory={headerAccessory}
       />
     );
   }
@@ -113,6 +133,7 @@ export function MercuryKeyGate({ children, requireArAccess = false }: MercuryKey
         message="Sign in to use Mercury banking and payment features with your saved API key."
         ctaLabel="Sign In"
         ctaHref="/sign-in"
+        headerAccessory={headerAccessory}
       />
     );
   }
@@ -124,6 +145,7 @@ export function MercuryKeyGate({ children, requireArAccess = false }: MercuryKey
         message="Save your Mercury production API key in Settings to unlock banking and payment features."
         ctaLabel="Open Settings"
         ctaHref="/settings/integrations"
+        headerAccessory={headerAccessory}
       />
     );
   }
@@ -139,6 +161,7 @@ export function MercuryKeyGate({ children, requireArAccess = false }: MercuryKey
         message="Mercury invoicing (the AR API) is only available on Mercury Plus or higher. If you have a Plus plan, open Settings and click 'Enable Mercury Invoicing' to turn it on."
         ctaLabel="Open Settings"
         ctaHref="/settings/integrations"
+        headerAccessory={headerAccessory}
       />
     );
   }

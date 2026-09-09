@@ -324,8 +324,7 @@ function PricingHighlight({ compact }: { compact: boolean }) {
         </View>
         <SemanticText as="p" className="text-base leading-7 text-foreground">
           Month-to-month access for contractors who want sign-in, cloud storage, and Mercury integration managed for
-          them. Pay $2/month and cancel whenever, or choose the $20 annual plan. The Mercury referral reward is coming
-          soon while attribution reporting is connected.
+          them. Pay $2/month and cancel whenever, or choose the $20 annual plan.
         </SemanticText>
       </View>
     </View>

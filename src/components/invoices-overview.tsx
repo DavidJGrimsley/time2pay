@@ -8,6 +8,7 @@ import { useStableWindowDimensions } from '@/hooks/use-stable-window-dimensions'
 import { useTime2PayMercurySessionWorkspace } from '@/hooks/use-time2pay-mercury-session-workspace';
 import { mercuryUiAdapter } from '@/services/mercury-ui-adapters';
 import { getUserProfile, upsertUserProfile, type InvoiceBuilderMode } from '@/database/db';
+import { MercuryDisclosure, MercuryPoweredBy } from '@/components/mercury-disclosure';
 
 export function InvoicesOverview() {
   const { width } = useStableWindowDimensions();
@@ -66,12 +67,27 @@ export function InvoicesOverview() {
           </View>
 
           {builderMode === 'mercury' ? (
-            <MercuryKeyGate requireArAccess>
-              <MercurySessionInvoiceWorkspace
-                adapter={mercuryUiAdapter}
-                sessionAdapter={sessionAdapter}
-              />
-            </MercuryKeyGate>
+            <View className="gap-3">
+              <MercuryKeyGate requireArAccess headerAccessory={<MercuryPoweredBy />}>
+                <View>
+                  <MercurySessionInvoiceWorkspace
+                    adapter={mercuryUiAdapter}
+                    sessionAdapter={sessionAdapter}
+                  />
+                  <View
+                    style={{
+                      position: 'absolute',
+                      right: 20,
+                      top: width < 560 ? 112 : 20,
+                      zIndex: 1,
+                    }}
+                  >
+                    <MercuryPoweredBy />
+                  </View>
+                </View>
+              </MercuryKeyGate>
+              <MercuryDisclosure />
+            </View>
           ) : null}
           {builderMode === 't2p' ? (
             <InvoiceBuilder onInvoiceCreated={triggerRefresh} refreshKey={refreshKey} />

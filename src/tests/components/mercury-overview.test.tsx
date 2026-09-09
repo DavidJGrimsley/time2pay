@@ -51,6 +51,10 @@ vi.mock('@/components/payments-overview', () => ({
     React.createElement('PaymentsOverview', { showHeader }),
 }));
 
+vi.mock('@/components/mercury-disclosure', () => ({
+  MercuryDisclosure: () => React.createElement('MercuryDisclosure'),
+}));
+
 describe('MercuryOverview', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -67,6 +71,7 @@ describe('MercuryOverview', () => {
 
     expect(root.root.findByType('BankOverview' as never).props.showHeader).toBe(false);
     expect(root.root.findAllByType('PaymentsOverview' as never)).toHaveLength(0);
+    expect(root.root.findAllByType('MercuryDisclosure' as never)).toHaveLength(1);
     expect(
       root.root.find(
         (node: renderer.ReactTestInstance) => String(node.type) === 'Text' && node.props.children === 'Accounts',
@@ -98,5 +103,6 @@ describe('MercuryOverview', () => {
 
     expect(root.root.findByType('PaymentsOverview' as never).props.showHeader).toBe(false);
     expect(root.root.findAllByType('BankOverview' as never)).toHaveLength(0);
+    expect(root.root.findAllByType('MercuryDisclosure' as never)).toHaveLength(1);
   });
 });

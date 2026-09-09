@@ -49,7 +49,7 @@ export const heroSection: LandingSection = {
   title: 'Time2Pay',
   body: [
     'Clock in when work starts, keep hours organized by client and project, and build invoices from your actual time records—not a spreadsheet you reconstructed after the fact.',
-    'Get started for $2/month or $20/year, or self-host for free. The Mercury referral reward is coming soon.',
+    'Get started for $2/month or $20/year, or self-host for free.',
   ],
 };
 
@@ -158,21 +158,19 @@ export const pricingSection: LandingSection = {
   title: '$2/month, $20/year, or self-host for free.',
   body: [
     'Time2Pay keeps the core app self-hostable for operators who want full control. Paid Time2Pay is simple: choose $2/month or the recommended $20 annual plan.',
-    'Mercury referral attribution is being connected. Once verification is reliable, qualified referrals will receive free lifetime access.',
   ],
   ctas: [
     { label: 'Start Hosted for $2/month', href: '/settings', kind: 'primary' },
-    { label: 'Sign Up Through Time2Pay', href: MERCURY_REFERRAL_URL, kind: 'primary' },
     { label: 'Self-Host for Free', href: TIME2PAY_GITHUB_URL, kind: 'secondary' },
   ],
 };
 
 export const pricingBullets: LandingBullet[] = [
   {
-    id: 'mercury-lifetime',
-    title: 'Mercury reward coming soon',
-    body: 'Referral attribution and qualification reporting are being connected with Mercury.',
-    cta: { label: 'See Referral Status', href: MERCURY_REFERRAL_STATUS_PATH, kind: 'primary' },
+    id: 'mercury-integration',
+    title: 'Mercury integration',
+    body: 'Review Mercury account context and invoice drafts without leaving your Time2Pay workflow.',
+    cta: { label: 'Open Mercury', href: '/mercury', kind: 'primary' },
   },
   {
     id: 'hosted',
@@ -195,7 +193,6 @@ export const ctaSection: LandingSection = {
   body: [],
   ctas: [
     { label: 'Start Hosted for $2/month', href: '/settings', kind: 'primary' },
-    { label: 'Sign Up Through Time2Pay', href: MERCURY_REFERRAL_URL, kind: 'primary' },
     { label: 'Self-Host for Free', href: TIME2PAY_GITHUB_URL, kind: 'secondary' },
   ],
 };

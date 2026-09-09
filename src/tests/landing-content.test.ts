@@ -42,12 +42,12 @@ describe('landing page content', () => {
     expect(landingCopy).toContain('$2/month');
     expect(landingCopy).toContain('$20/year');
     expect(landingCopy).toContain('Self-Host for Free');
-    expect(landingCopy).toContain('Mercury reward coming soon');
+    expect(landingCopy).not.toMatch(/Mercury referral reward/i);
     expect(features[1]?.id).toBe('invoices');
     expect(features[1]?.body).toContain('branded invoices');
     expect(features[2]?.title).toBe('Keep every billable hour tied to the right client and project.');
     expect(pricingBullets.map((bullet) => bullet.id)).toEqual([
-      'mercury-lifetime',
+      'mercury-integration',
       'hosted',
       'self-host',
     ]);

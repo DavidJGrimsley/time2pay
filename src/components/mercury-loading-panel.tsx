@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Text, View } from 'react-native';
 import { MercuryLogo } from '@mr.dj2u/mercury-ui';
 import { CosmosLoadingAnimation } from '@/components/UI/Loading';
@@ -5,9 +6,14 @@ import { CosmosLoadingAnimation } from '@/components/UI/Loading';
 type MercuryLoadingPanelProps = {
   subtitle: string;
   message: string;
+  headerAccessory?: ReactNode;
 };
 
-export function MercuryLoadingPanel({ subtitle, message }: MercuryLoadingPanelProps) {
+export function MercuryLoadingPanel({
+  subtitle,
+  message,
+  headerAccessory,
+}: MercuryLoadingPanelProps) {
   return (
     <View
       style={{
@@ -20,7 +26,18 @@ export function MercuryLoadingPanel({ subtitle, message }: MercuryLoadingPanelPr
       }}
     >
       <View style={{ gap: 8 }}>
-        <MercuryLogo variant="horizontal" size={280} />
+        <View
+          style={{
+            alignItems: 'flex-start',
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+            gap: 12,
+            justifyContent: 'space-between',
+          }}
+        >
+          <MercuryLogo variant="horizontal" size={280} />
+          {headerAccessory}
+        </View>
         <Text style={{ color: '#d4e0d0', fontSize: 15 }}>{subtitle}</Text>
       </View>
 
