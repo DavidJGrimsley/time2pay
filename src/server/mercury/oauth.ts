@@ -10,6 +10,11 @@ import { sql } from 'drizzle-orm';
 import { requireConfiguredSiteOrigin } from '@/services/site-origin';
 import { withWriteDb, type WriteDb } from '@/server/db/_shared/db';
 import { recordMercuryCredentialEvent } from '@/server/mercury/audit';
+import {
+  DEFAULT_MERCURY_OAUTH_RETURN_PATH,
+  normalizeMercuryOAuthReturnPath,
+  type MercuryOAuthReturnPath,
+} from '@/services/mercury-oauth-return-paths';
 
 export type MercuryOAuthEnvironment = 'production' | 'sandbox';
 export type MercuryOAuthConnectionState =
@@ -65,6 +70,7 @@ type AttemptRow = {
   flow?: 'connect' | 'reconnect';
   pkce_verifier_vault_secret_id?: string | null;
   redirect_uri?: string;
+  return_path?: string;
 };
 
 type ConsumedAttempt = AttemptRow & {
@@ -81,7 +87,6 @@ type TokenResponse = {
 
 const MERCURY_OAUTH_SCOPES = ['read', 'offline_access'] as const;
 const MERCURY_OAUTH_CALLBACK_PATH = '/api/mercury-oauth/callback';
-const MERCURY_OAUTH_RETURN_PATH = '/settings/integrations';
 const OAUTH_ATTEMPT_TTL_MS = 10 * 60 * 1000;
 const ACCESS_TOKEN_REFRESH_LEEWAY_MS = 60 * 1000;
 const DEFAULT_ACCESS_TOKEN_LIFETIME_SECONDS = 60 * 60;
@@ -333,8 +338,10 @@ export async function getMercuryOAuthConnectionStatusForUser(
 
 export async function startMercuryOAuthForUser(
   authUserId: string,
+  returnPath: MercuryOAuthReturnPath = DEFAULT_MERCURY_OAUTH_RETURN_PATH,
 ): Promise<MercuryOAuthStartResult> {
   const config = getMercuryOAuthConfig();
+  const safeReturnPath = normalizeMercuryOAuthReturnPath(returnPath);
   const state = base64Url(randomBytes(32));
   const stateHash = hashState(state);
   const codeVerifier = base64Url(randomBytes(64));
@@ -375,6 +382,7 @@ export async function startMercuryOAuthForUser(
         flow,
         pkce_verifier_vault_secret_id,
         redirect_uri,
+        return_path,
         expires_at
       ) values (
         ${stateHash},
@@ -383,6 +391,7 @@ export async function startMercuryOAuthForUser(
         ${nextFlow},
         ${verifierSecretId}::uuid,
         ${config.redirectUri},
+        ${safeReturnPath},
         ${expiresAt}::timestamptz
       )
     `);
@@ -409,7 +418,8 @@ async function consumeOAuthAttempt(state: string): Promise<ConsumedAttempt> {
         environment,
         flow,
         pkce_verifier_vault_secret_id,
-        redirect_uri
+        redirect_uri,
+        return_path
       from mercury_oauth_attempts
       where state_hash = ${stateHash}
         and consumed_at is null
@@ -659,8 +669,9 @@ async function saveAuthorizationGrant(
 function callbackRedirect(
   config: MercuryOAuthConfig,
   outcome: 'connected' | 'reconnected' | 'cancelled' | 'error',
+  returnPath: unknown = DEFAULT_MERCURY_OAUTH_RETURN_PATH,
 ): Response {
-  const location = new URL(MERCURY_OAUTH_RETURN_PATH, config.siteOrigin);
+  const location = new URL(normalizeMercuryOAuthReturnPath(returnPath), config.siteOrigin);
   location.searchParams.set('mercury_oauth', outcome);
   return new Response(null, {
     status: 303,
@@ -688,18 +699,22 @@ export async function handleMercuryOAuthCallback(request: Request): Promise<Resp
   }
 
   if (attempt.environment !== config.environment || attempt.redirect_uri !== config.redirectUri) {
-    return callbackRedirect(config, 'error');
+    return callbackRedirect(config, 'error', attempt.return_path);
   }
 
   const providerError = url.searchParams.get('error')?.trim() ?? '';
   if (providerError) {
-    return callbackRedirect(config, providerError === 'access_denied' ? 'cancelled' : 'error');
+    return callbackRedirect(
+      config,
+      providerError === 'access_denied' ? 'cancelled' : 'error',
+      attempt.return_path,
+    );
   }
 
   const code = url.searchParams.get('code')?.trim() ?? '';
   const verifier = attempt.codeVerifier.trim();
   if (!code || !verifier || !attempt.auth_user_id || !attempt.redirect_uri || !attempt.flow) {
-    return callbackRedirect(config, 'error');
+    return callbackRedirect(config, 'error', attempt.return_path);
   }
 
   try {
@@ -710,12 +725,16 @@ export async function handleMercuryOAuthCallback(request: Request): Promise<Resp
       verifier,
     );
     await saveAuthorizationGrant(attempt.auth_user_id, config, tokens, attempt.flow);
-    return callbackRedirect(config, attempt.flow === 'reconnect' ? 'reconnected' : 'connected');
+    return callbackRedirect(
+      config,
+      attempt.flow === 'reconnect' ? 'reconnected' : 'connected',
+      attempt.return_path,
+    );
   } catch (error) {
     console.error('mercury_oauth_callback_failed', {
       code: error instanceof MercuryOAuthError ? error.code : 'oauth_callback_failed',
     });
-    return callbackRedirect(config, 'error');
+    return callbackRedirect(config, 'error', attempt.return_path);
   }
 }
 

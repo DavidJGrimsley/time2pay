@@ -12,6 +12,7 @@ export type Time2PayRouteClassification = {
   isLegalUpdateRoute: boolean;
   isOnboardingAuthRoute: boolean;
   isOnboardingLegalRoute: boolean;
+  isOnboardingMercuryRoute: boolean;
   isOnboardingRoute: boolean;
   isPricingRoute: boolean;
   isPublicRoute: boolean;
@@ -126,6 +127,7 @@ export function classifyTime2PayRoute(pathname: string): Time2PayRouteClassifica
   const isOnboardingRoute = isOnboardingPath(normalizedPathname);
   const isOnboardingAuthRoute = normalizedPathname === '/onboarding/auth';
   const isOnboardingLegalRoute = normalizedPathname === '/onboarding/legal';
+  const isOnboardingMercuryRoute = normalizedPathname === '/onboarding/mercury';
   const isLegalDocumentRoute = isLegalDocumentPath(normalizedPathname);
   const isLegalUpdateRoute = isLegalUpdatePath(normalizedPathname);
   const isAccessRequiredRoute = normalizedPathname === '/access-required';
@@ -152,6 +154,7 @@ export function classifyTime2PayRoute(pathname: string): Time2PayRouteClassifica
     isLegalUpdateRoute,
     isOnboardingAuthRoute,
     isOnboardingLegalRoute,
+    isOnboardingMercuryRoute,
     isOnboardingRoute,
     isPricingRoute,
     isPublicRoute,
@@ -198,7 +201,7 @@ export function resolveHostedRouteGate(input: ResolveHostedRouteGateInput): Host
   }
 
   if (!input.isAuthenticated) {
-    const redirectTarget = route.isOnboardingLegalRoute
+    const redirectTarget = route.isOnboardingLegalRoute || route.isOnboardingMercuryRoute
       ? '/onboarding/auth'
       : route.isAppRoute || route.isAccountRoute
         ? '/sign-in'
@@ -246,13 +249,30 @@ export function resolveHostedRouteGate(input: ResolveHostedRouteGateInput): Host
     const redirectTargetFromOnboarding =
       route.normalizedPathname === '/onboarding' ||
       route.normalizedPathname === '/onboarding/features' ||
-      route.isOnboardingAuthRoute
+      route.isOnboardingAuthRoute ||
+      route.isOnboardingMercuryRoute
         ? '/onboarding/legal'
         : null;
     const redirectTarget =
       route.isAccountRoute || route.isPricingRoute || canStayOnLegalGate
         ? null
         : redirectTargetFromOnboarding ?? '/legal/updates';
+
+    return toDecision(route, {
+      canAccessAccountRoutes: true,
+      canAccessAppRoutes: false,
+      canMountAccountRoutes: true,
+      canMountAppRoutes: route.isAppRoute,
+      redirectTarget,
+      shouldShowLoadingShell: route.isAppRoute,
+    });
+  }
+
+  if (input.onboardingGateStatus === 'needs-mercury') {
+    const canStayOnMercuryGate =
+      route.isOnboardingMercuryRoute || route.isLegalDocumentRoute || route.isAccountRoute;
+    const redirectTarget =
+      canStayOnMercuryGate || route.isPricingRoute ? null : '/onboarding/mercury';
 
     return toDecision(route, {
       canAccessAccountRoutes: true,

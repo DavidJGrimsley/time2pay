@@ -48,7 +48,13 @@ describe('classifyTime2PayRoute', () => {
     },
   );
 
-  it.each(['/onboarding', '/onboarding/features', '/onboarding/auth', '/onboarding/legal'])(
+  it.each([
+    '/onboarding',
+    '/onboarding/features',
+    '/onboarding/auth',
+    '/onboarding/legal',
+    '/onboarding/mercury',
+  ])(
     'keeps onboarding route %s public',
     (pathname) => {
       const route = classifyTime2PayRoute(pathname);
@@ -109,6 +115,10 @@ describe('resolveHostedRouteGate direct URL access', () => {
     expect(gate({ pathname: '/onboarding/legal' }).redirectTarget).toBe('/onboarding/auth');
   });
 
+  it('sends signed-out Mercury onboarding visits to onboarding auth', () => {
+    expect(gate({ pathname: '/onboarding/mercury' }).redirectTarget).toBe('/onboarding/auth');
+  });
+
   it('keeps public legal, pricing, and legal-update pages public for signed-out users', () => {
     for (const pathname of ['/pricing', '/privacy', '/terms', '/legal/updates', '/animations']) {
       expect(gate({ pathname }).redirectTarget).toBeNull();
@@ -162,7 +172,13 @@ describe('resolveHostedRouteGate first navigation after auth', () => {
 });
 
 describe('resolveHostedRouteGate onboarding completion', () => {
-  it.each(['/onboarding', '/onboarding/features', '/onboarding/auth', '/onboarding/legal'])(
+  it.each([
+    '/onboarding',
+    '/onboarding/features',
+    '/onboarding/auth',
+    '/onboarding/legal',
+    '/onboarding/mercury',
+  ])(
     'sends completed users away from %s and into the app',
     (pathname) => {
       expect(signedInComplete({ pathname }).redirectTarget).toBe('/dashboard');
@@ -226,6 +242,44 @@ describe('resolveHostedRouteGate onboarding gating', () => {
         isAuthenticated: true,
         onboardingGateReady: true,
         onboardingGateStatus: 'needs-onboarding',
+        pathname,
+      });
+
+      expect(decision.redirectTarget).toBeNull();
+      expect(decision.canAccessAppRoutes).toBe(false);
+    },
+  );
+
+  it('sends direct Mercury visits back to legal when legal review is incomplete', () => {
+    const decision = gate({
+      isAuthenticated: true,
+      onboardingGateReady: true,
+      onboardingGateStatus: 'needs-legal',
+      pathname: '/onboarding/mercury',
+    });
+
+    expect(decision.redirectTarget).toBe('/onboarding/legal');
+  });
+
+  it('sends users awaiting a Mercury choice to the Mercury onboarding step', () => {
+    const decision = gate({
+      isAuthenticated: true,
+      onboardingGateReady: true,
+      onboardingGateStatus: 'needs-mercury',
+      pathname: '/dashboard',
+    });
+
+    expect(decision.redirectTarget).toBe('/onboarding/mercury');
+    expect(decision.canAccessAppRoutes).toBe(false);
+  });
+
+  it.each(['/onboarding/mercury', '/settings/integrations', '/terms', '/pricing'])(
+    'allows users awaiting a Mercury choice to stay on %s',
+    (pathname) => {
+      const decision = gate({
+        isAuthenticated: true,
+        onboardingGateReady: true,
+        onboardingGateStatus: 'needs-mercury',
         pathname,
       });
 

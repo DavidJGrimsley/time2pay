@@ -12,7 +12,7 @@ import { useAppTheme } from '../../theme/provider';
 import { onboardingConfig } from './onboarding-config';
 import {
   acceptTime2PayLegalDocument,
-  completeTime2PayOnboarding,
+  completeTime2PayLegalStep,
   getRequiredOnboardingLegalDocuments,
   loadTime2PayOnboardingGateSnapshot,
 } from './onboarding-state';
@@ -80,7 +80,7 @@ export default function OnboardingLegalReviewScreen() {
   );
   const [isLoadingAcceptance, setIsLoadingAcceptance] = useState(true);
   const [savingDocumentId, setSavingDocumentId] = useState<LegalDocumentId | null>(null);
-  const [isCompleting, setIsCompleting] = useState(false);
+  const [isContinuing, setIsContinuing] = useState(false);
   const [status, setStatus] = useState<StatusNotice | null>(null);
   const authReady = useAuthUiStore((state) => state.authReady);
   const isAuthenticated = useAuthUiStore((state) => state.isAuthenticated);
@@ -132,6 +132,8 @@ export default function OnboardingLegalReviewScreen() {
 
         if (snapshot.status === 'complete') {
           router.replace('/dashboard');
+        } else if (snapshot.status === 'needs-mercury') {
+          router.replace('/onboarding/mercury');
         }
       })
       .catch((error: unknown) => {
@@ -180,11 +182,11 @@ export default function OnboardingLegalReviewScreen() {
       .finally(() => setSavingDocumentId(null));
   };
 
-  const completeOnboarding = () => {
-    setIsCompleting(true);
+  const continueOnboarding = () => {
+    setIsContinuing(true);
     setStatus(null);
 
-    completeTime2PayOnboarding()
+    completeTime2PayLegalStep()
       .then(() => loadTime2PayOnboardingGateSnapshot())
       .then((snapshot) => {
         syncOnboardingGate({
@@ -192,15 +194,19 @@ export default function OnboardingLegalReviewScreen() {
           completedStepIds: snapshot.completedStepIds,
           missingLegalDocumentIds: snapshot.missingDocumentIds,
         });
-        router.replace(onboardingConfig.completion.route);
+        router.replace(
+          snapshot.status === 'complete'
+            ? onboardingConfig.completion.route
+            : '/onboarding/mercury',
+        );
       })
       .catch((error: unknown) => {
         const message =
-          error instanceof Error ? error.message : 'Failed to complete onboarding.';
+          error instanceof Error ? error.message : 'Failed to save legal review progress.';
         setStatus({ tone: 'error', message });
         setOnboardingGateError(message);
       })
-      .finally(() => setIsCompleting(false));
+      .finally(() => setIsContinuing(false));
   };
 
   if (!authReady || isLoadingAcceptance) {
@@ -242,13 +248,13 @@ export default function OnboardingLegalReviewScreen() {
 
       <Pressable
         accessibilityRole="button"
-        disabled={!hasAcceptedRequiredDocuments || isCompleting || savingDocumentId !== null}
-        onPress={completeOnboarding}
+        disabled={!hasAcceptedRequiredDocuments || isContinuing || savingDocumentId !== null}
+        onPress={continueOnboarding}
         style={[
           styles.primaryButton,
           {
             backgroundColor:
-              hasAcceptedRequiredDocuments && !isCompleting ? colors.primary : colors.surface,
+              hasAcceptedRequiredDocuments && !isContinuing ? colors.primary : colors.surface,
             borderRadius: theme.layout.radius,
           },
         ]}>
@@ -256,10 +262,10 @@ export default function OnboardingLegalReviewScreen() {
           style={[
             styles.primaryButtonText,
             {
-              color: hasAcceptedRequiredDocuments && !isCompleting ? primaryForeground : colors.text,
+              color: hasAcceptedRequiredDocuments && !isContinuing ? primaryForeground : colors.text,
             },
           ]}>
-          {isCompleting ? 'Saving acceptance...' : onboardingConfig.completion.label}
+          {isContinuing ? 'Saving acceptance...' : 'Continue to Mercury'}
         </Text>
       </Pressable>
 

@@ -137,6 +137,7 @@ export const mercuryOAuthAttempts = pgTable(
     flow: text('flow').notNull(),
     pkceVerifierVaultSecretId: uuid('pkce_verifier_vault_secret_id'),
     redirectUri: text('redirect_uri').notNull(),
+    returnPath: text('return_path').default('/settings/integrations').notNull(),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     consumedAt: timestamp('consumed_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),

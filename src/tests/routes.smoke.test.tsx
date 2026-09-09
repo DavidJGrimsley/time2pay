@@ -105,6 +105,10 @@ vi.mock('@/features/animations/animation-gallery-screen', () => ({
   AnimationGalleryScreen: () => null,
 }));
 
+vi.mock('@/features/onboarding/mercury-onboarding-screen', () => ({
+  default: () => null,
+}));
+
 vi.mock('../app/settings', () => ({ default: () => null }));
 vi.mock('../app/settings/integrations', () => ({ default: () => null }));
 
@@ -137,5 +141,10 @@ describe('web route smoke tests', () => {
   it('renders the public Animations route shell', async () => {
     const { default: AnimationsRoute } = await import('../app/animations');
     expect(() => renderer.create(<AnimationsRoute />)).not.toThrow();
+  });
+
+  it('renders the Mercury onboarding route shell', async () => {
+    const { default: MercuryOnboardingRoute } = await import('../app/onboarding/mercury');
+    expect(() => renderer.create(<MercuryOnboardingRoute />)).not.toThrow();
   });
 });

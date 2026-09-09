@@ -21,6 +21,17 @@ export interface OnboardingCompletionConfig {
   helperText: string;
 }
 
+export interface MercuryOnboardingConfig {
+  title: string;
+  body: string;
+  existingCustomerTitle: string;
+  existingCustomerBody: string;
+  newCustomerTitle: string;
+  newCustomerBody: string;
+  advancedAccessTitle: string;
+  advancedAccessBody: string;
+}
+
 export interface OnboardingConfig {
   appName: string;
   welcomeEyebrow: string;
@@ -37,6 +48,7 @@ export interface OnboardingConfig {
     title: string;
     body: string;
   };
+  mercury: MercuryOnboardingConfig;
   completeTitle: string;
   completeBody: string;
   completion: OnboardingCompletionConfig;
@@ -97,6 +109,20 @@ export const onboardingConfig: OnboardingConfig = {
   legal: {
     title: 'Review the basics',
     body: 'Please review and accept the current Time2Pay Terms of Service and Privacy Policy before entering your account.',
+  },
+  mercury: {
+    title: 'How do you want to use Mercury?',
+    body:
+      'Mercury is optional. Choose the path that matches you now, or skip it and connect later from Settings.',
+    existingCustomerTitle: 'I already use Mercury',
+    existingCustomerBody:
+      'Connect read-only access so Time2Pay can show account and transaction context without exposing your credentials.',
+    newCustomerTitle: 'I need a Mercury account',
+    newCustomerBody:
+      'Open Mercury through the Time2Pay partner page so the referral can be attributed correctly.',
+    advancedAccessTitle: 'Advanced access is separate',
+    advancedAccessBody:
+      'Mercury invoicing and payment actions need additional API permissions and, for invoicing, an eligible Mercury plan. Set those up later in Integrations.',
   },
   completeTitle: 'You are ready to begin',
   completeBody: 'Enter the app and start setting up your first client, project, and billable session.',

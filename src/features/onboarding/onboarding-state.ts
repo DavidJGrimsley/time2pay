@@ -2,6 +2,7 @@ import {
   acceptHostedLegalDocument,
   completeHostedOnboarding,
   getHostedOnboardingGateSnapshot,
+  recordHostedOnboardingAnswer,
   recordHostedOnboardingStepCompleted,
   type HostedOnboardingGateSnapshot,
   type LegalDocumentRequirement,
@@ -64,4 +65,20 @@ export async function acceptTime2PayLegalDocument(documentId: LegalDocumentId): 
 
 export function completeTime2PayOnboarding(): Promise<void> {
   return completeHostedOnboarding(getRequiredOnboardingLegalDocuments());
+}
+
+export function completeTime2PayLegalStep(): Promise<void> {
+  return recordHostedOnboardingStepCompleted('legal', {
+    source: 'legal-review',
+  });
+}
+
+export type MercuryOnboardingChoice = 'existing-customer' | 'new-customer' | 'not-now';
+
+export function recordTime2PayMercuryOnboardingChoice(
+  choice: MercuryOnboardingChoice,
+): Promise<void> {
+  return recordHostedOnboardingAnswer('mercury', 'customer-path', choice, {
+    source: 'mercury-onboarding',
+  });
 }
